@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import {
   View,
   Text,
@@ -15,6 +15,7 @@ import {
 import DateTimePicker from "@react-native-community/datetimepicker";
 import COLORS from "../../constant/colors";
 import axios from "axios";
+import * as ImagePicker from "expo-image-picker";
 
 export default function Profile({
   apiEndpoint = "https://example.com/api/profile",
@@ -24,11 +25,12 @@ export default function Profile({
   const [profile, setProfile] = useState({
     fullName: "",
     dob: null,
+    address: "",
     licensePlate: "",
     phone: "",
     bankAccountNumber: "",
     bankName: "",
-    verificationImage: null, // { uri, fileName, type, fileSize }
+    verificationImage: null,
   });
 
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -41,54 +43,53 @@ export default function Profile({
   };
 
   const pickImage = async () => {
-    const options = {
-      mediaType: "photo",
-      quality: 0.8,
-      includeBase64: false,
-    };
-    Alert.alert(
-      "Chọn ảnh xác thực",
-      "Chọn nguồn ảnh",
-      [
-        {
-          text: "Camera",
-          onPress: async () => {
-            const res = await launchCamera(options);
-            handleImageResponse(res);
-          },
-        },
-        {
-          text: "Thư viện",
-          onPress: async () => {
-            const res = await launchImageLibrary(options);
-            handleImageResponse(res);
-          },
-        },
-        { text: "Huỷ", style: "cancel" },
-      ],
-      { cancelable: true }
-    );
-  };
-
-  const handleImageResponse = (res) => {
-    if (res.didCancel) return;
-    if (res.errorCode) {
-      Alert.alert("Lỗi khi chọn ảnh", res.errorMessage || "Không thể chọn ảnh");
+    const permissionResult =
+      await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (permissionResult.status !== "granted") {
+      Alert.alert(
+        "Quyền bị từ chối",
+        "Cần quyền truy cập thư viện ảnh để chọn ảnh."
+      );
       return;
     }
-    // phản hồi có assets array
-    const asset = res.assets && res.assets[0];
-    if (!asset) return;
-    const file = {
-      uri:
-        Platform.OS === "android"
-          ? asset.uri
-          : asset.uri.replace("file://", ""),
-      fileName: asset.fileName || `photo_${Date.now()}.jpg`,
-      type: asset.type || "image/jpeg",
-      fileSize: asset.fileSize,
-    };
-    update("verificationImage", file);
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      quality: 0.8,
+      allowsEditing: true,
+    });
+
+    if (!result.canceled) {
+      const asset = result.assets[0];
+      const file = {
+        uri: asset.uri,
+        fileName: asset.fileName || `photo_${Date.now()}.jpg`,
+        type: asset.type || "image/jpeg",
+      };
+      update("verificationImage", file);
+    }
+  };
+
+  const takePhoto = async () => {
+    const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+    if (permissionResult.status !== "granted") {
+      Alert.alert("Không có quyền", "Cần cấp quyền camera để chụp ảnh.");
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ["images"],
+      quality: 0.8,
+    });
+
+    if (!result.canceled) {
+      const asset = result.assets[0];
+      update("verificationImage", {
+        uri: asset.uri,
+        fileName: `photo_${Date.now()}.jpg`,
+        type: "image/jpeg",
+      });
+    }
   };
 
   const validate = () => {
@@ -105,9 +106,9 @@ export default function Profile({
     if (!profile.phone || !/^\+?\d{7,15}$/.test(profile.phone.trim())) {
       e.phone = "Số điện thoại không đúng định dạng";
     }
-    if (!profile.licensePlate || profile.licensePlate.trim().length < 3) {
-      e.licensePlate = "Nhập biển số xe (nếu có)";
-    }
+    // if (!profile.licensePlate || profile.licensePlate.trim().length < 3) {
+    //   e.licensePlate = "Nhập biển số xe (nếu có)";
+    // }
     // if (!profile.verificationImage) e.verificationImage = "Chọn ảnh xác thực";
     if (
       profile.bankAccountNumber &&
@@ -144,27 +145,28 @@ export default function Profile({
       if (profile.verificationImage) {
         formData.append("verificationImage", {
           uri: profile.verificationImage.uri,
-          name: profile.verificationImage.fileName,
+          fileName: profile.verificationImage.fileName,
           type: profile.verificationImage.type,
         });
       }
 
       // axios
-      const headers = {
-        "Content-Type": "multipart/form-data",
-      };
-      if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+      // const headers = {
+      //   "Content-Type": "multipart/form-data",
+      // };
+      // if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
 
-      const res = await axios.post(apiEndpoint, formData, {
-        headers,
-      });
+      // const res = await axios.post(apiEndpoint, formData, {
+      //   headers,
+      // });
 
-      if (res.status >= 200 && res.status < 300) {
-        Alert.alert("Thành công", "Thông tin cá nhân đã được cập nhật.");
-        onSuccess(res.data);
-      } else {
-        Alert.alert("Lỗi server", `Trạng thái: ${res.status}`);
-      }
+      // if (res.status >= 200 && res.status < 300) {
+      //   Alert.alert("Thành công", "Thông tin cá nhân đã được cập nhật.");
+      //   onSuccess(res.data);
+      // } else {
+      //   Alert.alert("Lỗi server", `Trạng thái: ${res.status}`);
+      // }
+      console.log(formData);
     } catch (err) {
       console.error(
         "submitProfile error:",
@@ -200,7 +202,7 @@ export default function Profile({
           <Text style={styles.label}>Họ và tên</Text>
           <TextInput
             style={styles.input}
-            placeholder="Nhập họ tên"
+            placeholder="VD: Nguyễn Văn A"
             value={profile.fullName}
             onChangeText={(t) => update("fullName", t)}
             returnKeyType="done"
@@ -231,6 +233,18 @@ export default function Profile({
               }}
             />
           )}
+
+          <Text style={[styles.label, { marginTop: 12 }]}>
+            Địa chỉ thường trú
+          </Text>
+          <TextInput
+            style={styles.input}
+            placeholder="VD: Kí túc xá Khu B ĐHQG TPHCM"
+            value={profile.address}
+            onChangeText={(t) => update("address", t)}
+            returnKeyType="done"
+          />
+          <FieldError field="address" />
         </View>
 
         {/* SECTION: Xe & Xác thực */}
@@ -240,7 +254,7 @@ export default function Profile({
           <Text style={styles.label}>Biển số xe</Text>
           <TextInput
             style={styles.input}
-            placeholder="Ví dụ: 51A-123.45"
+            placeholder="VD: 51A-123.45"
             value={profile.licensePlate}
             onChangeText={(t) => update("licensePlate", t)}
           />
@@ -249,23 +263,34 @@ export default function Profile({
           <Text style={[styles.label, { marginTop: 12 }]}>
             Ảnh xác thực (CMND/CCCD/GPLX)
           </Text>
-          <View style={{ flexDirection: "row", alignItems: "center" }}>
-            <TouchableOpacity style={styles.photoButton} onPress={pickImage}>
-              <Text style={styles.photoButtonText}>
-                {profile.verificationImage ? "Thay ảnh" : "Chọn ảnh"}
-              </Text>
-            </TouchableOpacity>
-
-            {profile.verificationImage ? (
+          {profile.verificationImage ? (
+            <View>
               <Image
                 source={{ uri: profile.verificationImage.uri }}
                 style={styles.thumbnail}
               />
-            ) : (
-              <View style={styles.placeholderThumb}>
-                <Text style={{ color: "#888" }}>Chưa có ảnh</Text>
-              </View>
-            )}
+              <Text style={{ marginTop: 8 }}>
+                {profile.verificationImage.fileName}
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.placeholderThumb}>
+              <Text style={{ color: "#888" }}>Chưa có ảnh</Text>
+            </View>
+          )}
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <TouchableOpacity
+              onPress={() => {
+                Alert.alert("Chọn ảnh", "", [
+                  { text: "Thư viện", onPress: pickImage },
+                  { text: "Camera", onPress: takePhoto },
+                  { text: "Huỷ", style: "cancel" },
+                ]);
+              }}
+              style={styles.photoButton}
+            >
+              <Text style={styles.photoButtonText}>Chọn ảnh</Text>
+            </TouchableOpacity>
           </View>
           <FieldError field="verificationImage" />
         </View>
@@ -277,7 +302,7 @@ export default function Profile({
           <Text style={styles.label}>Số điện thoại</Text>
           <TextInput
             style={styles.input}
-            placeholder="+84..."
+            placeholder="VD: 0987654321"
             keyboardType="phone-pad"
             value={profile.phone}
             onChangeText={(t) => update("phone", t)}
@@ -376,7 +401,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 8,
     backgroundColor: COLORS.PURPLE,
-    marginRight: 12,
+    marginTop: 12,
   },
   photoButtonText: {
     color: "#fff",
@@ -388,16 +413,18 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     borderWidth: 1,
     borderColor: "#ccc",
+    marginTop: 2,
   },
   placeholderThumb: {
     width: 80,
     height: 80,
     borderRadius: 6,
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: "#eee",
     justifyContent: "center",
     alignItems: "center",
     padding: 8,
+    marginTop: 12,
   },
   submitButton: {
     backgroundColor: COLORS.PURPLE,
@@ -410,7 +437,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   errorText: {
-    color: "#c0392b",
+    color: COLORS.RED,
     marginTop: 6,
   },
 });
