@@ -72,7 +72,8 @@ const LocationSearch = ({
             data={suggestions}
             renderItem={renderSuggestion}
             keyExtractor={(item, index) => `suggestion-${index}`}
-            showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
             style={styles.suggestionsList}
           />
         </View>
@@ -84,7 +85,7 @@ const LocationSearch = ({
 const styles = StyleSheet.create({
   container: {
     position: 'relative',
-    zIndex: 1000,
+    zIndex: 2000,
   },
   inputContainer: {
     flexDirection: 'row',
@@ -120,16 +121,16 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.WHITE,
     borderRadius: 12,
     marginTop: 5,
-    elevation: 5,
+    elevation: 12,
     shadowColor: COLORS.BLACK,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 8,
-    zIndex: 1001,
+    zIndex: 3000,
     maxHeight: 200,
   },
   suggestionsList: {
-    maxHeight: 200,
+    maxHeight: 320,
   },
   suggestionItem: {
     flexDirection: 'row',

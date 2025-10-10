@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { View, StyleSheet, Alert } from 'react-native'
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps'
-import MapViewDirections from 'react-native-maps-directions'
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps'
 import { MAPS_CONFIG } from '../config/maps'
 import COLORS from '../constant/colors'
 
@@ -10,7 +9,8 @@ const RouteMap = ({
   destination = null, 
   height = 200,
   showRoute = true,
-  markers = []
+  markers = [],
+  path = []
 }) => {
   const [region, setRegion] = useState(MAPS_CONFIG.DEFAULT_REGION)
 
@@ -33,17 +33,6 @@ const RouteMap = ({
     }
   }, [origin, destination])
 
-  const getGoogleMapsApiKey = () => {
-    return MAPS_CONFIG.GOOGLE_MAPS_API_KEY || ''
-  }
-
-  const handleDirectionsError = (errorMessage) => {
-    console.log('Directions error:', errorMessage)
-    if (errorMessage.includes('API key') || errorMessage.includes('Missing API Key')) {
-      console.warn('MapViewDirections Error: Missing API Key. Please add GOOGLE_MAPS_API_KEY to .env file')
-      return
-    }
-  }
 
   const renderMarkers = () => {
     const allMarkers = [...markers]
@@ -91,20 +80,14 @@ const RouteMap = ({
         showsMyLocationButton={true}
         showsCompass={true}
         showsScale={true}
+        pointerEvents="auto"
+        collapsable={false}
       >
-        {showRoute && origin && destination && getGoogleMapsApiKey() && (
-          <MapViewDirections
-            origin={origin}
-            destination={destination}
-            apikey={getGoogleMapsApiKey()}
+        {showRoute && path && path.length > 1 && (
+          <Polyline
+            coordinates={path}
             strokeWidth={MAPS_CONFIG.ROUTE_SETTINGS.strokeWidth}
             strokeColor={MAPS_CONFIG.ROUTE_SETTINGS.strokeColor}
-            mode={MAPS_CONFIG.ROUTE_SETTINGS.mode}
-            onReady={(result) => {
-              console.log('Route ready:', result.distance, result.duration)
-              // Có thể update UI với thông tin về khoảng cách và thời gian
-            }}
-            onError={handleDirectionsError}
           />
         )}
         
@@ -118,11 +101,12 @@ const styles = StyleSheet.create({
   mapContainer: {
     borderRadius: 15,
     overflow: 'hidden',
-    elevation: 3,
+    elevation: 1,
     shadowColor: COLORS.BLACK,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
+    zIndex: 0,
   },
   map: {
     flex: 1,

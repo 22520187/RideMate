@@ -3,7 +3,7 @@ const COLORS = {
     WHITE: '#FFF',
     BLACK: '#000',
     PLACEHOLDER_COLOR: '#8B8B8B',
-    GRAY_LIGHT: '#8B8B8B',
+    GRAY_LIGHT: '#D6D4D4',
     GRAY_DARK: '#555555',
     GRAY: '#6B7280',
     BLUE:'#1579ea',
@@ -23,6 +23,8 @@ const COLORS = {
     GREEN_LIGHT: '#E8F5E8',
     ORANGE_LIGHT: '#FFF4E6',
     ORANGE_DARK: '#D68910',
+    PRIMARY: '#50bbf5',
+    SECONDARY: '#5069f5',
   };
   
   export default COLORS;

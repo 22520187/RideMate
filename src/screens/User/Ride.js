@@ -7,14 +7,17 @@ import {
   Alert,
   FlatList,
   Modal,
-  Dimensions
+  Dimensions,
+  TextInput
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { MaterialIcons } from '@expo/vector-icons'
 import COLORS from '../../constant/colors'
 import LocationSearch from '../../components/LocationSearch'
-import RouteMap from '../../components/RouteMap'
-import { getCurrentLocation, reverseGeocode, searchPlaces, getDirections, MAPS_CONFIG } from '../../config/maps'
+import DriverRide from './Rider/DriverRide'
+import PassengerRide from './Rider/PassengerRide'
+import { getCurrentLocation, reverseGeocode, MAPS_CONFIG } from '../../config/maps'
+import { searchPlaces as osmSearchPlaces, getRoute as osrmGetRoute } from '../../utils/api'
 
 const Ride = () => {
   const [userMode, setUserMode] = useState(null) // 'driver' hoặc 'passenger'
@@ -28,8 +31,25 @@ const Ride = () => {
   const [toSuggestions, setToSuggestions] = useState([])
   const [showRouteDetails, setShowRouteDetails] = useState(false)
   const [routeInfo, setRouteInfo] = useState(null)
+  const [routePath, setRoutePath] = useState([])
   const [isLoadingPlaces, setIsLoadingPlaces] = useState(false)
   const [isLoadingDirections, setIsLoadingDirections] = useState(false)
+  const [isScheduleModalVisible, setIsScheduleModalVisible] = useState(false)
+  const [scheduleTime, setScheduleTime] = useState('')
+  const [scheduleFromText, setScheduleFromText] = useState('')
+  const [scheduleToText, setScheduleToText] = useState('')
+  const [scheduleFromSuggestions, setScheduleFromSuggestions] = useState([])
+  const [scheduleToSuggestions, setScheduleToSuggestions] = useState([])
+  const [scheduleOriginCoordinate, setScheduleOriginCoordinate] = useState(null)
+  const [scheduleDestinationCoordinate, setScheduleDestinationCoordinate] = useState(null)
+  const [scheduledRides, setScheduledRides] = useState(null)
+  const [scheduledRide, setScheduledRide] = useState(null)
+
+  const calculatePrice = (distanceKm) => {
+    const basePrice = 15000
+    const pricePerKm = 3000
+    return Math.round(basePrice + distanceKm * pricePerKm)
+  }
   
   // Mock data cho demo
   const availablePassengers = [
@@ -65,11 +85,15 @@ const Ride = () => {
     }
   ]
 
-  // Hàm gọi Google Places API thực
+  // Sử dụng Nominatim (OSM)
   const searchPlacesAPI = async (query) => {
     try {
-      const places = await searchPlaces(query, MAPS_CONFIG.GOOGLE_MAPS_API_KEY)
-      return places
+      const places = await osmSearchPlaces(query)
+      return places.map(p => ({
+        description: p.display_name || p.name,
+        latitude: parseFloat(p.lat),
+        longitude: parseFloat(p.lon)
+      }))
     } catch (error) {
       console.error('Error searching places:', error)
       return []
@@ -115,6 +139,93 @@ const Ride = () => {
     }
   }
 
+  const handleChangeFromText = (text) => {
+    setFromLocation(text)
+    if (text.length <= 2) setFromSuggestions([])
+  }
+
+  const handleChangeToText = (text) => {
+    setToLocation(text)
+    if (text.length <= 2) setToSuggestions([])
+  }
+
+  const handleScheduleSuggestions = async (query, type) => {
+    if (query.length < 3) return
+    setIsLoadingPlaces(true)
+    try {
+      const suggestions = await searchPlacesAPI(query)
+      if (type === 'from') {
+        setScheduleFromSuggestions(suggestions)
+      } else {
+        setScheduleToSuggestions(suggestions)
+      }
+    } catch (error) {
+      if (type === 'from') {
+        setScheduleFromSuggestions([])
+      } else {
+        setScheduleToSuggestions([])
+      }
+    } finally {
+      setIsLoadingPlaces(false)
+    }
+  }
+
+  const handleScheduleSelect = (location, type) => {
+    if (type === 'from') {
+      setScheduleOriginCoordinate(location)
+      setScheduleFromSuggestions([])
+    } else {
+      setScheduleDestinationCoordinate(location)
+      setScheduleToSuggestions([])
+    }
+  }
+
+  const handleConfirmSchedule = () => {
+    if (!scheduleFromText || !scheduleToText || !scheduleTime) {
+      Alert.alert('Lỗi', 'Vui lòng nhập đầy đủ thời gian, điểm xuất phát và điểm đến')
+      return
+    }
+    
+    // Lưu thông tin lịch trình
+    setScheduledRide({
+      time: scheduleTime,
+      from: scheduleFromText,
+      to: scheduleToText
+    })
+    
+    setFromLocation(scheduleFromText)
+    setToLocation(scheduleToText)
+    setOriginCoordinate(scheduleOriginCoordinate || null)
+    setDestinationCoordinate(scheduleDestinationCoordinate || null) 
+    setIsScheduleModalVisible(false)
+    Alert.alert('Đã đặt lịch', `Khởi hành lúc ${scheduleTime}`)
+  }
+
+  const handleCancelSchedule = () => {
+    Alert.alert(
+      'Xóa lịch trình',
+      'Bạn có chắc muốn xóa lịch trình này?',
+      [
+        {
+          text: 'Hủy',
+          style: 'cancel'
+        },
+        {
+          text: 'Xóa',
+          style: 'destructive',
+          onPress: () => {
+            setScheduledRide(null)
+            setFromLocation('')
+            setToLocation('')
+            setOriginCoordinate(null)
+            setDestinationCoordinate(null)
+            Alert.alert('Thành công', 'Đã xóa lịch trình')
+          }
+        }
+      ]
+    )
+  }
+
   const handleLocationSelect = (location, type) => {
     if (type === 'from') {
       setOriginCoordinate(location)
@@ -123,6 +234,7 @@ const Ride = () => {
       setDestinationCoordinate(location)
       setToSuggestions([])
     }
+    setRoutePath([])
   }
 
   const handleGetCurrentLocation = async (type) => {
@@ -156,19 +268,34 @@ const Ride = () => {
     
     setIsLoadingDirections(true)
     try {
-      // Sử dụng Google Directions API để lấy thông tin tuyến đường thực tế
-      const directions = await getDirections(originCoordinate, destinationCoordinate, MAPS_CONFIG.GOOGLE_MAPS_API_KEY)
-      
-      // Tính giá cước dựa trên khoảng cách thực tế
-      const distanceKm = directions.distanceValue / 1000 // Convert meters to km
+      // Lấy đường đi từ OSRM
+      const path = await osrmGetRoute(originCoordinate, destinationCoordinate)
+      setRoutePath(path)
+
+      // Ước tính khoảng cách và thời gian từ polyline
+      let distanceKm = 0
+      for (let i = 1; i < path.length; i++) {
+        const a = path[i - 1]
+        const b = path[i]
+        const dLat = (b.latitude - a.latitude) * Math.PI / 180
+        const dLon = (b.longitude - a.longitude) * Math.PI / 180
+        const lat1 = a.latitude * Math.PI / 180
+        const lat2 = b.latitude * Math.PI / 180
+        const sinDLat = Math.sin(dLat / 2)
+        const sinDLon = Math.sin(dLon / 2)
+        const h = sinDLat * sinDLat + Math.cos(lat1) * Math.cos(lat2) * sinDLon * sinDLon
+        const c = 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h))
+        distanceKm += 6371 * c
+      }
+      const durationMinutes = Math.round(distanceKm * 2.5)
       const price = calculatePrice(distanceKm)
-      
+
       setRouteInfo({
-        distance: directions.distance,
-        duration: directions.duration,
+        distance: `${distanceKm.toFixed(1)} km`,
+        duration: `${durationMinutes} phút`,
         price: `${price.toLocaleString('vi-VN')}đ`
       })
-      
+
       Alert.alert('Thành công', `Đang tìm kiếm người đi cùng từ ${fromLocation} đến ${toLocation}`)
     } catch (error) {
       console.error('Error getting directions:', error)
@@ -191,186 +318,40 @@ const Ride = () => {
   }
 
   const renderDriverInterface = () => (
-    <View style={styles.content}>
-      {/* Input địa điểm */}
-      <View style={styles.inputContainer}>
-        <View style={styles.locationRow}>
-          <View style={styles.locationSearchWrapper}>
-            <LocationSearch
-              placeholder="Điểm xuất phát"
-              value={fromLocation}
-              onChangeText={setFromLocation}
-              onLocationSelect={(location) => handleLocationSelect(location, 'from')}
-              suggestions={fromSuggestions}
-              showSuggestions={fromLocation.length > 2}
-              onRequestSuggestions={(query) => handleLocationSuggestions(query, 'from')}
-              iconName="my-location"
-            />
-          </View>
-          <TouchableOpacity 
-            style={styles.currentLocationBtn}
-            onPress={() => handleGetCurrentLocation('from')}
-          >
-            <MaterialIcons name="my-location" size={20} color={COLORS.WHITE} />
-            <Text style={styles.currentLocationText}>Hiện tại</Text>
-          </TouchableOpacity>
-        </View>
-        
-        <View style={styles.locationRowTo}>
-          <View style={styles.locationSearchWrapper}>
-            <LocationSearch
-              placeholder="Điểm đến"
-              value={toLocation}
-              onChangeText={setToLocation}
-              onLocationSelect={(location) => handleLocationSelect(location, 'to')}
-              suggestions={toSuggestions}
-              showSuggestions={toLocation.length > 2}
-              onRequestSuggestions={(query) => handleLocationSuggestions(query, 'to')}
-              iconName="place"
-            />
-          </View>
-          {/* <TouchableOpacity 
-            style={styles.currentLocationBtn}
-            onPress={() => handleGetCurrentLocation('to')}
-          > */}
-            {/* <MaterialIcons name="my-location" size={20} color={COLORS.WHITE} />
-            <Text style={styles.currentLocationText}>Hiện tại</Text> */}
-          {/* </TouchableOpacity> */}
-        </View>
-      </View>
-
-      {/* Bản đồ */}
-      <RouteMap
-        origin={originCoordinate}
-        destination={destinationCoordinate}
-        height={250}
-        showRoute={true}
-      />
-
-      
-
-      {/* Thông tin tuyến đường */}
-      {routeInfo && (
-        <View style={styles.routeInfoContainer}>
-          <Text style={styles.routeInfoTitle}>Thông tin tuyến đường</Text>
-          <View style={styles.routeInfoRow}>
-            <View style={styles.routeInfoItem}>
-              <MaterialIcons name="directions-car" size={16} color={COLORS.PURPLE} />
-              <Text style={styles.routeInfoText}>{routeInfo.distance}</Text>
-            </View>
-            <View style={styles.routeInfoItem}>
-              <MaterialIcons name="access-time" size={16} color={COLORS.BLUE} />
-              <Text style={styles.routeInfoText}>{routeInfo.duration}</Text>
-            </View>
-            <View style={styles.routeInfoItem}>
-              <MaterialIcons name="attach-money" size={16} color={COLORS.GREEN} />
-              <Text style={styles.routeInfoText}>{routeInfo.price}</Text>
-            </View>
-          </View>
-        </View>
-      )}
-
-      {/* Nút tìm kiếm */}
-      <TouchableOpacity 
-        style={[styles.searchBtn, isLoadingDirections && styles.searchBtnDisabled]} 
-        onPress={handleSearchAsDriver}
-        disabled={isLoadingDirections}
-      >
-        <MaterialIcons 
-          name={isLoadingDirections ? "hourglass-empty" : "search"} 
-          size={20} 
-          color={COLORS.WHITE} 
-        />
-        <Text style={styles.searchBtnText}>
-          {isLoadingDirections ? 'Đang tìm kiếm...' : 'Tìm người đi cùng'}
-        </Text>
-      </TouchableOpacity>
-
-      {/* Danh sách người không có xe */}
-      <Text style={styles.listTitle}>Người cần đi từ {fromLocation} đến {toLocation}</Text>
-    </View>
+    <DriverRide
+      styles={styles}
+      fromLocation={fromLocation}
+      toLocation={toLocation}
+      fromSuggestions={fromSuggestions}
+      toSuggestions={toSuggestions}
+      originCoordinate={originCoordinate}
+      destinationCoordinate={destinationCoordinate}
+      routePath={routePath}
+      routeInfo={routeInfo}
+      isLoadingDirections={isLoadingDirections}
+      onLocationSelect={handleLocationSelect}
+      onRequestSuggestions={handleLocationSuggestions}
+      onGetCurrentLocation={handleGetCurrentLocation}
+      onSearch={handleSearchAsDriver}
+      onChangeFromText={handleChangeFromText}
+      onChangeToText={handleChangeToText}
+    />
   )
 
   const renderPassengerInterface = () => (
-    <View style={styles.content}>
-      <Text style={styles.sectionTitle}>Tôi không có xe</Text>
-      
-      {/* Input điểm đến */}
-      <View style={styles.inputContainer}>
-        <View style={styles.locationRow}>
-          <View style={styles.locationSearchWrapper}>
-            <LocationSearch
-              placeholder="Điểm đến"
-              value={toLocation}
-              onChangeText={setToLocation}
-              onLocationSelect={(location) => handleLocationSelect(location, 'to')}
-              suggestions={toSuggestions}
-              showSuggestions={toLocation.length > 2}
-              onRequestSuggestions={(query) => handleLocationSuggestions(query, 'to')}
-              iconName="place"
-            />
-          </View>
-          <TouchableOpacity 
-            style={styles.currentLocationBtn}
-            onPress={() => handleGetCurrentLocation('to')}
-          >
-            <MaterialIcons name="my-location" size={20} color={COLORS.WHITE} />
-            <Text style={styles.currentLocationText}>Hiện tại</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Nút tìm kiếm */}
-      <TouchableOpacity style={styles.searchBtn} onPress={handleSearchAsPassenger}>
-        <MaterialIcons name="search" size={20} color={COLORS.WHITE} />
-        <Text style={styles.searchBtnText}>Tìm chuyến đi</Text>
-      </TouchableOpacity>
-
-      {/* Danh sách chuyến đi */}
-      <Text style={styles.listTitle}>Chuyến đi đến {toLocation}</Text>
-      <FlatList
-        data={availableRides}
-        renderItem={({ item }) => (
-          <TouchableOpacity style={styles.rideCard}>
-            <View style={styles.rideHeader}>
-              <View style={styles.driverInfo}>
-                <Text style={styles.driverName}>{item.driverName}</Text>
-                <View style={styles.driverRating}>
-                  <MaterialIcons name="star" size={16} color={COLORS.ORANGE_DARK} />
-                  <Text style={styles.ratingText}>{item.rating}</Text>
-                </View>
-              </View>
-              <Text style={styles.price}>{item.price}</Text>
-            </View>
-            
-            <View style={styles.rideDetails}>
-              <Text style={styles.carModel}>{item.carModel}</Text>
-              <Text style={styles.seatsInfo}>Còn {item.availableSeats} chỗ trống</Text>
-            </View>
-            
-            <View style={styles.routeInfo}>
-              <MaterialIcons name="radio-button-checked" size={16} color={COLORS.GREEN} />
-              <Text style={styles.routeText}>{item.fromLocation}</Text>
-            </View>
-            <View style={styles.routeInfo}>
-              <MaterialIcons name="place" size={16} color={COLORS.RED} />
-              <Text style={styles.routeText}>{item.toLocation}</Text>
-            </View>
-            
-            <View style={styles.timeContainer}>
-              <MaterialIcons name="access-time" size={16} color={COLORS.BLUE} />
-              <Text style={styles.timeText}>Khởi hành lúc {item.departureTime}</Text>
-            </View>
-            
-            <TouchableOpacity style={styles.joinBtn}>
-              <Text style={styles.joinBtnText}>Tham gia chuyến đi</Text>
-            </TouchableOpacity>
-          </TouchableOpacity>
-        )}
-        keyExtractor={item => item.id.toString()}
-        showsVerticalScrollIndicator={false}
-      />
-    </View>
+    <PassengerRide
+      styles={styles}
+      toLocation={toLocation}
+      toSuggestions={toSuggestions}
+      originCoordinate={originCoordinate}
+      destinationCoordinate={destinationCoordinate}
+      routePath={routePath}
+      availableRides={availableRides}
+      onLocationSelect={handleLocationSelect}
+      onRequestSuggestions={handleLocationSuggestions}
+      onSearch={handleSearchAsPassenger}
+      onChangeToText={handleChangeToText}
+    />
   )
 
   if (!userMode) {
@@ -414,10 +395,105 @@ const Ride = () => {
         <Text style={styles.headerTitle}>
           {userMode === 'driver' ? 'Tôi có xe' : 'Tôi không có xe'}
         </Text>
-        <View style={styles.headerSpacer} />
+        {userMode === 'driver' ? (
+          <View style={styles.headerRight}>
+            {scheduledRide ? (
+              <TouchableOpacity 
+                style={[styles.headerScheduleBtn, styles.headerCancelBtn]}
+                onPress={handleCancelSchedule}
+              >
+                <MaterialIcons name="event-busy" size={18} color={COLORS.WHITE} />
+                <Text style={styles.headerScheduleText}>Xóa lịch</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity 
+                style={styles.headerScheduleBtn}
+                onPress={() => setIsScheduleModalVisible(true)}
+              >
+                <MaterialIcons name="event" size={18} color={COLORS.WHITE} />
+                <Text style={styles.headerScheduleText}>Đặt lịch</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        ) : (
+          <View style={styles.headerSpacer} />
+        )}
       </View>
       
       {userMode === 'driver' ? renderDriverInterface() : renderPassengerInterface()}
+
+      {/* Modal đặt lịch */}
+      <Modal
+        visible={isScheduleModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setIsScheduleModalVisible(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>Đặt lịch chuyến</Text>
+            <FlatList
+              data={[]}
+              keyExtractor={(item, index) => `modal-${index}`}
+              keyboardShouldPersistTaps="handled"
+              ListHeaderComponent={
+                <View>
+                  <View style={styles.modalField}>
+                    <Text style={styles.modalLabel}>Thời gian khởi hành</Text>
+                    <TextInput
+                      style={styles.modalInput}
+                      placeholder="HH:MM DD/MM/YYYY"
+                      value={scheduleTime}
+                      onChangeText={setScheduleTime}
+                      placeholderTextColor={COLORS.PLACEHOLDER_COLOR}
+                    />
+                  </View>
+                  <View style={styles.modalField}>
+                    <Text style={styles.modalLabel}>Điểm xuất phát</Text>
+                    <LocationSearch
+                      placeholder="Nhập điểm xuất phát"
+                      value={scheduleFromText}
+                      onChangeText={setScheduleFromText}
+                      onLocationSelect={(loc) => handleScheduleSelect(loc, 'from')}
+                      suggestions={scheduleFromSuggestions}
+                      showSuggestions={scheduleFromText.length > 2}
+                      onRequestSuggestions={(q) => handleScheduleSuggestions(q, 'from')}
+                      iconName="my-location"
+                    />
+                  </View>
+                  <View style={styles.modalField}>
+                    <Text style={styles.modalLabel}>Điểm đến</Text>
+                    <LocationSearch
+                      placeholder="Nhập điểm đến"
+                      value={scheduleToText}
+                      onChangeText={setScheduleToText}
+                      onLocationSelect={(loc) => handleScheduleSelect(loc, 'to')}
+                      suggestions={scheduleToSuggestions}
+                      showSuggestions={scheduleToText.length > 2}
+                      onRequestSuggestions={(q) => handleScheduleSuggestions(q, 'to')}
+                      iconName="place"
+                    />
+                  </View>
+                </View>
+              }
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity 
+                style={[styles.modalBtn, styles.modalCancel]}
+                onPress={() => setIsScheduleModalVisible(false)}
+              >
+                <Text style={styles.modalBtnText}>Hủy</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.modalBtn, styles.modalConfirm]}
+                onPress={handleConfirmSchedule}
+              >
+                <Text style={[styles.modalBtnText, styles.modalConfirmText]}>Xác nhận</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   )
 }
@@ -490,8 +566,29 @@ const styles = StyleSheet.create({
     color: COLORS.BLACK,
     flex: 1,
   },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerScheduleBtn: {
+    backgroundColor: COLORS.BLUE,
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerCancelBtn: {
+    backgroundColor: COLORS.RED,
+  },
+  headerScheduleText: {
+    color: COLORS.WHITE,
+    fontSize: 12,
+    fontWeight: '700',
+    marginLeft: 6,
+  },
   headerSpacer: {
-    width: 39, // Same width as backBtn + marginRight
+    width: 39, 
   },
   content: {
     flex: 1,
@@ -515,6 +612,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
+    zIndex: 2500,
   },
   locationRow: {
     flexDirection: 'row',
@@ -555,6 +653,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
+    marginTop: 20,
   },
   routeInfoTitle: {
     fontSize: 16,
@@ -625,6 +724,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 20,
     marginTop: 20,
+  },
+  headerScheduleBtn: {
+    backgroundColor: COLORS.BLUE,
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerCancelBtn: {
+    backgroundColor: COLORS.RED,
+  },
+  headerScheduleText: {
+    color: COLORS.WHITE,
+    fontSize: 12,
+    fontWeight: '700',
+    marginLeft: 6,
   },
   searchBtnText: {
     color: COLORS.WHITE,
@@ -786,6 +902,71 @@ const styles = StyleSheet.create({
     color: COLORS.WHITE,
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
+  },
+  modalContainer: {
+    backgroundColor: COLORS.WHITE,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    padding: 20,
+    maxHeight: Dimensions.get('window').height * 0.85,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.BLACK,
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  modalField: {
+    marginVertical: 8,
+  },
+  modalLabel: {
+    fontSize: 14,
+    color: COLORS.GRAY_DARK,
+    marginBottom: 6,
+    fontWeight: '600',
+  },
+  modalInput: {
+    backgroundColor: COLORS.WHITE,
+    borderRadius: 12,
+    paddingHorizontal: 15,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: COLORS.GRAY_LIGHT,
+    fontSize: 16,
+    color: COLORS.BLACK,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 16,
+  },
+  modalBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  modalCancel: {
+    backgroundColor: COLORS.GRAY_BG,
+    marginRight: 10,
+  },
+  modalConfirm: {
+    backgroundColor: COLORS.PURPLE,
+    marginLeft: 10,
+  },
+  modalBtnText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.BLACK,
+  },
+  modalConfirmText: {
+    color: COLORS.WHITE,
   },
 })
 
