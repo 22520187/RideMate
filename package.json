@@ -21,7 +21,6 @@
     "lucide-react-native": "^0.544.0",
     "react": "19.1.0",
     "react-native": "0.81.4",
-    "react-native-dotenv": "^3.4.11",
     "react-native-maps": "1.20.1",
     "react-native-maps-directions": "^1.9.0",
     "react-native-pager-view": "6.9.1",
