@@ -474,7 +474,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     alignItems: 'center',
     borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
+    borderBottomColor: COLORS.GRAY_LIGHT,
   },
   activeTab: {
     borderBottomColor: COLORS.PURPLE,
