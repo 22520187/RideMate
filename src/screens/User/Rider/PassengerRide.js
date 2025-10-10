@@ -11,10 +11,12 @@ const PassengerRide = ({
   toSuggestions,
   originCoordinate,
   destinationCoordinate,
+  routePath = [],
   availableRides,
   onLocationSelect,
   onRequestSuggestions,
-  onSearch
+  onSearch,
+  onChangeToText
 }) => {
   return (
     <View style={styles.content}>
@@ -24,7 +26,7 @@ const PassengerRide = ({
             <LocationSearch
               placeholder="Điểm đến"
               value={toLocation}
-              onChangeText={() => {}}
+            onChangeText={onChangeToText}
               onLocationSelect={(location) => onLocationSelect(location, 'to')}
               suggestions={toSuggestions}
               showSuggestions={toLocation.length > 2}
@@ -40,6 +42,7 @@ const PassengerRide = ({
         destination={destinationCoordinate}
         height={250}
         showRoute={true}
+        path={routePath}
       />
 
       <TouchableOpacity style={styles.searchBtn} onPress={onSearch}>

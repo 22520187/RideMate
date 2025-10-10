@@ -14,11 +14,14 @@ const DriverRide = ({
   originCoordinate,
   destinationCoordinate,
   routeInfo,
+  routePath = [],
   isLoadingDirections,
   onLocationSelect,
   onRequestSuggestions,
   onGetCurrentLocation,
-  onSearch
+  onSearch,
+  onChangeFromText,
+  onChangeToText
 }) => {
   return (
     <View style={styles.content}>
@@ -28,7 +31,7 @@ const DriverRide = ({
             <LocationSearch
               placeholder="Điểm xuất phát"
               value={fromLocation}
-              onChangeText={() => {}}
+              onChangeText={onChangeFromText}
               onLocationSelect={(location) => onLocationSelect(location, 'from')}
               suggestions={fromSuggestions}
               showSuggestions={fromLocation.length > 2}
@@ -49,7 +52,7 @@ const DriverRide = ({
             <LocationSearch
               placeholder="Điểm đến"
               value={toLocation}
-              onChangeText={() => {}}
+              onChangeText={onChangeToText}
               onLocationSelect={(location) => onLocationSelect(location, 'to')}
               suggestions={toSuggestions}
               showSuggestions={toLocation.length > 2}
@@ -65,6 +68,7 @@ const DriverRide = ({
         destination={destinationCoordinate}
         height={250}
         showRoute={true}
+        path={routePath}
       />
 
       {routeInfo && (

@@ -16,7 +16,8 @@ import COLORS from '../../constant/colors'
 import LocationSearch from '../../components/LocationSearch'
 import DriverRide from './Rider/DriverRide'
 import PassengerRide from './Rider/PassengerRide'
-import { getCurrentLocation, reverseGeocode, searchPlaces, getDirections, MAPS_CONFIG } from '../../config/maps'
+import { getCurrentLocation, reverseGeocode, MAPS_CONFIG } from '../../config/maps'
+import { searchPlaces as osmSearchPlaces, getRoute as osrmGetRoute } from '../../utils/api'
 
 const Ride = () => {
   const [userMode, setUserMode] = useState(null) // 'driver' hoặc 'passenger'
@@ -30,6 +31,7 @@ const Ride = () => {
   const [toSuggestions, setToSuggestions] = useState([])
   const [showRouteDetails, setShowRouteDetails] = useState(false)
   const [routeInfo, setRouteInfo] = useState(null)
+  const [routePath, setRoutePath] = useState([])
   const [isLoadingPlaces, setIsLoadingPlaces] = useState(false)
   const [isLoadingDirections, setIsLoadingDirections] = useState(false)
   const [isScheduleModalVisible, setIsScheduleModalVisible] = useState(false)
@@ -42,6 +44,12 @@ const Ride = () => {
   const [scheduleDestinationCoordinate, setScheduleDestinationCoordinate] = useState(null)
   const [scheduledRides, setScheduledRides] = useState(null)
   const [scheduledRide, setScheduledRide] = useState(null)
+
+  const calculatePrice = (distanceKm) => {
+    const basePrice = 15000
+    const pricePerKm = 3000
+    return Math.round(basePrice + distanceKm * pricePerKm)
+  }
   
   // Mock data cho demo
   const availablePassengers = [
@@ -77,11 +85,15 @@ const Ride = () => {
     }
   ]
 
-  // Hàm gọi Google Places API thực
+  // Sử dụng Nominatim (OSM)
   const searchPlacesAPI = async (query) => {
     try {
-      const places = await searchPlaces(query, MAPS_CONFIG.GOOGLE_MAPS_API_KEY)
-      return places
+      const places = await osmSearchPlaces(query)
+      return places.map(p => ({
+        description: p.display_name || p.name,
+        latitude: parseFloat(p.lat),
+        longitude: parseFloat(p.lon)
+      }))
     } catch (error) {
       console.error('Error searching places:', error)
       return []
@@ -125,6 +137,16 @@ const Ride = () => {
     } finally {
       setIsLoadingPlaces(false)
     }
+  }
+
+  const handleChangeFromText = (text) => {
+    setFromLocation(text)
+    if (text.length <= 2) setFromSuggestions([])
+  }
+
+  const handleChangeToText = (text) => {
+    setToLocation(text)
+    if (text.length <= 2) setToSuggestions([])
   }
 
   const handleScheduleSuggestions = async (query, type) => {
@@ -212,6 +234,7 @@ const Ride = () => {
       setDestinationCoordinate(location)
       setToSuggestions([])
     }
+    setRoutePath([])
   }
 
   const handleGetCurrentLocation = async (type) => {
@@ -245,19 +268,34 @@ const Ride = () => {
     
     setIsLoadingDirections(true)
     try {
-      // Sử dụng Google Directions API để lấy thông tin tuyến đường thực tế
-      const directions = await getDirections(originCoordinate, destinationCoordinate, MAPS_CONFIG.GOOGLE_MAPS_API_KEY)
-      
-      // Tính giá cước dựa trên khoảng cách thực tế
-      const distanceKm = directions.distanceValue / 1000 // Convert meters to km
+      // Lấy đường đi từ OSRM
+      const path = await osrmGetRoute(originCoordinate, destinationCoordinate)
+      setRoutePath(path)
+
+      // Ước tính khoảng cách và thời gian từ polyline
+      let distanceKm = 0
+      for (let i = 1; i < path.length; i++) {
+        const a = path[i - 1]
+        const b = path[i]
+        const dLat = (b.latitude - a.latitude) * Math.PI / 180
+        const dLon = (b.longitude - a.longitude) * Math.PI / 180
+        const lat1 = a.latitude * Math.PI / 180
+        const lat2 = b.latitude * Math.PI / 180
+        const sinDLat = Math.sin(dLat / 2)
+        const sinDLon = Math.sin(dLon / 2)
+        const h = sinDLat * sinDLat + Math.cos(lat1) * Math.cos(lat2) * sinDLon * sinDLon
+        const c = 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h))
+        distanceKm += 6371 * c
+      }
+      const durationMinutes = Math.round(distanceKm * 2.5)
       const price = calculatePrice(distanceKm)
-      
+
       setRouteInfo({
-        distance: directions.distance,
-        duration: directions.duration,
+        distance: `${distanceKm.toFixed(1)} km`,
+        duration: `${durationMinutes} phút`,
         price: `${price.toLocaleString('vi-VN')}đ`
       })
-      
+
       Alert.alert('Thành công', `Đang tìm kiếm người đi cùng từ ${fromLocation} đến ${toLocation}`)
     } catch (error) {
       console.error('Error getting directions:', error)
@@ -288,12 +326,15 @@ const Ride = () => {
       toSuggestions={toSuggestions}
       originCoordinate={originCoordinate}
       destinationCoordinate={destinationCoordinate}
+      routePath={routePath}
       routeInfo={routeInfo}
       isLoadingDirections={isLoadingDirections}
       onLocationSelect={handleLocationSelect}
       onRequestSuggestions={handleLocationSuggestions}
       onGetCurrentLocation={handleGetCurrentLocation}
       onSearch={handleSearchAsDriver}
+      onChangeFromText={handleChangeFromText}
+      onChangeToText={handleChangeToText}
     />
   )
 
@@ -304,10 +345,12 @@ const Ride = () => {
       toSuggestions={toSuggestions}
       originCoordinate={originCoordinate}
       destinationCoordinate={destinationCoordinate}
+      routePath={routePath}
       availableRides={availableRides}
       onLocationSelect={handleLocationSelect}
       onRequestSuggestions={handleLocationSuggestions}
       onSearch={handleSearchAsPassenger}
+      onChangeToText={handleChangeToText}
     />
   )
 
