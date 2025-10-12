@@ -73,7 +73,7 @@ const Award = () => {
           </View>
         </View>
         <View style={styles.balanceRight}>
-          <MaterialIcons name="local-mall" size={20} color={COLORS.PURPLE} />
+          <MaterialIcons name="local-mall" size={20} color={COLORS.PRIMARY} />
           <Text style={styles.balanceHint}>Tích điểm từ chuyến đi</Text>
         </View>
       </View>
@@ -297,7 +297,7 @@ const styles = StyleSheet.create({
   balanceValue: {
     fontSize: 22,
     fontWeight: '800',
-    color: COLORS.PURPLE,
+    color: COLORS.GREEN,
   },
   balanceRight: {
     flexDirection: 'row',
@@ -306,7 +306,7 @@ const styles = StyleSheet.create({
   balanceHint: {
     marginLeft: 6,
     fontSize: 12,
-    color: COLORS.PURPLE,
+    color: COLORS.BLACK,
     fontWeight: '700',
   },
   sectionTitle: {
@@ -333,7 +333,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: COLORS.PURPLE,
+    backgroundColor: COLORS.GREEN,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -344,7 +344,7 @@ const styles = StyleSheet.create({
   promoBrand: {
     fontSize: 12,
     fontWeight: '800',
-    color: COLORS.PURPLE,
+    color: COLORS.BLUE,
     marginBottom: 2,
   },
   promoTitle: {
@@ -392,7 +392,7 @@ const styles = StyleSheet.create({
     color: COLORS.WHITE,
   },
   redeemBtn: {
-    backgroundColor: COLORS.PURPLE,
+    backgroundColor: COLORS.PRIMARY,
     borderRadius: 10,
     paddingVertical: 10,
     alignItems: 'center',
@@ -435,7 +435,7 @@ const styles = StyleSheet.create({
   },
   modalStrong: {
     fontWeight: '800',
-    color: COLORS.PURPLE,
+    color: COLORS.PRIMARY,
   },
   modalActions: {
     flexDirection: 'row',
@@ -453,7 +453,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   modalConfirm: {
-    backgroundColor: COLORS.PURPLE,
+    backgroundColor: COLORS.PRIMARY,
     marginLeft: 8,
   },
   modalBtnText: {
@@ -477,7 +477,7 @@ const styles = StyleSheet.create({
     borderBottomColor: COLORS.GRAY_LIGHT,
   },
   activeTab: {
-    borderBottomColor: COLORS.PURPLE,
+    borderBottomColor: COLORS.PRIMARY,
     borderBottomWidth: 2,
   },
   tabText: {
@@ -486,7 +486,7 @@ const styles = StyleSheet.create({
     color: COLORS.GRAY,
   },
   activeTabText: {
-    color: COLORS.PURPLE,
+    color: COLORS.PRIMARY,
   },
   historyContainer: {
     flex: 1,

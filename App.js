@@ -3,7 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
-import { UserTabNavigator } from './src/navigation';
+import { MainStackNavigator } from './src/navigation';
 import COLORS from './src/constant/colors';
 
 export default function App() {
@@ -11,7 +11,7 @@ export default function App() {
     <SafeAreaProvider>
       <NavigationContainer>
         <StatusBar style="auto" backgroundColor={COLORS.BLUE} />
-        <UserTabNavigator />
+        <MainStackNavigator />
         <Toast />
       </NavigationContainer>
     </SafeAreaProvider>

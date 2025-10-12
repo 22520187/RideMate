@@ -1,38 +1,33 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { 
   View, 
   Text, 
   StyleSheet, 
   TouchableOpacity, 
   Alert,
-  FlatList,
-  Modal,
   Dimensions,
-  TextInput
+  TextInput,
+  Modal,
+  FlatList,
+  ScrollView
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { MaterialIcons } from '@expo/vector-icons'
-import COLORS from '../../constant/colors'
-import LocationSearch from '../../components/LocationSearch'
-import DriverRide from './Rider/DriverRide'
-import PassengerRide from './Rider/PassengerRide'
-import { getCurrentLocation, reverseGeocode, MAPS_CONFIG } from '../../config/maps'
-import { searchPlaces as osmSearchPlaces, getRoute as osrmGetRoute } from '../../utils/api'
+import COLORS from '../../../constant/colors'
+import LocationSearch from '../../../components/LocationSearch'
+import RouteMap from '../../../components/RouteMap'
+import { getCurrentLocation, reverseGeocode } from '../../../config/maps'
+import { searchPlaces as osmSearchPlaces, getRoute as osrmGetRoute } from '../../../utils/api'
 
-const Ride = () => {
-  const [userMode, setUserMode] = useState(null) // 'driver' hoặc 'passenger'
+const DriverRideScreen = ({ navigation }) => {
   const [fromLocation, setFromLocation] = useState('')
   const [toLocation, setToLocation] = useState('')
-  const [selectedPassengers, setSelectedPassengers] = useState([])
-  const [maxPassengers, setMaxPassengers] = useState(3)
   const [originCoordinate, setOriginCoordinate] = useState(null)
   const [destinationCoordinate, setDestinationCoordinate] = useState(null)
   const [fromSuggestions, setFromSuggestions] = useState([])
   const [toSuggestions, setToSuggestions] = useState([])
-  const [showRouteDetails, setShowRouteDetails] = useState(false)
   const [routeInfo, setRouteInfo] = useState(null)
   const [routePath, setRoutePath] = useState([])
-  const [isLoadingPlaces, setIsLoadingPlaces] = useState(false)
   const [isLoadingDirections, setIsLoadingDirections] = useState(false)
   const [isScheduleModalVisible, setIsScheduleModalVisible] = useState(false)
   const [scheduleTime, setScheduleTime] = useState('')
@@ -42,50 +37,15 @@ const Ride = () => {
   const [scheduleToSuggestions, setScheduleToSuggestions] = useState([])
   const [scheduleOriginCoordinate, setScheduleOriginCoordinate] = useState(null)
   const [scheduleDestinationCoordinate, setScheduleDestinationCoordinate] = useState(null)
-  const [scheduledRides, setScheduledRides] = useState(null)
   const [scheduledRide, setScheduledRide] = useState(null)
+  const [activeInput, setActiveInput] = useState(null) // 'from' or 'to'
 
   const calculatePrice = (distanceKm) => {
     const basePrice = 15000
     const pricePerKm = 3000
     return Math.round(basePrice + distanceKm * pricePerKm)
   }
-  
-  // Mock data cho demo
-  const availablePassengers = [
-    { id: 1, name: 'Nguyễn Văn A', rating: 4.8, distance: '200m', avatar: '👨' },
-    { id: 2, name: 'Trần Thị B', rating: 4.9, distance: '150m', avatar: '👩' },
-    { id: 3, name: 'Lê Văn C', rating: 4.7, distance: '300m', avatar: '👨‍💼' },
-    { id: 4, name: 'Phạm Thị D', rating: 4.5, distance: '450m', avatar: '👩‍💼' },
-  ]
 
-  const availableRides = [
-    { 
-      id: 1, 
-      driverName: 'Trần Văn X', 
-      rating: 4.9, 
-      carModel: 'Toyota Vios',
-      departureTime: '14:30',
-      price: '25,000đ',
-      availableSeats: 2,
-      fromLocation: 'Trường Đại học',
-      toLocation: 'Vincom Plaza'
-    },
-    { 
-      id: 2, 
-      driverName: 'Nguyễn Thị Y', 
-      rating: 4.7, 
-      carModel: 'Honda City',
-      departureTime: '15:00',
-      price: '30,000đ',
-      availableSeats: 1,
-      fromLocation: 'Nhà ga',
-      toLocation: 'Sân bay',
-      path: []
-    }
-  ]
-
-  // Sử dụng Nominatim (OSM)
   const searchPlacesAPI = async (query) => {
     try {
       const places = await osmSearchPlaces(query)
@@ -100,25 +60,9 @@ const Ride = () => {
     }
   }
 
-  const handleModeSelection = (mode) => {
-    setUserMode(mode)
-  }
-
-  const handlePassengerSelect = (passenger) => {
-    const isSelected = selectedPassengers.find(p => p.id === passenger.id)
-    if (isSelected) {
-      setSelectedPassengers(selectedPassengers.filter(p => p.id !== passenger.id))
-    } else if (selectedPassengers.length < maxPassengers) {
-      setSelectedPassengers([...selectedPassengers, passenger])
-    } else {
-      Alert.alert('Thông báo', `Bạn chỉ có thể chọn tối đa ${maxPassengers} người`)
-    }
-  }
-
   const handleLocationSuggestions = async (query, type) => {
-    if (query.length < 3) return // Chỉ tìm kiếm khi có ít nhất 3 ký tự
+    if (query.length < 3) return
     
-    setIsLoadingPlaces(true)
     try {
       const suggestions = await searchPlacesAPI(query)
       if (type === 'from') {
@@ -128,30 +72,28 @@ const Ride = () => {
       }
     } catch (error) {
       console.error('Error getting location suggestions:', error)
-      // Fallback to empty array if API fails
       if (type === 'from') {
         setFromSuggestions([])
       } else {
         setToSuggestions([])
       }
-    } finally {
-      setIsLoadingPlaces(false)
     }
   }
 
   const handleChangeFromText = (text) => {
     setFromLocation(text)
+    setActiveInput('from')
     if (text.length <= 2) setFromSuggestions([])
   }
 
   const handleChangeToText = (text) => {
     setToLocation(text)
+    setActiveInput('to')
     if (text.length <= 2) setToSuggestions([])
   }
 
   const handleScheduleSuggestions = async (query, type) => {
     if (query.length < 3) return
-    setIsLoadingPlaces(true)
     try {
       const suggestions = await searchPlacesAPI(query)
       if (type === 'from') {
@@ -165,8 +107,6 @@ const Ride = () => {
       } else {
         setScheduleToSuggestions([])
       }
-    } finally {
-      setIsLoadingPlaces(false)
     }
   }
 
@@ -186,7 +126,6 @@ const Ride = () => {
       return
     }
     
-    // Lưu thông tin lịch trình
     setScheduledRide({
       time: scheduleTime,
       from: scheduleFromText,
@@ -228,12 +167,15 @@ const Ride = () => {
 
   const handleLocationSelect = (location, type) => {
     if (type === 'from') {
+      setFromLocation(location.description)
       setOriginCoordinate(location)
       setFromSuggestions([])
     } else {
+      setToLocation(location.description)
       setDestinationCoordinate(location)
       setToSuggestions([])
     }
+    setActiveInput(null)
     setRoutePath([])
   }
 
@@ -268,11 +210,9 @@ const Ride = () => {
     
     setIsLoadingDirections(true)
     try {
-      // Lấy đường đi từ OSRM
       const path = await osrmGetRoute(originCoordinate, destinationCoordinate)
       setRoutePath(path)
 
-      // Ước tính khoảng cách và thời gian từ polyline
       let distanceKm = 0
       for (let i = 1; i < path.length; i++) {
         const a = path[i - 1]
@@ -305,97 +245,17 @@ const Ride = () => {
     }
   }
 
-  const handleSearchAsPassenger = () => {
-    if (!toLocation) {
-      Alert.alert('Lỗi', 'Vui lòng nhập điểm đến')
-      return
-    }
-    if (!destinationCoordinate) {
-      Alert.alert('Lỗi', 'Vui lòng chọn địa điểm từ danh sách gợi ý')
-      return
-    }
-    Alert.alert('Thành công', `Đang tìm kiếm chuyến đi đến ${toLocation}`)
-  }
-
-  const renderDriverInterface = () => (
-    <DriverRide
-      styles={styles}
-      fromLocation={fromLocation}
-      toLocation={toLocation}
-      fromSuggestions={fromSuggestions}
-      toSuggestions={toSuggestions}
-      originCoordinate={originCoordinate}
-      destinationCoordinate={destinationCoordinate}
-      routePath={routePath}
-      routeInfo={routeInfo}
-      isLoadingDirections={isLoadingDirections}
-      onLocationSelect={handleLocationSelect}
-      onRequestSuggestions={handleLocationSuggestions}
-      onGetCurrentLocation={handleGetCurrentLocation}
-      onSearch={handleSearchAsDriver}
-      onChangeFromText={handleChangeFromText}
-      onChangeToText={handleChangeToText}
-    />
-  )
-
-  const renderPassengerInterface = () => (
-    <PassengerRide
-      styles={styles}
-      toLocation={toLocation}
-      toSuggestions={toSuggestions}
-      originCoordinate={originCoordinate}
-      destinationCoordinate={destinationCoordinate}
-      routePath={routePath}
-      availableRides={availableRides}
-      onLocationSelect={handleLocationSelect}
-      onRequestSuggestions={handleLocationSuggestions}
-      onSearch={handleSearchAsPassenger}
-      onChangeToText={handleChangeToText}
-    />
-  )
-
-  if (!userMode) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.selectionContainer}>
-          <Text style={styles.title}>Chọn chế độ của bạn</Text>
-          <Text style={styles.subtitle}>Bạn muốn sử dụng RideMate như thế nào?</Text>
-          
-          <TouchableOpacity 
-            style={styles.modeButton}
-            onPress={() => handleModeSelection('driver')}
-          >
-            <MaterialIcons name="directions-car" size={32} color={COLORS.WHITE} />
-            <Text style={styles.modeButtonText}>Tôi có xe</Text>
-            <Text style={styles.modeButtonSubtext}>Chia sẻ chuyến đi của bạn</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={styles.modeButton}
-            onPress={() => handleModeSelection('passenger')}
-          >
-            <MaterialIcons name="person-add" size={32} color={COLORS.WHITE} />
-            <Text style={styles.modeButtonText}>Tôi không có xe</Text>
-            <Text style={styles.modeButtonSubtext}>Tìm chuyến đi phù hợp</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    )
-  }
-
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backBtn}
-          onPress={() => setUserMode(null)}
-        >
-          <MaterialIcons name="arrow-back" size={24} color={COLORS.BLACK} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>
-          {userMode === 'driver' ? 'Tôi có xe' : 'Tôi không có xe'}
-        </Text>
-        {userMode === 'driver' ? (
+    <View style={styles.container}>
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.header}>
+          <TouchableOpacity 
+            style={styles.backBtn}
+            onPress={() => navigation.goBack()}
+          >
+            <MaterialIcons name="arrow-back" size={24} color={COLORS.BLACK} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Tạo chuyến đi</Text>
           <View style={styles.headerRight}>
             {scheduledRide ? (
               <TouchableOpacity 
@@ -415,12 +275,144 @@ const Ride = () => {
               </TouchableOpacity>
             )}
           </View>
-        ) : (
-          <View style={styles.headerSpacer} />
-        )}
-      </View>
+        </View>
+      </SafeAreaView>
       
-      {userMode === 'driver' ? renderDriverInterface() : renderPassengerInterface()}
+      <View style={styles.contentArea}>
+        <RouteMap
+          origin={originCoordinate}
+          destination={destinationCoordinate}
+          height={Dimensions.get('window').height}
+          showRoute={true}
+          path={routePath}
+          fullScreen={true}
+        />
+
+        <View style={styles.overlayContainer} pointerEvents="box-none">
+          <View style={styles.topControls} pointerEvents="box-none">
+            <View style={styles.inputContainerWrapper} pointerEvents="auto">
+              <View style={styles.inputContainer}>
+                <View style={styles.locationRow}>
+                  <View style={styles.locationSearchWrapper}>
+                    <LocationSearch
+                      placeholder="Điểm xuất phát"
+                      value={fromLocation}
+                      onChangeText={handleChangeFromText}
+                      onRequestSuggestions={(query) => handleLocationSuggestions(query, 'from')}
+                      iconName="my-location"
+                    />
+                  </View>
+                  <TouchableOpacity 
+                    style={styles.currentLocationBtn}
+                    onPress={() => handleGetCurrentLocation('from')}
+                  >
+                    <MaterialIcons name="my-location" size={16} color={COLORS.WHITE} />
+                    <Text style={styles.currentLocationText}>Hiện tại</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.locationRowTo}>
+                  <View style={styles.locationSearchWrapper}>
+                    <LocationSearch
+                      placeholder="Điểm đến"
+                      value={toLocation}
+                      onChangeText={handleChangeToText}
+                      onRequestSuggestions={(query) => handleLocationSuggestions(query, 'to')}
+                      iconName="place"
+                    />
+                  </View>
+                </View>
+              </View>
+
+              {(activeInput === 'from' && fromSuggestions.length > 0 && fromLocation.length > 2) && (
+                <View style={styles.suggestionsContainer} pointerEvents="auto">
+                  <FlatList
+                    data={fromSuggestions}
+                    renderItem={({ item }) => (
+                      <TouchableOpacity 
+                        style={styles.suggestionItem}
+                        onPress={() => handleLocationSelect(item, 'from')}
+                      >
+                        <MaterialIcons name="place" size={16} color={COLORS.GRAY} />
+                        <View style={styles.suggestionContent}>
+                          <Text style={styles.suggestionTitle} numberOfLines={1}>
+                            {item.description}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    )}
+                    keyExtractor={(item, index) => `from-suggestion-${index}`}
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                    style={styles.suggestionsList}
+                  />
+                </View>
+              )}
+
+              {(activeInput === 'to' && toSuggestions.length > 0 && toLocation.length > 2) && (
+                <View style={styles.suggestionsContainer} pointerEvents="auto">
+                  <FlatList
+                    data={toSuggestions}
+                    renderItem={({ item }) => (
+                      <TouchableOpacity 
+                        style={styles.suggestionItem}
+                        onPress={() => handleLocationSelect(item, 'to')}
+                      >
+                        <MaterialIcons name="place" size={16} color={COLORS.GRAY} />
+                        <View style={styles.suggestionContent}>
+                          <Text style={styles.suggestionTitle} numberOfLines={1}>
+                            {item.description}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    )}
+                    keyExtractor={(item, index) => `to-suggestion-${index}`}
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                    style={styles.suggestionsList}
+                  />
+                </View>
+              )}
+            </View>
+          </View>
+
+          <View style={styles.bottomControls} pointerEvents="box-none">
+            {routeInfo && (
+              <View style={styles.routeInfoContainer} pointerEvents="auto">
+                <View style={styles.routeInfoRow}>
+                  <View style={styles.routeInfoItem}>
+                    <MaterialIcons name="directions-car" size={16} color={COLORS.PRIMARY} />
+                    <Text style={styles.routeInfoText}>{routeInfo.distance}</Text>
+                  </View>
+                  <View style={styles.routeInfoItem}>
+                    <MaterialIcons name="access-time" size={16} color={COLORS.BLUE} />
+                    <Text style={styles.routeInfoText}>{routeInfo.duration}</Text>
+                  </View>
+                  <View style={styles.routeInfoItem}>
+                    <MaterialIcons name="attach-money" size={16} color={COLORS.GREEN} />
+                    <Text style={styles.routeInfoText}>{routeInfo.price}</Text>
+                  </View>
+                </View>
+              </View>
+            )}
+
+            <TouchableOpacity 
+              style={[styles.searchBtn, isLoadingDirections && styles.searchBtnDisabled]} 
+              onPress={handleSearchAsDriver}
+              disabled={isLoadingDirections}
+              pointerEvents="auto"
+            >
+              <MaterialIcons 
+                name={isLoadingDirections ? 'hourglass-empty' : 'search'} 
+                size={20} 
+                color={COLORS.WHITE} 
+              />
+              <Text style={styles.searchBtnText}>
+                {isLoadingDirections ? 'Đang tìm kiếm...' : 'Tìm người đi cùng'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
 
       {/* Modal đặt lịch */}
       <Modal
@@ -494,7 +486,7 @@ const Ride = () => {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   )
 }
 
@@ -503,50 +495,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.BG,
   },
-  selectionContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: COLORS.BLACK,
-    marginBottom: 10,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 16,
-    color: COLORS.GRAY,
-    textAlign: 'center',
-    marginBottom: 40,
-  },
-  modeButton: {
-    backgroundColor: COLORS.PURPLE,
-    borderRadius: 20,
-    padding: 30,
-    marginVertical: 10,
-    width: '100%',
-    alignItems: 'center',
-    elevation: 5,
-    shadowColor: COLORS.PURPLE,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-  },
-  modeButtonText: {
-    fontSize: 20, 
-    fontWeight: 'bold',
-    color: COLORS.WHITE,
-    marginTop: 10,
-    marginBottom: 5,
-  },
-  modeButtonSubtext: {
-    fontSize: 14,
-    color: COLORS.WHITE,
-    opacity: 0.8,
+  safeArea: {
+    backgroundColor: COLORS.WHITE,
+    zIndex: 1000,
   },
   header: {
     flexDirection: 'row',
@@ -571,7 +522,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerScheduleBtn: {
-    backgroundColor: COLORS.BLUE,
+    backgroundColor: COLORS.PRIMARY,
     borderRadius: 16,
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -587,89 +538,125 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginLeft: 6,
   },
-  headerSpacer: {
-    width: 39, 
-  },
-  content: {
+  contentArea: {
     flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 20,
+    position: 'relative',
   },
-  sectionTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: COLORS.BLACK,
-    marginVertical: 20,
-    textAlign: 'center',
+  overlayContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 100,
+    justifyContent: 'space-between',
+  },
+  topControls: {
+    paddingHorizontal: 15,
+    paddingTop: 10,
+    zIndex: 3000,
+  },
+  bottomControls: {
+    paddingHorizontal: 15,
+    paddingBottom: 15,
+    zIndex: 100,
+  },
+  inputContainerWrapper: {
+    position: 'relative',
   },
   inputContainer: {
     backgroundColor: COLORS.WHITE,
-    borderRadius: 15,
-    padding: 20,
-    marginBottom: 20,
-    elevation: 2,
+    borderRadius: 12,
+    padding: 15,
+    elevation: 5,
     shadowColor: COLORS.BLACK,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    zIndex: 2500,
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+  },
+  suggestionsContainer: {
+    backgroundColor: COLORS.WHITE,
+    borderRadius: 10,
+    marginTop: 8,
+    elevation: 20,
+    shadowColor: COLORS.BLACK,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    maxHeight: 200,
+  },
+  suggestionsList: {
+    maxHeight: 200,
+  },
+  suggestionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.GRAY_LIGHT,
+  },
+  suggestionContent: {
+    flex: 1,
+    marginLeft: 8,
+  },
+  suggestionTitle: {
+    fontSize: 13,
+    color: COLORS.BLACK,
+    fontWeight: '500',
   },
   locationRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 15,
+    alignItems: 'flex-start',
+    marginBottom: 10,
   },
   locationRowTo: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 15,
-    
+    alignItems: 'flex-start',
+    marginRight: 80,
   },
   locationSearchWrapper: {
     flex: 1,
   },
   currentLocationBtn: {
-    backgroundColor: COLORS.BLUE,
-    borderRadius: 20,
-    paddingHorizontal: 15,
-    paddingVertical: 10,
+    backgroundColor: COLORS.PRIMARY,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    marginLeft: 10,
+    marginLeft: 8,
+    width: 72,
+    justifyContent: 'center',
+    marginTop: 5,
   },
   currentLocationText: {
     color: COLORS.WHITE,
-    fontSize: 12,
-    fontWeight: '500',
-    marginLeft: 5,
+    fontSize: 11,
+    fontWeight: '600',
+    marginLeft: 4,
   },
   routeInfoContainer: {
     backgroundColor: COLORS.WHITE,
-    borderRadius: 15,
-    padding: 20,
-    marginBottom: 20,
-    elevation: 2,
+    borderRadius: 12,
+    padding: 15,
+    marginBottom: 10,
+    elevation: 5,
     shadowColor: COLORS.BLACK,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    marginTop: 20,
-  },
-  routeInfoTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: COLORS.BLACK,
-    marginBottom: 15,
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
   },
   routeInfoRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'space-around',
+    alignItems: 'center',
   },
   routeInfoItem: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.BLUE_LIGHT,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 20,
   },
@@ -679,68 +666,18 @@ const styles = StyleSheet.create({
     marginLeft: 5,
     fontWeight: '600',
   },
-  settingsContainer: {
-    backgroundColor: COLORS.WHITE,
-    borderRadius: 15,
-    padding: 20,
-    marginBottom: 20,
-    elevation: 2,
-  },
-  settingLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.BLACK,
-    marginBottom: 15,
-  },
-  passengerLimitContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  passengerLimitBtn: {
-    backgroundColor: COLORS.GRAY_BG,
-    borderRadius: 20,
-    width: 50,
-    height: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  passengerLimitBtnActive: {
-    backgroundColor: COLORS.PURPLE,
-  },
-  passengerLimitText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: COLORS.GRAY_DARK,
-  },
-  passengerLimitTextActive: {
-    color: COLORS.WHITE,
-  },
   searchBtn: {
-    backgroundColor: COLORS.PURPLE,
-    borderRadius: 25,
-    padding: 18,
+    backgroundColor: COLORS.PRIMARY,
+    borderRadius: 12,
+    padding: 15,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20,
-    marginTop: 20,
-  },
-  headerScheduleBtn: {
-    backgroundColor: COLORS.BLUE,
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  headerCancelBtn: {
-    backgroundColor: COLORS.RED,
-  },
-  headerScheduleText: {
-    color: COLORS.WHITE,
-    fontSize: 12,
-    fontWeight: '700',
-    marginLeft: 6,
+    elevation: 5,
+    shadowColor: COLORS.BLACK,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
   },
   searchBtnText: {
     color: COLORS.WHITE,
@@ -751,157 +688,6 @@ const styles = StyleSheet.create({
   searchBtnDisabled: {
     backgroundColor: COLORS.GRAY,
     opacity: 0.7,
-    marginTop: 20,
-  },
-  listTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: COLORS.BLACK,
-    marginBottom: 15,
-  },
-  passengerCard: {
-    backgroundColor: COLORS.WHITE,
-    borderRadius: 15,
-    padding: 15,
-    marginBottom: 10,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    elevation: 2,
-    shadowColor: COLORS.BLACK,
-    shadowOffset: { width: 0, height: 2 },
-  },
-  passengerCardSelected: {
-    borderColor: COLORS.GREEN,
-    borderWidth: 2,
-  },
-  passengerInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  passengerAvatar: {
-    fontSize: 24,
-    marginRight: 15,
-  },
-  passengerDetails: {
-    flex: 1,
-  },
-  passengerName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.BLACK,
-    marginBottom: 5,
-  },
-  passengerRating: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  ratingText: {
-    fontSize: 14,
-    color: COLORS.BLACK,
-    marginLeft: 5,
-    fontWeight: '500',
-  },
-  distanceText: {
-    fontSize: 14,
-    color: COLORS.GRAY,
-    marginLeft: 5,
-  },
-  confirmBtn: {
-    backgroundColor: COLORS.GREEN,
-    borderRadius: 25,
-    padding: 18,
-    marginBottom: 20,
-    alignItems: 'center',
-  },
-  confirmBtnText: {
-    color: COLORS.WHITE,
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  rideCard: {
-    backgroundColor: COLORS.WHITE,
-    borderRadius: 15,
-    padding: 20,
-    marginBottom: 15,
-    elevation: 3,
-    shadowColor: COLORS.BLACK,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  rideHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 15,
-  },
-  driverInfo: {
-    flex: 1,
-  },
-  driverName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: COLORS.BLACK,
-    marginBottom: 5,
-  },
-  driverRating: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  price: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: COLORS.PURPLE,
-  },
-  rideDetails: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 15,
-  },
-  carModel: {
-    fontSize: 16,
-    color: COLORS.BLACK,
-    fontWeight: '500',
-  },
-  seatsInfo: {
-    fontSize: 14,
-    color: COLORS.BLUE,
-    fontWeight: '500',
-  },
-  routeInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  routeText: {
-    fontSize: 14,
-    color: COLORS.BLACK,
-    marginLeft: 10,
-  },
-  timeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 10,
-    marginBottom: 15,
-  },
-  timeText: {
-    fontSize: 14,
-    color: COLORS.BLUE,
-    fontWeight: '600',
-    marginLeft: 10,
-  },
-  joinBtn: {
-    backgroundColor: COLORS.PURPLE,
-    borderRadius: 20,
-    padding: 15,
-    alignItems: 'center',
-  },
-  joinBtnText: {
-    color: COLORS.WHITE,
-    fontSize: 16,
-    fontWeight: 'bold',
   },
   modalBackdrop: {
     flex: 1,
@@ -957,7 +743,7 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   modalConfirm: {
-    backgroundColor: COLORS.PURPLE,
+    backgroundColor: COLORS.PRIMARY,
     marginLeft: 10,
   },
   modalBtnText: {
@@ -970,4 +756,5 @@ const styles = StyleSheet.create({
   },
 })
 
-export default Ride
+export default DriverRideScreen
+

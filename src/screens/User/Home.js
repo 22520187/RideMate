@@ -51,7 +51,7 @@ const Home = ({ navigation }) => {
       subtitle: 'Người có xe',
       icon: Car,
       color: COLORS.GREEN,
-      onPress: () => navigation.navigate('CreateRide')
+      onPress: () => navigation.navigate('DriverRide')
     },
     {
       id: 2,
@@ -59,7 +59,7 @@ const Home = ({ navigation }) => {
       subtitle: 'Người không có xe',
       icon: Users,
       color: COLORS.BLUE,
-      onPress: () => navigation.navigate('FindRide')
+      onPress: () => navigation.navigate('PassengerRide')
     },
     {
       id: 3,

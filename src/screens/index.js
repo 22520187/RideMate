@@ -1,8 +1,10 @@
 const SCREENS = {
     HOME: 'Home',
-    RIDE: 'Ride',
     AWARD: 'Award',
-    PROFILE: 'Profile'
+    PROFILE: 'Profile',
+    DRIVER_RIDE: 'DriverRide',
+    PASSENGER_RIDE: 'PassengerRide',
+    MESSAGE: 'Message'
 }
 
 export default SCREENS;
