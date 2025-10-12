@@ -4,9 +4,10 @@ import { Ionicons } from '@expo/vector-icons';
 import COLORS from '../constant/colors';
 import SCREENS from '../screens';
 import Home from '../screens/User/Home';
-import Ride from '../screens/User/Ride';
 import Award from '../screens/User/Award';
 import Profile from '../screens/User/Profile';
+import DriverRideScreen from '../screens/User/Rider/DriverRideScreen';
+import PassengerRideScreen from '../screens/User/Rider/PassengerRideScreen';
 import { useIsKeyboardVisible } from '../hooks/useIsKeyboardVisible';
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -21,8 +22,6 @@ const UserTabNavigator = () => {
                     let iconName;
                     if(route.name === SCREENS.HOME) {
                         iconName = focused ? 'home' : 'home-outline';
-                    } else if(route.name === SCREENS.RIDE) {
-                        iconName = focused ? 'location' : 'location-outline';
                     } else if(route.name === SCREENS.AWARD) {
                         iconName = focused ? 'diamond' : 'diamond-outline';
                     } else if(route.name === SCREENS.PROFILE) {
@@ -42,11 +41,20 @@ const UserTabNavigator = () => {
             })}
             >
             <Tab.Screen name={SCREENS.HOME} component={Home} options={{tabBarLabel: 'Home'}} />
-            <Tab.Screen name={SCREENS.RIDE} component={Ride} options={{tabBarLabel: 'Ride'}} />
             <Tab.Screen name={SCREENS.AWARD} component={Award} options={{tabBarLabel: 'Reward'}} />
             <Tab.Screen name={SCREENS.PROFILE} component={Profile} options={{tabBarLabel: 'Profile'}} />
         </Tab.Navigator>
     )
 }
 
-export { UserTabNavigator };
+const MainStackNavigator = () => {
+    return (
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="MainTabs" component={UserTabNavigator} />
+            <Stack.Screen name={SCREENS.DRIVER_RIDE} component={DriverRideScreen} />
+            <Stack.Screen name={SCREENS.PASSENGER_RIDE} component={PassengerRideScreen} />
+        </Stack.Navigator>
+    )
+}
+
+export { UserTabNavigator, MainStackNavigator };
