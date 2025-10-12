@@ -38,6 +38,7 @@ const DriverRideScreen = ({ navigation }) => {
   const [scheduleOriginCoordinate, setScheduleOriginCoordinate] = useState(null)
   const [scheduleDestinationCoordinate, setScheduleDestinationCoordinate] = useState(null)
   const [scheduledRide, setScheduledRide] = useState(null)
+  const [activeInput, setActiveInput] = useState(null) // 'from' or 'to'
 
   const calculatePrice = (distanceKm) => {
     const basePrice = 15000
@@ -81,11 +82,13 @@ const DriverRideScreen = ({ navigation }) => {
 
   const handleChangeFromText = (text) => {
     setFromLocation(text)
+    setActiveInput('from')
     if (text.length <= 2) setFromSuggestions([])
   }
 
   const handleChangeToText = (text) => {
     setToLocation(text)
+    setActiveInput('to')
     if (text.length <= 2) setToSuggestions([])
   }
 
@@ -164,12 +167,15 @@ const DriverRideScreen = ({ navigation }) => {
 
   const handleLocationSelect = (location, type) => {
     if (type === 'from') {
+      setFromLocation(location.description)
       setOriginCoordinate(location)
       setFromSuggestions([])
     } else {
+      setToLocation(location.description)
       setDestinationCoordinate(location)
       setToSuggestions([])
     }
+    setActiveInput(null)
     setRoutePath([])
   }
 
@@ -240,122 +246,173 @@ const DriverRideScreen = ({ navigation }) => {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backBtn}
-          onPress={() => navigation.goBack()}
-        >
-          <MaterialIcons name="arrow-back" size={24} color={COLORS.BLACK} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Tạo chuyến đi</Text>
-        <View style={styles.headerRight}>
-          {scheduledRide ? (
-            <TouchableOpacity 
-              style={[styles.headerScheduleBtn, styles.headerCancelBtn]}
-              onPress={handleCancelSchedule}
-            >
-              <MaterialIcons name="event-busy" size={18} color={COLORS.WHITE} />
-              <Text style={styles.headerScheduleText}>Xóa lịch</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity 
-              style={styles.headerScheduleBtn}
-              onPress={() => setIsScheduleModalVisible(true)}
-            >
-              <MaterialIcons name="event" size={18} color={COLORS.WHITE} />
-              <Text style={styles.headerScheduleText}>Đặt lịch</Text>
-            </TouchableOpacity>
-          )}
+    <View style={styles.container}>
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.header}>
+          <TouchableOpacity 
+            style={styles.backBtn}
+            onPress={() => navigation.goBack()}
+          >
+            <MaterialIcons name="arrow-back" size={24} color={COLORS.BLACK} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Tạo chuyến đi</Text>
+          <View style={styles.headerRight}>
+            {scheduledRide ? (
+              <TouchableOpacity 
+                style={[styles.headerScheduleBtn, styles.headerCancelBtn]}
+                onPress={handleCancelSchedule}
+              >
+                <MaterialIcons name="event-busy" size={18} color={COLORS.WHITE} />
+                <Text style={styles.headerScheduleText}>Xóa lịch</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity 
+                style={styles.headerScheduleBtn}
+                onPress={() => setIsScheduleModalVisible(true)}
+              >
+                <MaterialIcons name="event" size={18} color={COLORS.WHITE} />
+                <Text style={styles.headerScheduleText}>Đặt lịch</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
-      </View>
+      </SafeAreaView>
       
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.inputContainer}>
-          <View style={styles.locationRow}>
-            <View style={styles.locationSearchWrapper}>
-              <LocationSearch
-                placeholder="Điểm xuất phát"
-                value={fromLocation}
-                onChangeText={handleChangeFromText}
-                onLocationSelect={(location) => handleLocationSelect(location, 'from')}
-                suggestions={fromSuggestions}
-                showSuggestions={fromLocation.length > 2}
-                onRequestSuggestions={(query) => handleLocationSuggestions(query, 'from')}
-                iconName="my-location"
-              />
-            </View>
-            <TouchableOpacity 
-              style={styles.currentLocationBtn}
-              onPress={() => handleGetCurrentLocation('from')}
-            >
-              <MaterialIcons name="my-location" size={20} color={COLORS.WHITE} />
-              <Text style={styles.currentLocationText}>Hiện tại</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.locationRowTo}>
-            <View style={styles.locationSearchWrapper}>
-              <LocationSearch
-                placeholder="Điểm đến"
-                value={toLocation}
-                onChangeText={handleChangeToText}
-                onLocationSelect={(location) => handleLocationSelect(location, 'to')}
-                suggestions={toSuggestions}
-                showSuggestions={toLocation.length > 2}
-                onRequestSuggestions={(query) => handleLocationSuggestions(query, 'to')}
-                iconName="place"
-              />
-            </View>
-          </View>
-        </View>
-
+      <View style={styles.contentArea}>
         <RouteMap
           origin={originCoordinate}
           destination={destinationCoordinate}
-          height={250}
+          height={Dimensions.get('window').height}
           showRoute={true}
           path={routePath}
+          fullScreen={true}
         />
 
-        {routeInfo && (
-          <View style={styles.routeInfoContainer}>
-            <Text style={styles.routeInfoTitle}>Thông tin tuyến đường</Text>
-            <View style={styles.routeInfoRow}>
-              <View style={styles.routeInfoItem}>
-                <MaterialIcons name="directions-car" size={16} color={COLORS.PURPLE} />
-                <Text style={styles.routeInfoText}>{routeInfo.distance}</Text>
+        <View style={styles.overlayContainer} pointerEvents="box-none">
+          <View style={styles.topControls} pointerEvents="box-none">
+            <View style={styles.inputContainerWrapper} pointerEvents="auto">
+              <View style={styles.inputContainer}>
+                <View style={styles.locationRow}>
+                  <View style={styles.locationSearchWrapper}>
+                    <LocationSearch
+                      placeholder="Điểm xuất phát"
+                      value={fromLocation}
+                      onChangeText={handleChangeFromText}
+                      onRequestSuggestions={(query) => handleLocationSuggestions(query, 'from')}
+                      iconName="my-location"
+                    />
+                  </View>
+                  <TouchableOpacity 
+                    style={styles.currentLocationBtn}
+                    onPress={() => handleGetCurrentLocation('from')}
+                  >
+                    <MaterialIcons name="my-location" size={16} color={COLORS.WHITE} />
+                    <Text style={styles.currentLocationText}>Hiện tại</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.locationRowTo}>
+                  <View style={styles.locationSearchWrapper}>
+                    <LocationSearch
+                      placeholder="Điểm đến"
+                      value={toLocation}
+                      onChangeText={handleChangeToText}
+                      onRequestSuggestions={(query) => handleLocationSuggestions(query, 'to')}
+                      iconName="place"
+                    />
+                  </View>
+                </View>
               </View>
-              <View style={styles.routeInfoItem}>
-                <MaterialIcons name="access-time" size={16} color={COLORS.BLUE} />
-                <Text style={styles.routeInfoText}>{routeInfo.duration}</Text>
-              </View>
-              <View style={styles.routeInfoItem}>
-                <MaterialIcons name="attach-money" size={16} color={COLORS.GREEN} />
-                <Text style={styles.routeInfoText}>{routeInfo.price}</Text>
-              </View>
+
+              {(activeInput === 'from' && fromSuggestions.length > 0 && fromLocation.length > 2) && (
+                <View style={styles.suggestionsContainer} pointerEvents="auto">
+                  <FlatList
+                    data={fromSuggestions}
+                    renderItem={({ item }) => (
+                      <TouchableOpacity 
+                        style={styles.suggestionItem}
+                        onPress={() => handleLocationSelect(item, 'from')}
+                      >
+                        <MaterialIcons name="place" size={16} color={COLORS.GRAY} />
+                        <View style={styles.suggestionContent}>
+                          <Text style={styles.suggestionTitle} numberOfLines={1}>
+                            {item.description}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    )}
+                    keyExtractor={(item, index) => `from-suggestion-${index}`}
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                    style={styles.suggestionsList}
+                  />
+                </View>
+              )}
+
+              {(activeInput === 'to' && toSuggestions.length > 0 && toLocation.length > 2) && (
+                <View style={styles.suggestionsContainer} pointerEvents="auto">
+                  <FlatList
+                    data={toSuggestions}
+                    renderItem={({ item }) => (
+                      <TouchableOpacity 
+                        style={styles.suggestionItem}
+                        onPress={() => handleLocationSelect(item, 'to')}
+                      >
+                        <MaterialIcons name="place" size={16} color={COLORS.GRAY} />
+                        <View style={styles.suggestionContent}>
+                          <Text style={styles.suggestionTitle} numberOfLines={1}>
+                            {item.description}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    )}
+                    keyExtractor={(item, index) => `to-suggestion-${index}`}
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                    style={styles.suggestionsList}
+                  />
+                </View>
+              )}
             </View>
           </View>
-        )}
 
-        <TouchableOpacity 
-          style={[styles.searchBtn, isLoadingDirections && styles.searchBtnDisabled]} 
-          onPress={handleSearchAsDriver}
-          disabled={isLoadingDirections}
-        >
-          <MaterialIcons 
-            name={isLoadingDirections ? 'hourglass-empty' : 'search'} 
-            size={20} 
-            color={COLORS.WHITE} 
-          />
-          <Text style={styles.searchBtnText}>
-            {isLoadingDirections ? 'Đang tìm kiếm...' : 'Tìm người đi cùng'}
-          </Text>
-        </TouchableOpacity>
+          <View style={styles.bottomControls} pointerEvents="box-none">
+            {routeInfo && (
+              <View style={styles.routeInfoContainer} pointerEvents="auto">
+                <View style={styles.routeInfoRow}>
+                  <View style={styles.routeInfoItem}>
+                    <MaterialIcons name="directions-car" size={16} color={COLORS.PRIMARY} />
+                    <Text style={styles.routeInfoText}>{routeInfo.distance}</Text>
+                  </View>
+                  <View style={styles.routeInfoItem}>
+                    <MaterialIcons name="access-time" size={16} color={COLORS.BLUE} />
+                    <Text style={styles.routeInfoText}>{routeInfo.duration}</Text>
+                  </View>
+                  <View style={styles.routeInfoItem}>
+                    <MaterialIcons name="attach-money" size={16} color={COLORS.GREEN} />
+                    <Text style={styles.routeInfoText}>{routeInfo.price}</Text>
+                  </View>
+                </View>
+              </View>
+            )}
 
-        {fromLocation && toLocation && (
-          <Text style={styles.listTitle}>Người cần đi từ {fromLocation} đến {toLocation}</Text>
-        )}
-      </ScrollView>
+            <TouchableOpacity 
+              style={[styles.searchBtn, isLoadingDirections && styles.searchBtnDisabled]} 
+              onPress={handleSearchAsDriver}
+              disabled={isLoadingDirections}
+              pointerEvents="auto"
+            >
+              <MaterialIcons 
+                name={isLoadingDirections ? 'hourglass-empty' : 'search'} 
+                size={20} 
+                color={COLORS.WHITE} 
+              />
+              <Text style={styles.searchBtnText}>
+                {isLoadingDirections ? 'Đang tìm kiếm...' : 'Tìm người đi cùng'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
 
       {/* Modal đặt lịch */}
       <Modal
@@ -429,7 +486,7 @@ const DriverRideScreen = ({ navigation }) => {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   )
 }
 
@@ -437,6 +494,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.BG,
+  },
+  safeArea: {
+    backgroundColor: COLORS.WHITE,
+    zIndex: 1000,
   },
   header: {
     flexDirection: 'row',
@@ -461,7 +522,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerScheduleBtn: {
-    backgroundColor: COLORS.BLUE,
+    backgroundColor: COLORS.PRIMARY,
     borderRadius: 16,
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -477,77 +538,125 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginLeft: 6,
   },
-  content: {
+  contentArea: {
     flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 20,
+    position: 'relative',
+  },
+  overlayContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 100,
+    justifyContent: 'space-between',
+  },
+  topControls: {
+    paddingHorizontal: 15,
+    paddingTop: 10,
+    zIndex: 3000,
+  },
+  bottomControls: {
+    paddingHorizontal: 15,
+    paddingBottom: 15,
+    zIndex: 100,
+  },
+  inputContainerWrapper: {
+    position: 'relative',
   },
   inputContainer: {
     backgroundColor: COLORS.WHITE,
-    borderRadius: 15,
-    padding: 20,
-    marginBottom: 20,
-    elevation: 2,
+    borderRadius: 12,
+    padding: 15,
+    elevation: 5,
     shadowColor: COLORS.BLACK,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    zIndex: 2500,
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+  },
+  suggestionsContainer: {
+    backgroundColor: COLORS.WHITE,
+    borderRadius: 10,
+    marginTop: 8,
+    elevation: 20,
+    shadowColor: COLORS.BLACK,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    maxHeight: 200,
+  },
+  suggestionsList: {
+    maxHeight: 200,
+  },
+  suggestionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.GRAY_LIGHT,
+  },
+  suggestionContent: {
+    flex: 1,
+    marginLeft: 8,
+  },
+  suggestionTitle: {
+    fontSize: 13,
+    color: COLORS.BLACK,
+    fontWeight: '500',
   },
   locationRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 15,
+    alignItems: 'flex-start',
+    marginBottom: 10,
   },
   locationRowTo: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    marginRight: 80,
   },
   locationSearchWrapper: {
     flex: 1,
   },
   currentLocationBtn: {
-    backgroundColor: COLORS.BLUE,
-    borderRadius: 20,
-    paddingHorizontal: 15,
-    paddingVertical: 10,
+    backgroundColor: COLORS.PRIMARY,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    marginLeft: 10,
+    marginLeft: 8,
+    width: 72,
+    justifyContent: 'center',
+    marginTop: 5,
   },
   currentLocationText: {
     color: COLORS.WHITE,
-    fontSize: 12,
-    fontWeight: '500',
-    marginLeft: 5,
+    fontSize: 11,
+    fontWeight: '600',
+    marginLeft: 4,
   },
   routeInfoContainer: {
     backgroundColor: COLORS.WHITE,
-    borderRadius: 15,
-    padding: 20,
-    marginBottom: 20,
-    elevation: 2,
+    borderRadius: 12,
+    padding: 15,
+    marginBottom: 10,
+    elevation: 5,
     shadowColor: COLORS.BLACK,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    marginTop: 20,
-  },
-  routeInfoTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: COLORS.BLACK,
-    marginBottom: 15,
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
   },
   routeInfoRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'space-around',
+    alignItems: 'center',
   },
   routeInfoItem: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.BLUE_LIGHT,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 20,
   },
@@ -558,14 +667,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   searchBtn: {
-    backgroundColor: COLORS.PURPLE,
-    borderRadius: 25,
-    padding: 18,
+    backgroundColor: COLORS.PRIMARY,
+    borderRadius: 12,
+    padding: 15,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20,
-    marginTop: 20,
+    elevation: 5,
+    shadowColor: COLORS.BLACK,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
   },
   searchBtnText: {
     color: COLORS.WHITE,
@@ -576,12 +688,6 @@ const styles = StyleSheet.create({
   searchBtnDisabled: {
     backgroundColor: COLORS.GRAY,
     opacity: 0.7,
-  },
-  listTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: COLORS.BLACK,
-    marginBottom: 15,
   },
   modalBackdrop: {
     flex: 1,
@@ -637,7 +743,7 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   modalConfirm: {
-    backgroundColor: COLORS.PURPLE,
+    backgroundColor: COLORS.PRIMARY,
     marginLeft: 10,
   },
   modalBtnText: {

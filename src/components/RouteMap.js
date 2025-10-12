@@ -10,7 +10,8 @@ const RouteMap = ({
   height = 200,
   showRoute = true,
   markers = [],
-  path = []
+  path = [],
+  fullScreen = false
 }) => {
   const [region, setRegion] = useState(MAPS_CONFIG.DEFAULT_REGION)
 
@@ -70,7 +71,11 @@ const RouteMap = ({
   }
 
   return (
-    <View style={[styles.mapContainer, { height }]}>
+    <View style={[
+      styles.mapContainer, 
+      { height },
+      fullScreen && styles.fullScreenMap
+    ]}>
       <MapView
         style={styles.map}
         provider={PROVIDER_GOOGLE}
@@ -107,6 +112,16 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     zIndex: 0,
+  },
+  fullScreenMap: {
+    borderRadius: 0,
+    elevation: 0,
+    shadowOpacity: 0,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   map: {
     flex: 1,
