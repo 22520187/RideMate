@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import COLORS from '../constant/colors';
 import SCREENS from '../screens';
 import Home from '../screens/User/Home';
+import Message from '../screens/User/Message';
 import Award from '../screens/User/Award';
 import Profile from '../screens/User/Profile';
 import DriverRideScreen from '../screens/User/Rider/DriverRideScreen';
@@ -26,6 +27,8 @@ const UserTabNavigator = () => {
                         iconName = focused ? 'diamond' : 'diamond-outline';
                     } else if(route.name === SCREENS.PROFILE) {
                         iconName = focused ? 'person' : 'person-outline';
+                    } else if(route.name === SCREENS.MESSAGE) {
+                        iconName = focused ? 'chatbox' : 'chatbox-outline';
                     }
                     return <Ionicons name={iconName} size={size} color={color} />;
                 },
@@ -41,6 +44,7 @@ const UserTabNavigator = () => {
             })}
             >
             <Tab.Screen name={SCREENS.HOME} component={Home} options={{tabBarLabel: 'Home'}} />
+            <Tab.Screen name={SCREENS.MESSAGE} component={Message} options={{tabBarLabel: 'Message'}} />
             <Tab.Screen name={SCREENS.AWARD} component={Award} options={{tabBarLabel: 'Reward'}} />
             <Tab.Screen name={SCREENS.PROFILE} component={Profile} options={{tabBarLabel: 'Profile'}} />
         </Tab.Navigator>
