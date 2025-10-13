@@ -4,7 +4,8 @@ const SCREENS = {
     PROFILE: 'Profile',
     DRIVER_RIDE: 'DriverRide',
     PASSENGER_RIDE: 'PassengerRide',
-    MESSAGE: 'Message'
+    MESSAGE: 'Message',
+    REPORT: 'Report'
 }
 
 export default SCREENS;
