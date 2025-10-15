@@ -24,6 +24,8 @@ import {
   ChevronRight,
   MessageCircle,
   Ban,
+  Package,
+  Ticket,
 } from 'lucide-react-native'
 import COLORS from '../../constant/colors'
 
@@ -79,11 +81,11 @@ const Home = ({ navigation }) => {
     },
     {
       id: 5,
-      title: 'Tin nhắn',
-      subtitle: 'Chat hiện tại',
-      icon: MessageCircle,
+      title: 'Hội viên',
+      subtitle: 'Xem hội viên',
+      icon: Package,
       color: COLORS.ORANGE,
-      onPress: () => navigation.navigate('Messages')
+      onPress: () => navigation.navigate('Package')
     },
     {
       id: 6,
@@ -122,6 +124,33 @@ const Home = ({ navigation }) => {
     }
   ]
 
+  const packages = [
+    {
+      id: 1,
+      title: 'RideMate Premium',
+      description: 'Ưu đãi đặc biệt mọi chuyến xe\nTích điểm nhanh gấp đôi',
+      image: 'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400&h=250&fit=crop',
+      badge: 'Phổ biến',
+      badgeColor: COLORS.ORANGE,
+    },
+    {
+      id: 2,
+      title: 'RideMate VIP',
+      description: 'Trải nghiệm dịch vụ cao cấp\nHỗ trợ ưu tiên 24/7',
+      image: 'https://images.unsplash.com/photo-1449824913935-59a10b8d2000?w=400&h=250&fit=crop',
+      badge: 'Cao cấp',
+      badgeColor: COLORS.PURPLE,
+    },
+    {
+      id: 3,
+      title: 'RideMate Family',
+      description: 'Chia sẻ cho cả gia đình\nTối đa 5 thành viên',
+      image: 'https://images.unsplash.com/photo-1511632765486-a01980e01a18?w=400&h=250&fit=crop',
+      badge: 'Tiết kiệm',
+      badgeColor: COLORS.GREEN,
+    },
+  ]
+
   const renderPromotion = ({ item }) => (
     <TouchableOpacity style={styles.promotionCard}>
       <Image source={{ uri: item.image }} style={styles.promotionImage} />
@@ -135,6 +164,28 @@ const Home = ({ navigation }) => {
               <Text style={styles.badgeText}>{item.badge}</Text>
             </View>
           </View>
+        </View>
+      </View>
+    </TouchableOpacity>
+  )
+
+  const renderPackage = ({ item }) => (
+    <TouchableOpacity 
+      style={styles.packageCard} 
+      activeOpacity={0.8}
+      onPress={() => {
+        // Điều hướng đến trang chi tiết gói hội viên
+        // navigation.navigate('PackageDetail', { packageId: item.id })
+      }}
+    >
+      <Image source={{ uri: item.image }} style={styles.packageImage} />
+      <View style={styles.packageOverlay}>
+        <View style={[styles.packageBadge, { backgroundColor: item.badgeColor }]}>
+          <Text style={styles.packageBadgeText}>{item.badge}</Text>
+        </View>
+        <View style={styles.packageContent}>
+          <Text style={styles.packageTitle}>{item.title}</Text>
+          <Text style={styles.packageDescription}>{item.description}</Text>
         </View>
       </View>
     </TouchableOpacity>
@@ -162,8 +213,15 @@ const Home = ({ navigation }) => {
               <User size={20} color={COLORS.WHITE} />
             </TouchableOpacity>
             
-            <TouchableOpacity style={styles.notificationButton}>
+            <TouchableOpacity 
+              style={styles.notificationButton}
+              onPress={() => navigation.navigate('Notification')}
+            >
               <Bell size={24} color={COLORS.WHITE} />
+              {/* Badge cho thông báo chưa đọc */}
+              <View style={styles.notificationBadge}>
+                <Text style={styles.notificationBadgeText}>3</Text>
+              </View>
             </TouchableOpacity>
           </View>
         </View>
@@ -200,7 +258,6 @@ const Home = ({ navigation }) => {
 
         {/* Main Functions Grid */}
         <View style={styles.functionsSection}>
-          <Text style={styles.sectionTitle}>Dịch vụ</Text>
           <View style={styles.functionsGrid}>
             {mainFunctions.map((item) => {
               const IconComponent = item.icon
@@ -251,7 +308,10 @@ const Home = ({ navigation }) => {
         {/* Promotions Carousel */}
         <View style={styles.promotionSection}>
           <View style={styles.promotionHeader}>
-            <Text style={styles.sectionTitle}>Khuyến mãi</Text>
+          <View style={styles.packageHeaderLeft}>
+              <Ticket size={24} color={COLORS.PRIMARY} />
+              <Text style={styles.packageSectionTitle}>Khuyến mãi</Text>
+            </View>
             <TouchableOpacity style={styles.seeAllButton}>
               <Text style={styles.seeAllText}>Xem tất cả</Text>
               <ChevronRight size={16} color={COLORS.PRIMARY} />
@@ -264,6 +324,31 @@ const Home = ({ navigation }) => {
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.promotionList}
+          />
+        </View>
+
+        {/* Packages Section */}
+        <View style={styles.packagesSection}>
+          <View style={styles.packageHeader}>
+            <View style={styles.packageHeaderLeft}>
+              <Package size={24} color={COLORS.PRIMARY} />
+              <Text style={styles.packageSectionTitle}>Gói Hội Viên RideMate</Text>
+            </View>
+            <TouchableOpacity style={styles.seeAllButton}>
+              <Text style={styles.seeAllText}>Xem tất cả</Text>
+              <ChevronRight size={16} color={COLORS.PRIMARY} />
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.packageSectionSubtitle}>
+            Trải nghiệm đặc quyền - Tiết kiệm mọi chuyến đi
+          </Text>
+          <FlatList
+            data={packages}
+            renderItem={renderPackage}
+            keyExtractor={(item) => item.id.toString()}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.packagesList}
           />
         </View>
       </ScrollView>
@@ -308,6 +393,26 @@ const styles = StyleSheet.create({
   notificationButton: {
     padding: 8,
     marginLeft: 8,
+    position: 'relative',
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: COLORS.RED,
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 2,
+    borderColor: COLORS.PRIMARY,
+  },
+  notificationBadgeText: {
+    color: COLORS.WHITE,
+    fontSize: 10,
+    fontWeight: '700',
   },
   profileButton: {
     width: 40,
@@ -607,6 +712,89 @@ const styles = StyleSheet.create({
     color: COLORS.ORANGE_DARK,
     marginLeft: 4,
     fontWeight: '500',
+  },
+  // Packages Section Styles
+  packagesSection: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 32,
+  },
+  packageHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  packageHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  packageSectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.BLACK,
+  },
+  packageSectionSubtitle: {
+    fontSize: 13,
+    color: COLORS.GRAY_DARK,
+    marginBottom: 16,
+  },
+  packagesList: {
+    paddingRight: 16,
+  },
+  packageCard: {
+    width: width * 0.7,
+    height: 200,
+    borderRadius: 16,
+    marginRight: 12,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  packageImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  packageOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    justifyContent: 'space-between',
+    padding: 16,
+  },
+  packageBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  packageBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.WHITE,
+  },
+  packageContent: {
+    justifyContent: 'flex-end',
+  },
+  packageTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: COLORS.WHITE,
+    marginBottom: 6,
+  },
+  packageDescription: {
+    fontSize: 13,
+    color: COLORS.WHITE,
+    opacity: 0.95,
+    lineHeight: 18,
   },
 })
 
