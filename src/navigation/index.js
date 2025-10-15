@@ -10,6 +10,7 @@ import Profile from '../screens/User/Profile';
 import DriverRideScreen from '../screens/User/Rider/DriverRideScreen';
 import PassengerRideScreen from '../screens/User/Rider/PassengerRideScreen';
 import Report from '../screens/User/Report';
+import Notification from '../screens/User/Notification';
 import { useIsKeyboardVisible } from '../hooks/useIsKeyboardVisible';
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -59,6 +60,7 @@ const MainStackNavigator = () => {
             <Stack.Screen name={SCREENS.DRIVER_RIDE} component={DriverRideScreen} />
             <Stack.Screen name={SCREENS.PASSENGER_RIDE} component={PassengerRideScreen} />
             <Stack.Screen name={SCREENS.REPORT} component={Report} />
+            <Stack.Screen name={SCREENS.NOTIFICATION} component={Notification} />
         </Stack.Navigator>
     )
 }
