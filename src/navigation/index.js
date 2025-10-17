@@ -12,6 +12,11 @@ import PassengerRideScreen from '../screens/User/Rider/PassengerRideScreen';
 import Report from '../screens/User/Report';
 import Notification from '../screens/User/Notification';
 import { useIsKeyboardVisible } from '../hooks/useIsKeyboardVisible';
+import MemberDetail from '../screens/User/Member/MemberDetail';
+import Member from '../screens/User/Member/Member';
+import Voucher from '../screens/User/Voucher';
+import Login from '../screens/Auth/Login';
+import PhoneVerification from '../screens/Auth/PhoneVerification';
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
@@ -56,11 +61,16 @@ const UserTabNavigator = () => {
 const MainStackNavigator = () => {
     return (
         <Stack.Navigator screenOptions={{ headerShown: false }}>
+            <Stack.Screen name={SCREENS.LOGIN} component={Login} />
+            <Stack.Screen name={SCREENS.PHONE_VERIFICATION} component={PhoneVerification} />
             <Stack.Screen name="MainTabs" component={UserTabNavigator} />
+            <Stack.Screen name={SCREENS.MEMBER} component={Member} />
             <Stack.Screen name={SCREENS.DRIVER_RIDE} component={DriverRideScreen} />
             <Stack.Screen name={SCREENS.PASSENGER_RIDE} component={PassengerRideScreen} />
             <Stack.Screen name={SCREENS.REPORT} component={Report} />
             <Stack.Screen name={SCREENS.NOTIFICATION} component={Notification} />
+            <Stack.Screen name={SCREENS.MEMBER_DETAIL} component={MemberDetail} />
+            <Stack.Screen name={SCREENS.VOUCHER} component={Voucher} />
         </Stack.Navigator>
     )
 }

@@ -7,6 +7,7 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "scheme": "ridemate",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -14,9 +15,16 @@
     },
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "com.ridemate.app",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "This app needs access to location when open to find nearby places.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "This app needs access to location to provide location-based services."
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "This app needs access to location to provide location-based services.",
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLName": "ridemate",
+            "CFBundleURLSchemes": ["ridemate"]
+          }
+        ]
       }
     },
     "android": {
@@ -24,12 +32,35 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
+      "package": "com.ridemate.app",
       "edgeToEdgeEnabled": true,
-      "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION", "INTERNET"],
-      "usesCleartextTraffic": true
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "INTERNET"
+      ],
+      "usesCleartextTraffic": true,
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "ridemate"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-web-browser"
+    ]
   }
 }

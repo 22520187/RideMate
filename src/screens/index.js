@@ -1,4 +1,6 @@
 const SCREENS = {
+    LOGIN: 'Login',
+    PHONE_VERIFICATION: 'PhoneVerification',
     HOME: 'Home',
     AWARD: 'Award',
     PROFILE: 'Profile',
@@ -6,7 +8,10 @@ const SCREENS = {
     PASSENGER_RIDE: 'PassengerRide',
     MESSAGE: 'Message',
     REPORT: 'Report',
-    NOTIFICATION: 'Notification'
+    NOTIFICATION: 'Notification',
+    MEMBER: 'Member',
+    MEMBER_DETAIL: 'MemberDetail',
+    VOUCHER: 'Voucher'
 }
 
 export default SCREENS;
