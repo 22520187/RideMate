@@ -85,7 +85,7 @@ const Home = ({ navigation }) => {
       subtitle: 'Xem hội viên',
       icon: Package,
       color: COLORS.ORANGE,
-      onPress: () => navigation.navigate('Package')
+      onPress: () => navigation.navigate('Member')
     },
     {
       id: 6,
@@ -152,7 +152,18 @@ const Home = ({ navigation }) => {
   ]
 
   const renderPromotion = ({ item }) => (
-    <TouchableOpacity style={styles.promotionCard}>
+    <TouchableOpacity style={styles.promotionCard} onPress={() => {
+      navigation.navigate('Voucher', {
+        title: item.title,
+        subtitle: item.subtitle,
+        image: item.image,
+        badge: item.badge,
+        validFrom: '01/10/2025',
+        validTo: '31/12/2025',
+        terms: 'Áp dụng cho chuyến đi đầu tiên trong ngày. Không cộng dồn ưu đãi.',
+        code: item.points > 0 ? undefined : 'RIDEMATE30'
+      })
+    }}>
       <Image source={{ uri: item.image }} style={styles.promotionImage} />
       <View style={styles.promotionOverlay}>
         <View style={styles.promotionContent}>
@@ -174,8 +185,15 @@ const Home = ({ navigation }) => {
       style={styles.packageCard} 
       activeOpacity={0.8}
       onPress={() => {
-        // Điều hướng đến trang chi tiết gói hội viên
-        // navigation.navigate('PackageDetail', { packageId: item.id })
+        navigation.navigate('MemberDetail', {
+          title: item.title,
+          image: item.image,
+          badge: item.badge,
+          badgeColor: item.badgeColor,
+          description: item.description,
+          benefits: item.benefits,
+          price: item.price,
+        })
       }}
     >
       <Image source={{ uri: item.image }} style={styles.packageImage} />
