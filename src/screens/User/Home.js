@@ -65,11 +65,11 @@ const Home = ({ navigation }) => {
     },
     {
       id: 3,
-      title: 'Điểm thưởng',
+      title: 'Nhiệm vụ',
       subtitle: `${userPoints} điểm`,
       icon: Gift,
       color: COLORS.PURPLE,
-      onPress: () => navigation.navigate('Rewards')
+      onPress: () => navigation.navigate('Member')
     },
     {
       id: 4,
@@ -547,11 +547,16 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 12,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowColor: COLORS.BLUE,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 3,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: COLORS.BLUE + '30',
   },
   paymentSection: {
     flexDirection: 'row',

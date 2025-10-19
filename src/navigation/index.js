@@ -15,6 +15,7 @@ import { useIsKeyboardVisible } from '../hooks/useIsKeyboardVisible';
 import MemberDetail from '../screens/User/Member/MemberDetail';
 import Member from '../screens/User/Member/Member';
 import Voucher from '../screens/User/Voucher';
+import Mission from '../screens/User/Mission';
 import Login from '../screens/Auth/Login';
 import PhoneVerification from '../screens/Auth/PhoneVerification';
 const Stack = createStackNavigator();
@@ -71,6 +72,7 @@ const MainStackNavigator = () => {
             <Stack.Screen name={SCREENS.NOTIFICATION} component={Notification} />
             <Stack.Screen name={SCREENS.MEMBER_DETAIL} component={MemberDetail} />
             <Stack.Screen name={SCREENS.VOUCHER} component={Voucher} />
+            <Stack.Screen name={SCREENS.MISSION} component={Mission} />
         </Stack.Navigator>
     )
 }

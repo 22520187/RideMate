@@ -11,7 +11,8 @@ const SCREENS = {
     NOTIFICATION: 'Notification',
     MEMBER: 'Member',
     MEMBER_DETAIL: 'MemberDetail',
-    VOUCHER: 'Voucher'
+    VOUCHER: 'Voucher',
+    MISSION: 'Mission'
 }
 
 export default SCREENS;
