@@ -69,7 +69,7 @@ const Home = ({ navigation }) => {
       subtitle: `${userPoints} điểm`,
       icon: Gift,
       color: COLORS.PURPLE,
-      onPress: () => navigation.navigate('Member')
+      onPress: () => navigation.navigate('Mission')
     },
     {
       id: 4,

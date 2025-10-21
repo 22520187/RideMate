@@ -450,7 +450,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 25,
     marginRight: 12,
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: COLORS.PRIMARY,
     height: 44,
     minHeight: 44,
