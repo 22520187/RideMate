@@ -24,19 +24,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 const API_BASE = "https://localhost:5000/v1";
 
-// enable animation on Android
-if (
-  Platform.OS === "android" &&
-  UIManager.setLayoutAnimationEnabledExperimental
-) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
-
-export default function Profile({
-  apiEndpoint = "https://example.com/api/profile",
-  authToken = null,
-  onSuccess = () => {},
-}) {
+export default function Profile() {
   const [profile, setProfile] = useState({
     fullName: "",
     dob: null,
