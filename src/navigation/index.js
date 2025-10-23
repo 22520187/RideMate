@@ -3,8 +3,8 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import COLORS from '../constant/colors';
 import SCREENS from '../screens';
-import Home from '../screens/User/Home';
-import Message from '../screens/User/Message';
+import Home from '../screens/User/Home/Home';
+import HomeSearch from '../screens/User/Home/HomeSearch';
 import Award from '../screens/User/Award';
 import Profile from '../screens/User/Profile';
 import DriverRideScreen from '../screens/User/Rider/DriverRideScreen';
@@ -93,13 +93,12 @@ const MainStackNavigator = () => {
       <Stack.Screen name={SCREENS.LOGIN} component={Login} />
       <Stack.Screen name={SCREENS.PHONE_VERIFICATION} component={PhoneVerification} />
       <Stack.Screen name="MainTabs" component={UserTabNavigator} />
+      <Stack.Screen name={SCREENS.HOME_SEARCH} component={HomeSearch} />
       <Stack.Screen name={SCREENS.MEMBER} component={Member} />
       <Stack.Screen name={SCREENS.DRIVER_RIDE} component={DriverRideScreen} />
       <Stack.Screen name={SCREENS.PASSENGER_RIDE} component={PassengerRideScreen} />
       <Stack.Screen name={SCREENS.REPORT} component={Report} />
       <Stack.Screen name={SCREENS.NOTIFICATION} component={Notification} />
-      <Stack.Screen name={SCREENS.MESSAGE} component={MessageListScreen} />
-      <Stack.Screen name={SCREENS.MESSAGE} component={ChatScreen} />
       <Stack.Screen name={SCREENS.MEMBER_DETAIL} component={MemberDetail} />
       <Stack.Screen name={SCREENS.VOUCHER} component={Voucher} />
       <Stack.Screen name={SCREENS.MISSION} component={Mission} />

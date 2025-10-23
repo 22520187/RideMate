@@ -27,7 +27,8 @@ import {
   Package,
   Ticket,
 } from 'lucide-react-native'
-import COLORS from '../../constant/colors'
+import COLORS from '../../../constant/colors'
+import SCREENS from '../../../screens'
 
 const { width } = Dimensions.get('window')
 
@@ -215,17 +216,13 @@ const Home = ({ navigation }) => {
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerContent}>
-            <View style={styles.searchContainer}>
+            <TouchableOpacity 
+              style={styles.searchContainer}
+              onPress={() => navigation.navigate(SCREENS.HOME_SEARCH)}
+            >
               <Search size={20} color={COLORS.GRAY} style={styles.searchIcon} />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Tìm địa điểm"
-                placeholderTextColor={COLORS.PLACEHOLDER_COLOR}
-                value={searchText}
-                onChangeText={setSearchText}
-                onFocus={() => navigation.navigate('LocationSearch')}
-              />
-            </View>
+              <Text style={styles.searchPlaceholder}>Tìm địa điểm</Text>
+            </TouchableOpacity>
             
             <TouchableOpacity style={styles.profileButton}>
               <User size={20} color={COLORS.WHITE} />
@@ -407,6 +404,12 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 12,
     minHeight: 40,
+  },
+  searchPlaceholder: {
+    flex: 1,
+    fontSize: 14,
+    color: COLORS.PLACEHOLDER_COLOR,
+    marginLeft: 8,
   },
   notificationButton: {
     padding: 8,
