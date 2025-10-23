@@ -26,6 +26,10 @@ const PassengerRideScreen = ({ navigation }) => {
   const [routePath, setRoutePath] = useState([])
   const [activeInput, setActiveInput] = useState(null) // 'from' or 'to'
 
+  // Tính toán chiều rộng cho suggestions
+  const screenWidth = Dimensions.get('window').width
+  const suggestionsWidth = screenWidth - 30 - 80 // 30px padding, 80px cho button "Hiện tại"
+
   // Mock data cho demo
   const availableRides = [
     { 
@@ -101,11 +105,21 @@ const PassengerRideScreen = ({ navigation }) => {
   const handleLocationSelect = (location, type) => {
     if (type === 'from') {
       setFromLocation(location.description)
-      setOriginCoordinate(location)
+      setOriginCoordinate({
+        latitude: location.latitude,
+        longitude: location.longitude,
+        description: location.description,
+        placeId: location.placeId
+      })
       setFromSuggestions([])
     } else {
       setToLocation(location.description)
-      setDestinationCoordinate(location)
+      setDestinationCoordinate({
+        latitude: location.latitude,
+        longitude: location.longitude,
+        description: location.description,
+        placeId: location.placeId
+      })
       setToSuggestions([])
     }
     setActiveInput(null)
@@ -178,8 +192,9 @@ const PassengerRideScreen = ({ navigation }) => {
                       placeholder="Điểm xuất phát"
                       value={fromLocation}
                       onChangeText={handleChangeFromText}
-                      onRequestSuggestions={(query) => handleLocationSuggestions(query, 'from')}
+                      onLocationSelect={(location) => handleLocationSelect(location, 'from')}
                       iconName="my-location"
+                      containerWidth={suggestionsWidth}
                     />
                   </View>
                   <TouchableOpacity 
@@ -196,62 +211,13 @@ const PassengerRideScreen = ({ navigation }) => {
                       placeholder="Điểm đến"
                       value={toLocation}
                       onChangeText={handleChangeToText}
-                      onRequestSuggestions={(query) => handleLocationSuggestions(query, 'to')}
+                      onLocationSelect={(location) => handleLocationSelect(location, 'to')}
                       iconName="place"
+                      containerWidth="100%"
                     />
                   </View>
                 </View>
               </View>
-
-              {(activeInput === 'from' && fromSuggestions.length > 0 && fromLocation.length > 2) && (
-                <View style={styles.suggestionsContainer} pointerEvents="auto">
-                  <FlatList
-                    data={fromSuggestions}
-                    renderItem={({ item }) => (
-                      <TouchableOpacity 
-                        style={styles.suggestionItem}
-                        onPress={() => handleLocationSelect(item, 'from')}
-                      >
-                        <MaterialIcons name="place" size={16} color={COLORS.GRAY} />
-                        <View style={styles.suggestionContent}>
-                          <Text style={styles.suggestionTitle} numberOfLines={1}>
-                            {item.description}
-                          </Text>
-                        </View>
-                      </TouchableOpacity>
-                    )}
-                    keyExtractor={(item, index) => `from-suggestion-${index}`}
-                    showsVerticalScrollIndicator={false}
-                    keyboardShouldPersistTaps="handled"
-                    style={styles.suggestionsList}
-                  />
-                </View>
-              )}
-
-              {(activeInput === 'to' && toSuggestions.length > 0 && toLocation.length > 2) && (
-                <View style={styles.suggestionsContainer} pointerEvents="auto">
-                  <FlatList
-                    data={toSuggestions}
-                    renderItem={({ item }) => (
-                      <TouchableOpacity 
-                        style={styles.suggestionItem}
-                        onPress={() => handleLocationSelect(item, 'to')}
-                      >
-                        <MaterialIcons name="place" size={16} color={COLORS.GRAY} />
-                        <View style={styles.suggestionContent}>
-                          <Text style={styles.suggestionTitle} numberOfLines={1}>
-                            {item.description}
-                          </Text>
-                        </View>
-                      </TouchableOpacity>
-                    )}
-                    keyExtractor={(item, index) => `to-suggestion-${index}`}
-                    showsVerticalScrollIndicator={false}
-                    keyboardShouldPersistTaps="handled"
-                    style={styles.suggestionsList}
-                  />
-                </View>
-              )}
             </View>
           </View>
 

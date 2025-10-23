@@ -65,11 +65,11 @@ const Home = ({ navigation }) => {
     },
     {
       id: 3,
-      title: 'Điểm thưởng',
+      title: 'Nhiệm vụ',
       subtitle: `${userPoints} điểm`,
       icon: Gift,
       color: COLORS.PURPLE,
-      onPress: () => navigation.navigate('Rewards')
+      onPress: () => navigation.navigate('Mission')
     },
     {
       id: 4,
@@ -85,7 +85,7 @@ const Home = ({ navigation }) => {
       subtitle: 'Xem hội viên',
       icon: Package,
       color: COLORS.ORANGE,
-      onPress: () => navigation.navigate('Package')
+      onPress: () => navigation.navigate('Member')
     },
     {
       id: 6,
@@ -152,7 +152,18 @@ const Home = ({ navigation }) => {
   ]
 
   const renderPromotion = ({ item }) => (
-    <TouchableOpacity style={styles.promotionCard}>
+    <TouchableOpacity style={styles.promotionCard} onPress={() => {
+      navigation.navigate('Voucher', {
+        title: item.title,
+        subtitle: item.subtitle,
+        image: item.image,
+        badge: item.badge,
+        validFrom: '01/10/2025',
+        validTo: '31/12/2025',
+        terms: 'Áp dụng cho chuyến đi đầu tiên trong ngày. Không cộng dồn ưu đãi.',
+        code: item.points > 0 ? undefined : 'RIDEMATE30'
+      })
+    }}>
       <Image source={{ uri: item.image }} style={styles.promotionImage} />
       <View style={styles.promotionOverlay}>
         <View style={styles.promotionContent}>
@@ -174,8 +185,15 @@ const Home = ({ navigation }) => {
       style={styles.packageCard} 
       activeOpacity={0.8}
       onPress={() => {
-        // Điều hướng đến trang chi tiết gói hội viên
-        // navigation.navigate('PackageDetail', { packageId: item.id })
+        navigation.navigate('MemberDetail', {
+          title: item.title,
+          image: item.image,
+          badge: item.badge,
+          badgeColor: item.badgeColor,
+          description: item.description,
+          benefits: item.benefits,
+          price: item.price,
+        })
       }}
     >
       <Image source={{ uri: item.image }} style={styles.packageImage} />
@@ -529,11 +547,16 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 12,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowColor: COLORS.BLUE,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 3,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: COLORS.BLUE + '30',
   },
   paymentSection: {
     flexDirection: 'row',
