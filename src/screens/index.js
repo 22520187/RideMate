@@ -2,6 +2,7 @@ const SCREENS = {
     LOGIN: 'Login',
     PHONE_VERIFICATION: 'PhoneVerification',
     HOME: 'Home',
+    HOME_SEARCH: 'HomeSearch',
     AWARD: 'Award',
     PROFILE: 'Profile',
     DRIVER_RIDE: 'DriverRide',

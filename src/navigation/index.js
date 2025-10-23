@@ -3,7 +3,8 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import COLORS from '../constant/colors';
 import SCREENS from '../screens';
-import Home from '../screens/User/Home';
+import Home from '../screens/User/Home/Home';
+import HomeSearch from '../screens/User/Home/HomeSearch';
 import Award from '../screens/User/Award';
 import Profile from '../screens/User/Profile';
 import DriverRideScreen from '../screens/User/Rider/DriverRideScreen';
@@ -92,6 +93,7 @@ const MainStackNavigator = () => {
       <Stack.Screen name={SCREENS.LOGIN} component={Login} />
       <Stack.Screen name={SCREENS.PHONE_VERIFICATION} component={PhoneVerification} />
       <Stack.Screen name="MainTabs" component={UserTabNavigator} />
+      <Stack.Screen name={SCREENS.HOME_SEARCH} component={HomeSearch} />
       <Stack.Screen name={SCREENS.MEMBER} component={Member} />
       <Stack.Screen name={SCREENS.DRIVER_RIDE} component={DriverRideScreen} />
       <Stack.Screen name={SCREENS.PASSENGER_RIDE} component={PassengerRideScreen} />
