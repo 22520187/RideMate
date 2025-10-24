@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { 
   View, 
   Text, 
@@ -16,7 +16,7 @@ import RouteMap from '../../../components/RouteMap'
 import { getCurrentLocation, reverseGeocode } from '../../../config/maps'
 import { searchPlaces as osmSearchPlaces } from '../../../utils/api'
 
-const PassengerRideScreen = ({ navigation }) => {
+const PassengerRideScreen = ({ navigation, route }) => {
   const [fromLocation, setFromLocation] = useState('')
   const [toLocation, setToLocation] = useState('')
   const [originCoordinate, setOriginCoordinate] = useState(null)
@@ -25,6 +25,20 @@ const PassengerRideScreen = ({ navigation }) => {
   const [toSuggestions, setToSuggestions] = useState([])
   const [routePath, setRoutePath] = useState([])
   const [activeInput, setActiveInput] = useState(null) // 'from' or 'to'
+
+  // Xử lý destination từ params
+  useEffect(() => {
+    if (route?.params?.destination) {
+      const destination = route.params.destination;
+      setToLocation(destination.description);
+      setDestinationCoordinate({
+        latitude: destination.latitude,
+        longitude: destination.longitude,
+        description: destination.description,
+        placeId: destination.placeId
+      });
+    }
+  }, [route?.params?.destination]);
 
   // Tính toán chiều rộng cho suggestions
   const screenWidth = Dimensions.get('window').width
