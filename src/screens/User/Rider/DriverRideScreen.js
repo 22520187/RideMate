@@ -9,7 +9,8 @@ import {
   TextInput,
   Modal,
   FlatList,
-  ScrollView
+  ScrollView,
+  Image
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { MaterialIcons } from '@expo/vector-icons'
@@ -39,6 +40,8 @@ const DriverRideScreen = ({ navigation, route }) => {
   const [scheduleDestinationCoordinate, setScheduleDestinationCoordinate] = useState(null)
   const [scheduledRide, setScheduledRide] = useState(null)
   const [activeInput, setActiveInput] = useState(null) // 'from' or 'to'
+  const [isPassengerModalVisible, setIsPassengerModalVisible] = useState(false)
+  const [availablePassengers, setAvailablePassengers] = useState([])
 
   // Xử lý destination từ params
   useEffect(() => {
@@ -264,13 +267,71 @@ const DriverRideScreen = ({ navigation, route }) => {
         price: `${price.toLocaleString('vi-VN')}đ`
       })
 
-      Alert.alert('Thành công', `Đang tìm kiếm người đi cùng từ ${fromLocation} đến ${toLocation}`)
+      // Mock data for available passengers
+      const mockPassengers = [
+        {
+          id: 1,
+          name: 'Nguyễn Văn A',
+          phone: '0901234567',
+          avatar: 'https://i.pravatar.cc/150?img=12',
+          departureTime: '14:30',
+          from: 'Bến Xe Giáp Bát',
+          to: toLocation,
+          rating: 4.8,
+          reviews: 23
+        },
+        {
+          id: 2,
+          name: 'Trần Thị B',
+          phone: '0901234568',
+          avatar: 'https://i.pravatar.cc/150?img=13',
+          departureTime: '15:00',
+          from: 'Nhà ga Hà Nội',
+          to: toLocation,
+          rating: 4.9,
+          reviews: 45
+        },
+        {
+          id: 3,
+          name: 'Lê Văn C',
+          phone: '0901234569',
+          avatar: 'https://i.pravatar.cc/150?img=14',
+          departureTime: '15:30',
+          from: 'Aeon Mall Long Biên',
+          to: toLocation,
+          rating: 4.7,
+          reviews: 18
+        }
+      ]
+      setAvailablePassengers(mockPassengers)
+      setIsPassengerModalVisible(true)
+      // Alert.alert('Đã tìm thấy hành khách!', `Có ${mockPassengers.length} người đang tìm đi cùng`)
     } catch (error) {
       console.error('Error getting directions:', error)
       Alert.alert('Lỗi', 'Không thể lấy thông tin tuyến đường. Vui lòng thử lại.')
     } finally {
       setIsLoadingDirections(false)
     }
+  }
+
+  const handleSelectPassenger = (passenger) => {
+    const durationMinutes = Math.round(parseFloat(routeInfo.distance.replace(' km', '')) * 2.5)
+    const distanceKm = parseFloat(routeInfo.distance.replace(' km', ''))
+    const price = calculatePrice(distanceKm)
+    
+    navigation.navigate('MatchedRide', {
+      isDriver: true,
+      passengerName: passenger.name,
+      passengerPhone: passenger.phone,
+      passengerAvatar: passenger.avatar,
+      from: fromLocation,
+      to: toLocation,
+      departureTime: scheduledRide?.time || passenger.departureTime,
+      price: routeInfo.price,
+      duration: routeInfo.duration,
+      distance: routeInfo.distance
+    })
+    setIsPassengerModalVisible(false)
   }
 
   return (
@@ -465,6 +526,69 @@ const DriverRideScreen = ({ navigation, route }) => {
                 <Text style={[styles.modalBtnText, styles.modalConfirmText]}>Xác nhận</Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Passenger Selection Modal */}
+      <Modal
+        visible={isPassengerModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setIsPassengerModalVisible(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <TouchableOpacity 
+            style={styles.modalBackdrop}
+            activeOpacity={1}
+            onPress={() => setIsPassengerModalVisible(false)}
+          />
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Chọn hành khách</Text>
+              <TouchableOpacity onPress={() => setIsPassengerModalVisible(false)}>
+                <MaterialIcons name="close" size={24} color={COLORS.BLACK} />
+              </TouchableOpacity>
+            </View>
+            
+            <Text style={styles.modalSubtitle}>
+              {availablePassengers.length} người đang tìm đi cùng từ {fromLocation} đến {toLocation}
+            </Text>
+
+            <FlatList
+              data={availablePassengers}
+              keyExtractor={(item) => item.id.toString()}
+              renderItem={({ item }) => (
+                <TouchableOpacity 
+                  style={styles.passengerCard}
+                  onPress={() => handleSelectPassenger(item)}
+                >
+                  <Image source={{ uri: item.avatar }} style={styles.passengerAvatar} />
+                  <View style={styles.passengerInfo}>
+                    <Text style={styles.passengerName}>{item.name}</Text>
+                    <View style={styles.passengerDetails}>
+                      <MaterialIcons name="phone" size={14} color={COLORS.GRAY} />
+                      <Text style={styles.passengerPhone}>{item.phone}</Text>
+                    </View>
+                    <View style={styles.passengerDetails}>
+                      <MaterialIcons name="star" size={14} color={COLORS.ORANGE_DARK} />
+                      <Text style={styles.passengerRating}>{item.rating}</Text>
+                      <Text style={styles.passengerReviews}>({item.reviews} đánh giá)</Text>
+                    </View>
+                  </View>
+                  <View style={styles.passengerActions}>
+                    <Text style={styles.departureTime}>{item.departureTime}</Text>
+                    <TouchableOpacity 
+                      style={styles.selectBtn}
+                      onPress={() => handleSelectPassenger(item)}
+                    >
+                      <MaterialIcons name="check-circle" size={20} color={COLORS.GREEN} />
+                    </TouchableOpacity>
+                  </View>
+                </TouchableOpacity>
+              )}
+              style={styles.passengersList}
+            />
           </View>
         </View>
       </Modal>
@@ -735,6 +859,86 @@ const styles = StyleSheet.create({
   },
   modalConfirmText: {
     color: COLORS.WHITE,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: COLORS.GRAY,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  passengersList: {
+    maxHeight: 400,
+  },
+  passengerCard: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.WHITE,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: COLORS.GRAY_LIGHT,
+    shadowColor: COLORS.BLACK,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  passengerAvatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: COLORS.GRAY_LIGHT,
+  },
+  passengerInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  passengerName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.BLACK,
+    marginBottom: 4,
+  },
+  passengerDetails: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  passengerPhone: {
+    fontSize: 12,
+    color: COLORS.GRAY,
+    marginLeft: 4,
+  },
+  passengerRating: {
+    fontSize: 12,
+    color: COLORS.ORANGE_DARK,
+    marginLeft: 4,
+    fontWeight: '600',
+  },
+  passengerReviews: {
+    fontSize: 12,
+    color: COLORS.GRAY,
+    marginLeft: 4,
+  },
+  passengerActions: {
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+  },
+  departureTime: {
+    fontSize: 12,
+    color: COLORS.GRAY,
+    marginBottom: 4,
+  },
+  selectBtn: {
+    backgroundColor: COLORS.GREEN + '20',
+    borderRadius: 20,
+    padding: 4,
   },
 })
 

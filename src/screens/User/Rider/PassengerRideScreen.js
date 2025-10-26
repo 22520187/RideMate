@@ -168,7 +168,33 @@ const PassengerRideScreen = ({ navigation, route }) => {
       Alert.alert('Lỗi', 'Vui lòng chọn địa điểm từ danh sách gợi ý')
       return
     }
-    Alert.alert('Thành công', `Đang tìm kiếm chuyến đi từ ${fromLocation} đến ${toLocation}`)
+    
+    // Auto-match với chuyến đầu tiên sau khi tìm thấy
+    const matchedRide = availableRides[0] // Lấy chuyến đầu tiên
+    if (matchedRide) {
+      // Navigate to MatchedRideScreen sau 1.5 giây để giống như tìm thấy match
+      setTimeout(() => {
+        navigation.navigate('MatchedRide', {
+          isDriver: false,
+          driverName: matchedRide.driverName,
+          driverPhone: '0901234569',
+          driverAvatar: `https://i.pravatar.cc/150?img=${matchedRide.id + 10}`,
+          vehicleModel: matchedRide.carModel,
+          licensePlate: `30A-${12345 + matchedRide.id}`,
+          from: fromLocation,
+          to: toLocation,
+          departureTime: matchedRide.departureTime,
+          price: matchedRide.price,
+          duration: '30 phút',
+          distance: '12 km',
+          rideId: matchedRide.id
+        })
+      }, 1500)
+      
+      Alert.alert('Tìm thấy chuyến!', `Đã tìm thấy ${matchedRide.driverName}. Đang kết nối...`)
+    } else {
+      Alert.alert('Thông báo', `Không tìm thấy chuyến đi phù hợp từ ${fromLocation} đến ${toLocation}`)
+    }
   }
 
   return (
@@ -282,7 +308,26 @@ const PassengerRideScreen = ({ navigation, route }) => {
                     <MaterialIcons name="access-time" size={16} color={COLORS.BLUE} />
                     <Text style={styles.timeText}>Khởi hành lúc {item.departureTime}</Text>
                   </View>
-                  <TouchableOpacity style={styles.joinBtn}>
+                  <TouchableOpacity 
+                    style={styles.joinBtn}
+                    onPress={() => {
+                      navigation.navigate('MatchedRide', {
+                        isDriver: false,
+                        driverName: item.driverName,
+                        driverPhone: '0901234569',
+                        driverAvatar: `https://i.pravatar.cc/150?img=${item.id + 10}`,
+                        vehicleModel: item.carModel,
+                        licensePlate: `30A-${12345 + item.id}`,
+                        from: fromLocation || item.fromLocation,
+                        to: toLocation || item.toLocation,
+                        departureTime: item.departureTime,
+                        price: item.price,
+                        duration: '30 phút',
+                        distance: '12 km',
+                        rideId: item.id
+                      })
+                    }}
+                  >
                     <Text style={styles.joinBtnText}>Tham gia chuyến đi</Text>
                   </TouchableOpacity>
                 </TouchableOpacity>

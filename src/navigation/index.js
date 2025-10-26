@@ -1,6 +1,7 @@
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import COLORS from '../constant/colors';
 import SCREENS from '../screens';
 import Home from '../screens/User/Home/Home';
@@ -9,6 +10,7 @@ import Award from '../screens/User/Award';
 import Profile from '../screens/User/Profile';
 import DriverRideScreen from '../screens/User/Rider/DriverRideScreen';
 import PassengerRideScreen from '../screens/User/Rider/PassengerRideScreen';
+import MatchedRideScreen from '../screens/User/Rider/MatchedRideScreen';
 import Report from '../screens/User/Report';
 import Notification from '../screens/User/Notification';
 import { useIsKeyboardVisible } from '../hooks/useIsKeyboardVisible';
@@ -35,6 +37,8 @@ const MessageStackNavigator = () => {
 
 const UserTabNavigator = () => {
   const { isKeyboardVisible } = useIsKeyboardVisible();
+  const insets = useSafeAreaInsets();
+  
   return (
     <Tab.Navigator
       initialRouteName={SCREENS.HOME}
@@ -56,8 +60,8 @@ const UserTabNavigator = () => {
         tabBarInactiveTintColor: COLORS.GRAY,
         tabBarStyle: {
           display: isKeyboardVisible ? "none" : "flex",
-          height: 60,
-          paddingBottom: 8,
+          height: 60 + insets.bottom, // Thêm bottom inset vào height
+          paddingBottom: 8 + insets.bottom, // Thêm bottom inset vào padding
           paddingTop: 8,
         },
         headerShown: false,
@@ -97,6 +101,7 @@ const MainStackNavigator = () => {
       <Stack.Screen name={SCREENS.MEMBER} component={Member} />
       <Stack.Screen name={SCREENS.DRIVER_RIDE} component={DriverRideScreen} />
       <Stack.Screen name={SCREENS.PASSENGER_RIDE} component={PassengerRideScreen} />
+      <Stack.Screen name={SCREENS.MATCHED_RIDE} component={MatchedRideScreen} />
       <Stack.Screen name={SCREENS.REPORT} component={Report} />
       <Stack.Screen name={SCREENS.NOTIFICATION} component={Notification} />
       <Stack.Screen name={SCREENS.MEMBER_DETAIL} component={MemberDetail} />

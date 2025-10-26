@@ -7,6 +7,7 @@ const SCREENS = {
     PROFILE: 'Profile',
     DRIVER_RIDE: 'DriverRide',
     PASSENGER_RIDE: 'PassengerRide',
+    MATCHED_RIDE: 'MatchedRide',
     MESSAGE: 'Message',
     REPORT: 'Report',
     NOTIFICATION: 'Notification',

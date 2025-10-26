@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { 
   View, 
   Text, 
@@ -8,9 +8,10 @@ import {
   TextInput,
   Image,
   Dimensions,
-  FlatList
+  FlatList,
+  AppState
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { 
   Search, 
   Bell, 
@@ -34,14 +35,29 @@ const { width } = Dimensions.get('window')
 
 const Home = ({ navigation }) => {
   const [searchText, setSearchText] = useState('')
-  
+  const insets = useSafeAreaInsets();
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // Force refresh SafeArea khi app resume từ background
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState) => {
+      if (nextAppState === 'active') {
+        // Force component re-render để refresh SafeArea insets
+        setRefreshKey(prev => prev + 1);
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription?.remove();
+  }, []);
+
   // Mock data for current ride status
   const currentRide = {
-    hasActiveRide: true,
+    hasActiveRide: false,
     type: 'driver', // 'driver' or 'passenger'
     destination: 'Trường Đại học Công nghệ',
     time: '15 phút',
-    passengers: 2
+    passengers: []
   }
 
   // Mock data for points
@@ -211,162 +227,112 @@ const Home = ({ navigation }) => {
   )
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerContent}>
-            <TouchableOpacity 
-              style={styles.searchContainer}
-              onPress={() => navigation.navigate(SCREENS.HOME_SEARCH)}
-            >
-              <Search size={20} color={COLORS.GRAY} style={styles.searchIcon} />
-              <Text style={styles.searchPlaceholder}>Tìm địa điểm</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.profileButton}>
-              <User size={20} color={COLORS.WHITE} />
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.notificationButton}
-              onPress={() => navigation.navigate('Notification')}
-            >
-              <Bell size={24} color={COLORS.WHITE} />
-              {/* Badge cho thông báo chưa đọc */}
-              <View style={styles.notificationBadge}>
-                <Text style={styles.notificationBadgeText}>3</Text>
-              </View>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Current Ride Status */}
-        {/* {currentRide.hasActiveRide && (
-          <View style={styles.currentRideCard}>
-            <View style={styles.currentRideHeader}>
-              <Text style={styles.currentRideTitle}>
-                {currentRide.type === 'driver' ? 'Chuyến đi của bạn' : 'Bạn đang tham gia'}
-              </Text>
-              <View style={styles.statusBadge}>
-                <Text style={styles.statusText}>Đang diễn ra</Text>
-              </View>
-            </View>
-            <View style={styles.currentRideContent}>
-              <MapPin size={16} color={COLORS.GREEN} />
-              <Text style={styles.destinationText}>{currentRide.destination}</Text>
-            </View>
-            <View style={styles.currentRideFooter}>
-              <View style={styles.timeInfo}>
-                <Clock size={14} color={COLORS.GRAY} />
-                <Text style={styles.timeText}>{currentRide.time}</Text>
-              </View>
-              {currentRide.type === 'driver' && (
-                <View style={styles.passengerInfo}>
-                  <Users size={14} color={COLORS.BLUE} />
-                  <Text style={styles.passengerText}>{currentRide.passengers} hành khách</Text>
+    <SafeAreaView 
+      key={refreshKey}
+      style={styles.container}
+      edges={['top']}
+    >
+      <ScrollView 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: insets.bottom }}
+      >
+          {/* Header */}
+          <View style={styles.header}>
+            <View style={styles.headerContent}>
+              <TouchableOpacity 
+                style={styles.searchContainer}
+                onPress={() => navigation.navigate(SCREENS.HOME_SEARCH)}
+              >
+                <Search size={20} color={COLORS.GRAY} style={styles.searchIcon} />
+                <Text style={styles.searchPlaceholder}>Tìm địa điểm</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity style={styles.profileButton}>
+                <User size={20} color={COLORS.WHITE} />
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.notificationButton}
+                onPress={() => navigation.navigate('Notification')}
+              >
+                <Bell size={24} color={COLORS.WHITE} />
+                {/* Badge cho thông báo chưa đọc */}
+                <View style={styles.notificationBadge}>
+                  <Text style={styles.notificationBadgeText}>3</Text>
                 </View>
-              )}
+              </TouchableOpacity>
             </View>
           </View>
-        )} */}
 
-        {/* Main Functions Grid */}
-        <View style={styles.functionsSection}>
-          <View style={styles.functionsGrid}>
-            {mainFunctions.map((item) => {
-              const IconComponent = item.icon
-              return (
-                <TouchableOpacity 
-                  key={item.id} 
-                  style={styles.functionCard}
-                  onPress={item.onPress}
-                >
-                  <View style={[styles.iconContainer, { backgroundColor: item.color + '20' }]}>
-                    <IconComponent size={20} color={item.color} />
-                  </View>
-                  <Text style={styles.functionTitle}>{item.title}</Text>
-                  <Text style={styles.functionSubtitle}>{item.subtitle}</Text>
-                </TouchableOpacity>
-              )
-            })}
+          {/* Main Functions Grid */}
+          <View style={styles.functionsSection}>
+            <View style={styles.functionsGrid}>
+              {mainFunctions.map((item) => {
+                const IconComponent = item.icon
+                return (
+                  <TouchableOpacity 
+                    key={item.id} 
+                    style={styles.functionCard}
+                    onPress={item.onPress}
+                  >
+                    <View style={[styles.iconContainer, { backgroundColor: item.color + '20' }]}>
+                      <IconComponent size={20} color={item.color} />
+                    </View>
+                    <Text style={styles.functionTitle}>{item.title}</Text>
+                    <Text style={styles.functionSubtitle}>{item.subtitle}</Text>
+                  </TouchableOpacity>
+                )
+              })}
+            </View>
           </View>
-        </View>
 
-        {/* Payment and Rewards Cards */}
-        {/* <View style={styles.paymentSection}>
-          <TouchableOpacity style={styles.paymentCard}>
-            <View style={styles.paymentContent}>
-              <View style={styles.paymentTextContainer}>
-                <Text style={styles.paymentTitle}>Payment</Text>
-                <Text style={styles.paymentSubtitle}>Add a card</Text>
-              </View>
-              <View style={styles.paymentIcon}>
-                <Gift size={24} color={COLORS.GREEN} />
-              </View>
-            </View>
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.rewardsCard}>
-            <View style={styles.rewardsContent}>
-              <View style={styles.rewardsTextContainer}>
-                <Text style={styles.rewardsTitle}>RideMate Rewards</Text>
-                <Text style={styles.rewardsSubtitle}>{userPoints}</Text>
-              </View>
-              <View style={styles.rewardsIcon}>
-                <Star size={24} color={COLORS.YELLOW} />
-              </View>
-            </View>
-          </TouchableOpacity>
-        </View> */}
-
-        {/* Promotions Carousel */}
-        <View style={styles.promotionSection}>
-          <View style={styles.promotionHeader}>
-          <View style={styles.packageHeaderLeft}>
-              <Ticket size={24} color={COLORS.PRIMARY} />
-              <Text style={styles.packageSectionTitle}>Khuyến mãi</Text>
-            </View>
-            <TouchableOpacity style={styles.seeAllButton}>
-              <Text style={styles.seeAllText}>Xem tất cả</Text>
-              <ChevronRight size={16} color={COLORS.PRIMARY} />
-            </TouchableOpacity>
-          </View>
-          <FlatList
-            data={promotions}
-            renderItem={renderPromotion}
-            keyExtractor={(item) => item.id.toString()}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.promotionList}
-          />
-        </View>
-
-        {/* Packages Section */}
-        <View style={styles.packagesSection}>
-          <View style={styles.packageHeader}>
+          {/* Promotions Carousel */}
+          <View style={styles.promotionSection}>
+            <View style={styles.promotionHeader}>
             <View style={styles.packageHeaderLeft}>
-              <Package size={24} color={COLORS.PRIMARY} />
-              <Text style={styles.packageSectionTitle}>Gói Hội Viên RideMate</Text>
+                <Ticket size={24} color={COLORS.PRIMARY} />
+                <Text style={styles.packageSectionTitle}>Khuyến mãi</Text>
+              </View>
+              <TouchableOpacity style={styles.seeAllButton}>
+                <Text style={styles.seeAllText}>Xem tất cả</Text>
+                <ChevronRight size={16} color={COLORS.PRIMARY} />
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity style={styles.seeAllButton}>
-              <Text style={styles.seeAllText}>Xem tất cả</Text>
-              <ChevronRight size={16} color={COLORS.PRIMARY} />
-            </TouchableOpacity>
+            <FlatList
+              data={promotions}
+              renderItem={renderPromotion}
+              keyExtractor={(item) => item.id.toString()}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.promotionList}
+            />
           </View>
-          <Text style={styles.packageSectionSubtitle}>
-            Trải nghiệm đặc quyền - Tiết kiệm mọi chuyến đi
-          </Text>
-          <FlatList
-            data={packages}
-            renderItem={renderPackage}
-            keyExtractor={(item) => item.id.toString()}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.packagesList}
-          />
-        </View>
-      </ScrollView>
+
+          {/* Packages Section */}
+          <View style={styles.packagesSection}>
+            <View style={styles.packageHeader}>
+              <View style={styles.packageHeaderLeft}>
+                <Package size={24} color={COLORS.PRIMARY} />
+                <Text style={styles.packageSectionTitle}>Gói Hội Viên RideMate</Text>
+              </View>
+              <TouchableOpacity style={styles.seeAllButton}>
+                <Text style={styles.seeAllText}>Xem tất cả</Text>
+                <ChevronRight size={16} color={COLORS.PRIMARY} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.packageSectionSubtitle}>
+              Trải nghiệm đặc quyền - Tiết kiệm mọi chuyến đi
+            </Text>
+            <FlatList
+              data={packages}
+              renderItem={renderPackage}
+              keyExtractor={(item) => item.id.toString()}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.packagesList}
+            />
+          </View>
+        </ScrollView>
     </SafeAreaView>
   )
 }
@@ -375,6 +341,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.BG,
+  },
+  safeArea: {
+    flex: 1,
   },
   header: {
     backgroundColor: COLORS.PRIMARY,
@@ -453,90 +422,9 @@ const styles = StyleSheet.create({
   searchIcon: {
     marginRight: 8,
   },
-  searchInput: {
-    flex: 1,
-    fontSize: 14,
-    color: COLORS.BLACK,
-    paddingVertical: 0,
-    textAlignVertical: 'center',
-  },
-  currentRideCard: {
-    backgroundColor: COLORS.WHITE,
-    marginHorizontal: 16,
-    marginTop: 16,
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  currentRideHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  currentRideTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.BLACK,
-  },
-  statusBadge: {
-    backgroundColor: COLORS.GREEN_LIGHT,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  statusText: {
-    fontSize: 12,
-    color: COLORS.GREEN,
-    fontWeight: '500',
-  },
-  currentRideContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  destinationText: {
-    fontSize: 14,
-    color: COLORS.BLACK,
-    marginLeft: 8,
-    flex: 1,
-  },
-  currentRideFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  timeInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  timeText: {
-    fontSize: 12,
-    color: COLORS.GRAY,
-    marginLeft: 4,
-  },
-  passengerInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  passengerText: {
-    fontSize: 12,
-    color: COLORS.BLUE,
-    marginLeft: 4,
-  },
   functionsSection: {
     paddingHorizontal: 16,
     paddingTop: 24,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: COLORS.BLACK,
-    marginBottom: 16,
   },
   functionsGrid: {
     flexDirection: 'row',
@@ -560,78 +448,6 @@ const styles = StyleSheet.create({
     elevation: 4,
     borderWidth: 1,
     borderColor: COLORS.BLUE + '30',
-  },
-  paymentSection: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    justifyContent: 'space-between',
-  },
-  paymentCard: {
-    flex: 1,
-    backgroundColor: COLORS.WHITE,
-    borderRadius: 12,
-    padding: 16,
-    marginRight: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  rewardsCard: {
-    flex: 1,
-    backgroundColor: COLORS.WHITE,
-    borderRadius: 12,
-    padding: 16,
-    marginLeft: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  paymentContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  paymentTextContainer: {
-    flex: 1,
-  },
-  paymentTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.BLACK,
-    marginBottom: 4,
-  },
-  paymentSubtitle: {
-    fontSize: 14,
-    color: COLORS.GRAY,
-  },
-  paymentIcon: {
-    marginLeft: 8,
-  },
-  rewardsContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  rewardsTextContainer: {
-    flex: 1,
-  },
-  rewardsTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.BLACK,
-    marginBottom: 4,
-  },
-  rewardsSubtitle: {
-    fontSize: 14,
-    color: COLORS.GRAY,
-  },
-  rewardsIcon: {
-    marginLeft: 8,
   },
   iconContainer: {
     width: 40,
