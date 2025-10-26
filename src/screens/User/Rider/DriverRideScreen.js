@@ -264,7 +264,35 @@ const DriverRideScreen = ({ navigation, route }) => {
         price: `${price.toLocaleString('vi-VN')}đ`
       })
 
-      Alert.alert('Thành công', `Đang tìm kiếm người đi cùng từ ${fromLocation} đến ${toLocation}`)
+      // Mock: Simulate passenger joining after 2 seconds
+      setTimeout(() => {
+        Alert.alert(
+          'Có hành khách!', 
+          'Nguyễn Văn A đã tham gia chuyến đi của bạn.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                // Navigate to MatchedRideScreen
+                navigation.navigate('MatchedRide', {
+                  isDriver: true,
+                  passengerName: 'Nguyễn Văn A',
+                  passengerPhone: '0901234567',
+                  passengerAvatar: 'https://i.pravatar.cc/150?img=12',
+                  from: fromLocation,
+                  to: toLocation,
+                  departureTime: scheduledRide?.time || new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+                  price: `${price.toLocaleString('vi-VN')}đ`,
+                  duration: `${durationMinutes} phút`,
+                  distance: `${distanceKm.toFixed(1)} km`
+                })
+              }
+            }
+          ]
+        )
+      }, 2000)
+      
+      Alert.alert('Đang tìm hành khách...', `Chuyến đi của bạn đã được đăng`)
     } catch (error) {
       console.error('Error getting directions:', error)
       Alert.alert('Lỗi', 'Không thể lấy thông tin tuyến đường. Vui lòng thử lại.')
