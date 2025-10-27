@@ -15,13 +15,16 @@ import COLORS from '../../constant/colors';
 import Toast from 'react-native-toast-message';
 
 const PhoneVerification = ({ navigation, route }) => {
-  const { phoneNumber, isExistingUser } = route.params;
+  const { phoneNumber, isExistingUser, mode } = route.params;
   const [code, setCode] = useState(['', '', '', '']);
   const [password, setPassword] = useState(['', '', '', '', '', '']);
+  const [confirmPassword, setConfirmPassword] = useState(['', '', '', '', '', '']);
   const [isLoading, setIsLoading] = useState(false);
   const [timeLeft, setTimeLeft] = useState(60);
   const [canResend, setCanResend] = useState(false);
-  const inputRefs = useRef([]);
+  const [step, setStep] = useState(mode === 'password' ? 'password' : 'otp');
+  const passwordRefs = useRef([]);
+  const confirmPasswordRefs = useRef([]);
 
   useEffect(() => {
     if (!isExistingUser) {
@@ -63,7 +66,7 @@ const PhoneVerification = ({ navigation, route }) => {
 
     // Auto focus next input
     if (text && index < 3) {
-      inputRefs.current[index + 1]?.focus();
+      passwordRefs.current[index + 1]?.focus();
     }
   };
 
@@ -74,21 +77,27 @@ const PhoneVerification = ({ navigation, route }) => {
 
     // Auto focus next input
     if (text && index < 5) {
-      inputRefs.current[index + 1]?.focus();
+      passwordRefs.current[index + 1]?.focus();
     }
   };
 
-  const handleKeyPress = (key, index, isPassword = false) => {
-    if (key === 'Backspace' && !(isPassword ? password[index] : code[index])) {
+  const handleKeyPress = (key, index, isPassword = false, isConfirm = false) => {
+    if (key === 'Backspace' && !((isPassword || isConfirm) ? password[index] : code[index])) {
       // Focus previous input on backspace
       if (index > 0) {
-        inputRefs.current[index - 1]?.focus();
+        if (isConfirm) {
+          confirmPasswordRefs.current[index - 1]?.focus();
+        } else if (isPassword) {
+          passwordRefs.current[index - 1]?.focus();
+        } else {
+          passwordRefs.current[index - 1]?.focus();
+        }
       }
     }
   };
 
   const handleVerify = async () => {
-    if (isExistingUser) {
+    if (step === 'password') {
       // Verify password for existing user
       const passwordString = password.join('');
       if (passwordString.length !== 6) {
@@ -123,8 +132,8 @@ const PhoneVerification = ({ navigation, route }) => {
       } finally {
         setIsLoading(false);
       }
-    } else {
-      // Verify OTP for new user
+    } else if (step === 'otp') {
+      // Verify OTP
       const codeString = code.join('');
       if (codeString.length !== 4) {
         Toast.show({
@@ -144,6 +153,68 @@ const PhoneVerification = ({ navigation, route }) => {
           text1: 'Thành công',
           text2: 'Xác thực thành công',
         });
+        // Move to password setting step for new users
+        if (!isExistingUser) {
+          setStep('set_password');
+          setPassword(['', '', '', '', '', '']);
+          setConfirmPassword(['', '', '', '', '', '']);
+        } else {
+          // Navigate to main app for existing users
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'MainTabs' }],
+          });
+        }
+      } catch (error) {
+        Toast.show({
+          type: 'error',
+          text1: 'Lỗi',
+          text2: 'Mã xác thực không đúng',
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    } else if (step === 'set_password') {
+      // Set new password
+      const passwordString = password.join('');
+      const confirmPasswordString = confirmPassword.join('');
+
+      if (passwordString.length !== 6) {
+        Toast.show({
+          type: 'error',
+          text1: 'Lỗi',
+          text2: 'Vui lòng nhập đầy đủ mật khẩu 6 số',
+        });
+        return;
+      }
+
+      if (confirmPasswordString.length !== 6) {
+        Toast.show({
+          type: 'error',
+          text1: 'Lỗi',
+          text2: 'Vui lòng xác nhận mật khẩu',
+        });
+        return;
+      }
+
+      if (passwordString !== confirmPasswordString) {
+        Toast.show({
+          type: 'error',
+          text1: 'Lỗi',
+          text2: 'Mật khẩu xác nhận không khớp',
+        });
+        return;
+      }
+
+      setIsLoading(true);
+      try {
+        // Simulate setting new password
+        await setNewPassword(passwordString);
+        Toast.show({
+          type: 'success',
+          text1: 'Thành công',
+          text2: 'Đăng ký thành công',
+        });
         // Navigate to main app
         navigation.reset({
           index: 0,
@@ -153,7 +224,7 @@ const PhoneVerification = ({ navigation, route }) => {
         Toast.show({
           type: 'error',
           text1: 'Lỗi',
-          text2: 'Mã xác thực không đúng',
+          text2: 'Không thể đặt mật khẩu',
         });
       } finally {
         setIsLoading(false);
@@ -189,6 +260,30 @@ const PhoneVerification = ({ navigation, route }) => {
     });
   };
 
+  const setNewPassword = async (pwd) => {
+    // Simulate API call to set new password
+    return new Promise((resolve, reject) => {
+      setTimeout(() => {
+        if (pwd.length === 6) {
+          resolve(true);
+        } else {
+          reject(new Error('Invalid password'));
+        }
+      }, 1000);
+    });
+  };
+
+  const handleConfirmPasswordChange = (text, index) => {
+    const newConfirmPassword = [...confirmPassword];
+    newConfirmPassword[index] = text;
+    setConfirmPassword(newConfirmPassword);
+
+    // Auto focus next input
+    if (text && index < 5) {
+      confirmPasswordRefs.current[index + 1]?.focus();
+    }
+  };
+
   const handleResendCode = async () => {
     if (canResend) {
       setTimeLeft(60);
@@ -204,7 +299,7 @@ const PhoneVerification = ({ navigation, route }) => {
         {code.map((digit, index) => (
           <TextInput
             key={index}
-            ref={(ref) => (inputRefs.current[index] = ref)}
+            ref={(ref) => (passwordRefs.current[index] = ref)}
             style={styles.codeInput}
             value={digit}
             onChangeText={(text) => handleCodeChange(text, index)}
@@ -219,17 +314,21 @@ const PhoneVerification = ({ navigation, route }) => {
     );
   };
 
-  const renderPasswordInputs = () => {
+  const renderPasswordInputs = (isConfirm = false) => {
+    const values = isConfirm ? confirmPassword : password;
+    const handleChange = isConfirm ? handleConfirmPasswordChange : handlePasswordChange;
+    const refs = isConfirm ? confirmPasswordRefs : passwordRefs;
+    
     return (
       <View style={styles.passwordContainer}>
-        {password.map((digit, index) => (
+        {values.map((digit, index) => (
           <TextInput
             key={index}
-            ref={(ref) => (inputRefs.current[index] = ref)}
+            ref={(ref) => (refs.current[index] = ref)}
             style={styles.passwordInput}
             value={digit}
-            onChangeText={(text) => handlePasswordChange(text, index)}
-            onKeyPress={({ nativeEvent }) => handleKeyPress(nativeEvent.key, index, true)}
+            onChangeText={(text) => handleChange(text, index)}
+            onKeyPress={({ nativeEvent }) => handleKeyPress(nativeEvent.key, index, true, isConfirm)}
             keyboardType="numeric"
             maxLength={1}
             textAlign="center"
@@ -259,22 +358,32 @@ const PhoneVerification = ({ navigation, route }) => {
           {/* Title */}
           <View style={styles.titleContainer}>
             <Text style={styles.title}>
-              {isExistingUser ? 'Nhập mật khẩu' : 'Xác thực số điện thoại'}
+              {step === 'password' ? 'Nhập mật khẩu' : 
+               step === 'otp' ? 'Xác thực số điện thoại' :
+               'Tạo mật khẩu mới'}
             </Text>
             <Text style={styles.subtitle}>
-              {isExistingUser
-                ? `Nhập mật khẩu 6 số cho ${phoneNumber}`
-                : `Nhập mã xác thực 4 số đã gửi đến ${phoneNumber}`}
+              {step === 'password' ? `Nhập mật khẩu 6 số cho ${phoneNumber}` :
+               step === 'otp' ? `Nhập mã xác thực 4 số đã gửi đến ${phoneNumber}` :
+               `Tạo mật khẩu 6 số cho tài khoản ${phoneNumber}`}
             </Text>
           </View>
 
           {/* Input Fields */}
           <View style={styles.inputContainer}>
-            {isExistingUser ? renderPasswordInputs() : renderCodeInputs()}
+            {step === 'otp' ? renderCodeInputs() :
+             step === 'password' ? renderPasswordInputs() : (
+              <>
+                <Text style={styles.inputLabel}>Nhập mật khẩu mới</Text>
+                {renderPasswordInputs()}
+                <Text style={[styles.inputLabel, { marginTop: 20 }]}>Xác nhận mật khẩu</Text>
+                {renderPasswordInputs(true)}
+              </>
+            )}
           </View>
 
           {/* Resend Code (only for OTP) */}
-          {!isExistingUser && (
+          {step === 'otp' && (
             <View style={styles.resendContainer}>
               {canResend ? (
                 <TouchableOpacity onPress={handleResendCode}>
@@ -295,15 +404,16 @@ const PhoneVerification = ({ navigation, route }) => {
             disabled={isLoading}
           >
             <Text style={styles.verifyButtonText}>
-              {isLoading ? 'Đang xác thực...' : 'Xác thực'}
+              {isLoading ? 'Đang xử lý...' : 
+               step === 'set_password' ? 'Đăng ký' : 'Xác thực'}
             </Text>
           </TouchableOpacity>
 
           {/* Help Text */}
           <Text style={styles.helpText}>
-            {isExistingUser
-              ? 'Quên mật khẩu? Liên hệ hỗ trợ'
-              : 'Không nhận được mã? Kiểm tra tin nhắn spam'}
+            {step === 'password' ? 'Quên mật khẩu? Liên hệ hỗ trợ' :
+             step === 'otp' ? 'Không nhận được mã? Kiểm tra tin nhắn spam' :
+             'Mật khẩu phải có đủ 6 số'}
           </Text>
         </View>
       </KeyboardAvoidingView>
@@ -312,6 +422,11 @@ const PhoneVerification = ({ navigation, route }) => {
 };
 
 const styles = StyleSheet.create({
+  inputLabel: {
+    fontSize: 16,
+    color: COLORS.GRAY,
+    marginBottom: 12,
+  },
   container: {
     flex: 1,
     backgroundColor: COLORS.WHITE,
