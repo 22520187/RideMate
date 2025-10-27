@@ -247,7 +247,7 @@ const Home = ({ navigation }) => {
                 <Text style={styles.searchPlaceholder}>Tìm địa điểm</Text>
               </TouchableOpacity>
               
-              <TouchableOpacity style={styles.profileButton}>
+              <TouchableOpacity style={styles.profileButton} onPress={() => navigation.navigate(SCREENS.PROFILE)}>
                 <User size={20} color={COLORS.WHITE} />
               </TouchableOpacity>
               

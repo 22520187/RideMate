@@ -6,9 +6,10 @@ import {
   TouchableOpacity, 
   Alert,
   FlatList,
+  AppState,
   Dimensions
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { MaterialIcons } from '@expo/vector-icons'
 import COLORS from '../../../constant/colors'
 import LocationSearch from '../../../components/LocationSearch'
@@ -17,6 +18,21 @@ import { getCurrentLocation, reverseGeocode } from '../../../config/maps'
 import { searchPlaces as osmSearchPlaces } from '../../../utils/api'
 
 const PassengerRideScreen = ({ navigation, route }) => {
+  const insets = useSafeAreaInsets()
+  const [refreshKey, setRefreshKey] = useState(0)
+
+  // Force refresh SafeArea khi app resume từ background
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState) => {
+      if (nextAppState === 'active') {
+        // Force component re-render để refresh SafeArea insets
+        setRefreshKey(prev => prev + 1);
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription?.remove();
+  }, []);
   const [fromLocation, setFromLocation] = useState('')
   const [toLocation, setToLocation] = useState('')
   const [originCoordinate, setOriginCoordinate] = useState(null)
@@ -199,7 +215,11 @@ const PassengerRideScreen = ({ navigation, route }) => {
 
   return (
     <View style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView 
+        key={refreshKey}
+        style={styles.safeArea}
+        edges={['top']}
+      >
         <View style={styles.header}>
           <TouchableOpacity 
             style={styles.backBtn}
@@ -334,7 +354,7 @@ const PassengerRideScreen = ({ navigation, route }) => {
               )}
               keyExtractor={(item) => item.id.toString()}
               showsVerticalScrollIndicator={true}
-              contentContainerStyle={styles.ridesListContent}
+              contentContainerStyle={[styles.ridesListContent, { paddingBottom: insets.bottom }]}
             />
           </View>
         </View>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, ScrollView, Dimensions, Image } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, ScrollView, Dimensions, Image, AppState } from 'react-native'
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import COLORS from '../../constant/colors'
 import { MaterialIcons } from '@expo/vector-icons'
 
@@ -8,6 +8,22 @@ const { width: screenWidth } = Dimensions.get('window')
 
 const Award = () => {
   const [points, setPoints] = useState(1200)
+  const insets = useSafeAreaInsets()
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // Force refresh SafeArea khi app resume từ background
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState) => {
+      if (nextAppState === 'active') {
+        // Force component re-render để refresh SafeArea insets
+        setRefreshKey(prev => prev + 1);
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription?.remove();
+  }, []);
+
   const [banners] = useState([
     { id: 'b1', title: 'Đổi điểm nhận voucher', subtitle: 'Tích điểm từ mỗi chuyến đi', image: require('../../../assets/banner1.png') },
     { id: 'b2', title: 'Ưu đãi đặc biệt', subtitle: 'Giảm giá lên đến 50%', image: require('../../../assets/banner2.jpg') },
@@ -37,14 +53,14 @@ const Award = () => {
   const bannerScrollRef = useRef(null)
 
   const [pointsHistory] = useState([
-    { 
-      id: 'h1', 
-      amount: 200, 
+    {
+      id: 'h1',
+      amount: 200,
       type: 'earned',
-      desc: 'Hoàn thành chuyến đi #123', 
-      date: '2025-10-08' 
+      desc: 'Hoàn thành chuyến đi #123',
+      date: '2025-10-08'
     },
-    { 
+    {
       id: 'h2',
       amount: -400,
       type: 'spent',
@@ -83,8 +99,8 @@ const Award = () => {
   }, [banners.length])
 
   // Filter promos by category
-  const filteredPromos = selectedCategory === 'all' 
-    ? promos 
+  const filteredPromos = selectedCategory === 'all'
+    ? promos
     : promos.filter(promo => promo.category === selectedCategory)
 
   const canRedeem = (promo) => !promo.redeemed && points >= promo.cost
@@ -162,8 +178,8 @@ const Award = () => {
   )
 
   const renderCategoryFilter = () => (
-    <ScrollView 
-      horizontal 
+    <ScrollView
+      horizontal
       showsHorizontalScrollIndicator={false}
       style={styles.categoryContainer}
       contentContainerStyle={styles.categoryContent}
@@ -177,10 +193,10 @@ const Award = () => {
           ]}
           onPress={() => setSelectedCategory(category.id)}
         >
-          <MaterialIcons 
-            name={category.icon} 
-            size={20} 
-            color={selectedCategory === category.id ? COLORS.WHITE : COLORS.PRIMARY} 
+          <MaterialIcons
+            name={category.icon}
+            size={20}
+            color={selectedCategory === category.id ? COLORS.WHITE : COLORS.PRIMARY}
           />
           <Text style={[
             styles.categoryText,
@@ -195,7 +211,7 @@ const Award = () => {
 
   const renderTabs = () => (
     <View style={styles.tabContainer}>
-      <TouchableOpacity 
+      <TouchableOpacity
         style={[styles.tab, activeTab === 'vouchers' && styles.activeTab]}
         onPress={() => setActiveTab('vouchers')}
       >
@@ -203,7 +219,7 @@ const Award = () => {
           Đổi voucher
         </Text>
       </TouchableOpacity>
-      <TouchableOpacity 
+      <TouchableOpacity
         style={[styles.tab, activeTab === 'history' && styles.activeTab]}
         onPress={() => setActiveTab('history')}
       >
@@ -250,10 +266,10 @@ const Award = () => {
   const renderPointHistoryItem = ({ item }) => (
     <View style={styles.historyCard}>
       <View style={styles.historyLeft}>
-        <MaterialIcons 
-          name={item.type === 'earned' ? 'add-circle' : 'remove-circle'} 
-          size={24} 
-          color={item.type === 'earned' ? COLORS.GREEN : COLORS.ORANGE_DARK} 
+        <MaterialIcons
+          name={item.type === 'earned' ? 'add-circle' : 'remove-circle'}
+          size={24}
+          color={item.type === 'earned' ? COLORS.GREEN : COLORS.ORANGE_DARK}
         />
         <View style={styles.historyTextWrap}>
           <Text style={styles.historyDesc}>{item.desc}</Text>
@@ -298,10 +314,14 @@ const Award = () => {
   )
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView 
+      key={refreshKey}
+      style={styles.container}
+      edges={['top']}
+    >
       {renderHeader()}
       {renderTabs()}
-      
+
       {activeTab === 'vouchers' ? (
         <View style={styles.voucherContainer}>
           {renderCategoryFilter()}
@@ -309,7 +329,7 @@ const Award = () => {
             data={filteredPromos}
             keyExtractor={(item) => item.id}
             renderItem={renderItem}
-            contentContainerStyle={styles.listContent}
+            contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom }]}
             showsVerticalScrollIndicator={false}
           />
         </View>
@@ -320,7 +340,7 @@ const Award = () => {
             data={redeemedVouchers}
             keyExtractor={(item) => item.id}
             renderItem={renderRedeemedVoucherItem}
-            contentContainerStyle={styles.historyList}
+            contentContainerStyle={[styles.historyList, { paddingBottom: insets.bottom }]}
             showsVerticalScrollIndicator={false}
             ListFooterComponent={
               <>
