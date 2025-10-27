@@ -48,7 +48,7 @@ const Login = ({ navigation }) => {
     setIsLoading(true);
     
     try {
-      // Simulate API call to check if user exists
+      // Check if user exists in the system
       const userExists = await checkUserExists(phoneNumber);
       
       if (userExists) {
@@ -56,12 +56,14 @@ const Login = ({ navigation }) => {
         navigation.navigate('PhoneVerification', {
           phoneNumber: phoneNumber,
           isExistingUser: true,
+          mode: 'password',
         });
       } else {
         // New user, navigate to OTP verification
         navigation.navigate('PhoneVerification', {
           phoneNumber: phoneNumber,
           isExistingUser: false,
+          mode: 'otp',
         });
       }
     } catch (error) {
