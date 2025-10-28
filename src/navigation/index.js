@@ -1,25 +1,25 @@
-import { createStackNavigator } from '@react-navigation/stack';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import COLORS from '../constant/colors';
-import SCREENS from '../screens';
-import Home from '../screens/User/Home/Home';
-import HomeSearch from '../screens/User/Home/HomeSearch';
-import Award from '../screens/User/Award';
-import Profile from '../screens/User/Profile';
-import DriverRideScreen from '../screens/User/Rider/DriverRideScreen';
-import PassengerRideScreen from '../screens/User/Rider/PassengerRideScreen';
-import MatchedRideScreen from '../screens/User/Rider/MatchedRideScreen';
-import Report from '../screens/User/Report';
-import Notification from '../screens/User/Notification';
-import { useIsKeyboardVisible } from '../hooks/useIsKeyboardVisible';
-import MemberDetail from '../screens/User/Member/MemberDetail';
-import Member from '../screens/User/Member/Member';
-import Voucher from '../screens/User/Voucher';
-import Mission from '../screens/User/Mission';
-import Login from '../screens/Auth/Login';
-import PhoneVerification from '../screens/Auth/PhoneVerification';
+import { createStackNavigator } from "@react-navigation/stack";
+import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import COLORS from "../constant/colors";
+import SCREENS from "../screens";
+import Home from "../screens/User/Home/Home";
+import HomeSearch from "../screens/User/Home/HomeSearch";
+import Award from "../screens/User/Award";
+import Profile from "../screens/User/Profile";
+import DriverRideScreen from "../screens/User/Rider/DriverRideScreen";
+import PassengerRideScreen from "../screens/User/Rider/PassengerRideScreen";
+import MatchedRideScreen from "../screens/User/Rider/MatchedRideScreen";
+import Report from "../screens/User/Report";
+import Notification from "../screens/User/Notification";
+import { useIsKeyboardVisible } from "../hooks/useIsKeyboardVisible";
+import MemberDetail from "../screens/User/Member/MemberDetail";
+import Member from "../screens/User/Member/Member";
+import Voucher from "../screens/User/Voucher";
+import Mission from "../screens/User/Mission";
+import Login from "../screens/Auth/Login";
+import PhoneVerification from "../screens/Auth/PhoneVerification";
 import MessageListScreen from "../screens/User/Message/MessageListScreen";
 import ChatScreen from "../screens/User/Message/ChatScreen";
 const Stack = createStackNavigator();
@@ -38,7 +38,7 @@ const MessageStackNavigator = () => {
 const UserTabNavigator = () => {
   const { isKeyboardVisible } = useIsKeyboardVisible();
   const insets = useSafeAreaInsets();
-  
+
   return (
     <Tab.Navigator
       initialRouteName={SCREENS.HOME}
@@ -95,12 +95,18 @@ const MainStackNavigator = () => {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name={SCREENS.LOGIN} component={Login} />
-      <Stack.Screen name={SCREENS.PHONE_VERIFICATION} component={PhoneVerification} />
+      <Stack.Screen
+        name={SCREENS.PHONE_VERIFICATION}
+        component={PhoneVerification}
+      />
       <Stack.Screen name="MainTabs" component={UserTabNavigator} />
       <Stack.Screen name={SCREENS.HOME_SEARCH} component={HomeSearch} />
       <Stack.Screen name={SCREENS.MEMBER} component={Member} />
       <Stack.Screen name={SCREENS.DRIVER_RIDE} component={DriverRideScreen} />
-      <Stack.Screen name={SCREENS.PASSENGER_RIDE} component={PassengerRideScreen} />
+      <Stack.Screen
+        name={SCREENS.PASSENGER_RIDE}
+        component={PassengerRideScreen}
+      />
       <Stack.Screen name={SCREENS.MATCHED_RIDE} component={MatchedRideScreen} />
       <Stack.Screen name={SCREENS.REPORT} component={Report} />
       <Stack.Screen name={SCREENS.NOTIFICATION} component={Notification} />
