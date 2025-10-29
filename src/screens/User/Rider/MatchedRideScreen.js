@@ -338,7 +338,11 @@ const MatchedRideScreen = ({ navigation, route }) => {
           <View style={styles.modalBox}>
             <Text style={styles.modalTitle}>Đánh giá chuyến đi</Text>
             <Text style={styles.modalSubtitle}>
-              Bạn nhận được {rewardPoints} điểm thưởng 🎁
+              Bạn nhận được{" "}
+              <Text style={{ color: COLORS.PRIMARY, fontWeight: "600" }}>
+                {rewardPoints}
+              </Text>{" "}
+              điểm thưởng 🎁!
             </Text>
 
             <View style={{ alignItems: "center", marginVertical: 10 }}>
