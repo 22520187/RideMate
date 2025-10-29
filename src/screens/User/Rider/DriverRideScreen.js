@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react'
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  TouchableOpacity, 
+import React, { useState, useEffect } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
   Alert,
   Dimensions,
   TextInput,
@@ -11,53 +11,71 @@ import {
   FlatList,
   ScrollView,
   AppState,
-  Image
-} from 'react-native'
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
-import { MaterialIcons } from '@expo/vector-icons'
-import COLORS from '../../../constant/colors'
-import LocationSearch from '../../../components/LocationSearch'
-import RouteMap from '../../../components/RouteMap'
-import { getCurrentLocation, reverseGeocode } from '../../../config/maps'
-import { searchPlaces as osmSearchPlaces, getRoute as osrmGetRoute } from '../../../utils/api'
+  Image,
+} from "react-native";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
+import { MaterialIcons } from "@expo/vector-icons";
+import COLORS from "../../../constant/colors";
+import LocationSearch from "../../../components/LocationSearch";
+import RouteMap from "../../../components/RouteMap";
+import { getCurrentLocation, reverseGeocode } from "../../../config/maps";
+import {
+  searchPlaces as osmSearchPlaces,
+  getRoute as osrmGetRoute,
+} from "../../../utils/api";
+import { useSharedPath } from "../../../hooks/useSharedPath";
 
 const DriverRideScreen = ({ navigation, route }) => {
-  const insets = useSafeAreaInsets()
-  const [refreshKey, setRefreshKey] = useState(0)
+  const insets = useSafeAreaInsets();
+  const [refreshKey, setRefreshKey] = useState(0);
+  const { updatePath } = useSharedPath();
 
   // Force refresh SafeArea khi app resume từ background
   useEffect(() => {
     const handleAppStateChange = (nextAppState) => {
-      if (nextAppState === 'active') {
+      if (nextAppState === "active") {
         // Force component re-render để refresh SafeArea insets
-        setRefreshKey(prev => prev + 1);
+        setRefreshKey((prev) => prev + 1);
       }
     };
 
-    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    const subscription = AppState.addEventListener(
+      "change",
+      handleAppStateChange
+    );
     return () => subscription?.remove();
   }, []);
-  const [fromLocation, setFromLocation] = useState('')
-  const [toLocation, setToLocation] = useState('')
-  const [originCoordinate, setOriginCoordinate] = useState(null)
-  const [destinationCoordinate, setDestinationCoordinate] = useState(null)
-  const [fromSuggestions, setFromSuggestions] = useState([])
-  const [toSuggestions, setToSuggestions] = useState([])
-  const [routeInfo, setRouteInfo] = useState(null)
-  const [routePath, setRoutePath] = useState([])
-  const [isLoadingDirections, setIsLoadingDirections] = useState(false)
-  const [isScheduleModalVisible, setIsScheduleModalVisible] = useState(false)
-  const [scheduleTime, setScheduleTime] = useState('')
-  const [scheduleFromText, setScheduleFromText] = useState('')
-  const [scheduleToText, setScheduleToText] = useState('')
-  const [scheduleFromSuggestions, setScheduleFromSuggestions] = useState([])
-  const [scheduleToSuggestions, setScheduleToSuggestions] = useState([])
-  const [scheduleOriginCoordinate, setScheduleOriginCoordinate] = useState(null)
-  const [scheduleDestinationCoordinate, setScheduleDestinationCoordinate] = useState(null)
-  const [scheduledRide, setScheduledRide] = useState(null)
-  const [activeInput, setActiveInput] = useState(null) // 'from' or 'to'
-  const [isPassengerModalVisible, setIsPassengerModalVisible] = useState(false)
-  const [availablePassengers, setAvailablePassengers] = useState([])
+  const [fromLocation, setFromLocation] = useState("");
+  const [toLocation, setToLocation] = useState("");
+  const [originCoordinate, setOriginCoordinate] = useState(null);
+  const [destinationCoordinate, setDestinationCoordinate] = useState(null);
+  const [fromSuggestions, setFromSuggestions] = useState([]);
+  const [toSuggestions, setToSuggestions] = useState([]);
+  const [routeInfo, setRouteInfo] = useState(null);
+  const [routePath, setRoutePath] = useState([]);
+  const [isLoadingDirections, setIsLoadingDirections] = useState(false);
+  const [isScheduleModalVisible, setIsScheduleModalVisible] = useState(false);
+  const [scheduleTime, setScheduleTime] = useState("");
+  const [scheduleFromText, setScheduleFromText] = useState("");
+  const [scheduleToText, setScheduleToText] = useState("");
+  const [scheduleFromSuggestions, setScheduleFromSuggestions] = useState([]);
+  const [scheduleToSuggestions, setScheduleToSuggestions] = useState([]);
+  const [scheduleOriginCoordinate, setScheduleOriginCoordinate] =
+    useState(null);
+  const [scheduleDestinationCoordinate, setScheduleDestinationCoordinate] =
+    useState(null);
+  const [scheduledRide, setScheduledRide] = useState(null);
+  const [activeInput, setActiveInput] = useState(null); // 'from' or 'to'
+  const [isPassengerModalVisible, setIsPassengerModalVisible] = useState(false);
+  const [availablePassengers, setAvailablePassengers] = useState([]);
+
+  // Update path để MatchedRideScreen dùng chung thông qua hook useSharedPath để lưu trữ
+  useEffect(() => {
+    updatePath(routePath);
+  }, [routePath]);
 
   // Xử lý destination từ params
   useEffect(() => {
@@ -68,274 +86,286 @@ const DriverRideScreen = ({ navigation, route }) => {
         latitude: destination.latitude,
         longitude: destination.longitude,
         description: destination.description,
-        placeId: destination.placeId
+        placeId: destination.placeId,
       });
     }
   }, [route?.params?.destination]);
 
   // Tính toán chiều rộng cho suggestions
-  const screenWidth = Dimensions.get('window').width
-  const suggestionsWidth = screenWidth - 30 - 80 // 30px padding, 80px cho button "Hiện tại"
+  const screenWidth = Dimensions.get("window").width;
+  const suggestionsWidth = screenWidth - 30 - 80; // 30px padding, 80px cho button "Hiện tại"
 
   const calculatePrice = (distanceKm) => {
-    const basePrice = 15000
-    const pricePerKm = 3000
-    return Math.round(basePrice + distanceKm * pricePerKm)
-  }
+    const basePrice = 15000;
+    const pricePerKm = 3000;
+    return Math.round(basePrice + distanceKm * pricePerKm);
+  };
 
   const searchPlacesAPI = async (query) => {
     try {
-      const places = await osmSearchPlaces(query)
-      return places.map(p => ({
+      const places = await osmSearchPlaces(query);
+      return places.map((p) => ({
         description: p.display_name || p.name,
         latitude: parseFloat(p.lat),
-        longitude: parseFloat(p.lon)
-      }))
+        longitude: parseFloat(p.lon),
+      }));
     } catch (error) {
-      console.error('Error searching places:', error)
-      return []
+      console.error("Error searching places:", error);
+      return [];
     }
-  }
+  };
 
   const handleLocationSuggestions = async (query, type) => {
-    if (query.length < 3) return
-    
+    if (query.length < 3) return;
+
     try {
-      const suggestions = await searchPlacesAPI(query)
-      if (type === 'from') {
-        setFromSuggestions(suggestions)
+      const suggestions = await searchPlacesAPI(query);
+      if (type === "from") {
+        setFromSuggestions(suggestions);
       } else {
-        setToSuggestions(suggestions)
+        setToSuggestions(suggestions);
       }
     } catch (error) {
-      console.error('Error getting location suggestions:', error)
-      if (type === 'from') {
-        setFromSuggestions([])
+      console.error("Error getting location suggestions:", error);
+      if (type === "from") {
+        setFromSuggestions([]);
       } else {
-        setToSuggestions([])
+        setToSuggestions([]);
       }
     }
-  }
+  };
 
   const handleChangeFromText = (text) => {
-    setFromLocation(text)
-    setActiveInput('from')
-    if (text.length <= 2) setFromSuggestions([])
-  }
+    setFromLocation(text);
+    setActiveInput("from");
+    if (text.length <= 2) setFromSuggestions([]);
+  };
 
   const handleChangeToText = (text) => {
-    setToLocation(text)
-    setActiveInput('to')
-    if (text.length <= 2) setToSuggestions([])
-  }
+    setToLocation(text);
+    setActiveInput("to");
+    if (text.length <= 2) setToSuggestions([]);
+  };
 
   const handleScheduleSuggestions = async (query, type) => {
-    if (query.length < 3) return
+    if (query.length < 3) return;
     try {
-      const suggestions = await searchPlacesAPI(query)
-      if (type === 'from') {
-        setScheduleFromSuggestions(suggestions)
+      const suggestions = await searchPlacesAPI(query);
+      if (type === "from") {
+        setScheduleFromSuggestions(suggestions);
       } else {
-        setScheduleToSuggestions(suggestions)
+        setScheduleToSuggestions(suggestions);
       }
     } catch (error) {
-      if (type === 'from') {
-        setScheduleFromSuggestions([])
+      if (type === "from") {
+        setScheduleFromSuggestions([]);
       } else {
-        setScheduleToSuggestions([])
+        setScheduleToSuggestions([]);
       }
     }
-  }
+  };
 
   const handleScheduleSelect = (location, type) => {
-    if (type === 'from') {
-      setScheduleOriginCoordinate(location)
-      setScheduleFromSuggestions([])
+    if (type === "from") {
+      setScheduleOriginCoordinate(location);
+      setScheduleFromSuggestions([]);
     } else {
-      setScheduleDestinationCoordinate(location)
-      setScheduleToSuggestions([])
+      setScheduleDestinationCoordinate(location);
+      setScheduleToSuggestions([]);
     }
-  }
+  };
 
   const handleConfirmSchedule = () => {
     if (!scheduleFromText || !scheduleToText || !scheduleTime) {
-      Alert.alert('Lỗi', 'Vui lòng nhập đầy đủ thời gian, điểm xuất phát và điểm đến')
-      return
+      Alert.alert(
+        "Lỗi",
+        "Vui lòng nhập đầy đủ thời gian, điểm xuất phát và điểm đến"
+      );
+      return;
     }
-    
+
     setScheduledRide({
       time: scheduleTime,
       from: scheduleFromText,
-      to: scheduleToText
-    })
-    
-    setFromLocation(scheduleFromText)
-    setToLocation(scheduleToText)
-    setOriginCoordinate(scheduleOriginCoordinate || null)
-    setDestinationCoordinate(scheduleDestinationCoordinate || null) 
-    setIsScheduleModalVisible(false)
-    Alert.alert('Đã đặt lịch', `Khởi hành lúc ${scheduleTime}`)
-  }
+      to: scheduleToText,
+    });
+
+    setFromLocation(scheduleFromText);
+    setToLocation(scheduleToText);
+    setOriginCoordinate(scheduleOriginCoordinate || null);
+    setDestinationCoordinate(scheduleDestinationCoordinate || null);
+    setIsScheduleModalVisible(false);
+    Alert.alert("Đã đặt lịch", `Khởi hành lúc ${scheduleTime}`);
+  };
 
   const handleCancelSchedule = () => {
-    Alert.alert(
-      'Xóa lịch trình',
-      'Bạn có chắc muốn xóa lịch trình này?',
-      [
-        {
-          text: 'Hủy',
-          style: 'cancel'
+    Alert.alert("Xóa lịch trình", "Bạn có chắc muốn xóa lịch trình này?", [
+      {
+        text: "Hủy",
+        style: "cancel",
+      },
+      {
+        text: "Xóa",
+        style: "destructive",
+        onPress: () => {
+          setScheduledRide(null);
+          setFromLocation("");
+          setToLocation("");
+          setOriginCoordinate(null);
+          setDestinationCoordinate(null);
+          Alert.alert("Thành công", "Đã xóa lịch trình");
         },
-        {
-          text: 'Xóa',
-          style: 'destructive',
-          onPress: () => {
-            setScheduledRide(null)
-            setFromLocation('')
-            setToLocation('')
-            setOriginCoordinate(null)
-            setDestinationCoordinate(null)
-            Alert.alert('Thành công', 'Đã xóa lịch trình')
-          }
-        }
-      ]
-    )
-  }
+      },
+    ]);
+  };
 
   const handleLocationSelect = (location, type) => {
-    if (type === 'from') {
-      setFromLocation(location.description)
+    if (type === "from") {
+      setFromLocation(location.description);
       setOriginCoordinate({
         latitude: location.latitude,
         longitude: location.longitude,
         description: location.description,
-        placeId: location.placeId
-      })
-      setFromSuggestions([])
+        placeId: location.placeId,
+      });
+      setFromSuggestions([]);
     } else {
-      setToLocation(location.description)
+      setToLocation(location.description);
       setDestinationCoordinate({
         latitude: location.latitude,
         longitude: location.longitude,
         description: location.description,
-        placeId: location.placeId
-      })
-      setToSuggestions([])
+        placeId: location.placeId,
+      });
+      setToSuggestions([]);
     }
-    setActiveInput(null)
-    setRoutePath([])
-  }
+    setActiveInput(null);
+    setRoutePath([]);
+  };
 
   const handleGetCurrentLocation = async (type) => {
     try {
-      const currentLocation = await getCurrentLocation()
-      const address = await reverseGeocode(currentLocation.latitude, currentLocation.longitude)
-      
-      if (type === 'from') {
-        setFromLocation(address)
-        setOriginCoordinate(currentLocation)
+      const currentLocation = await getCurrentLocation();
+      const address = await reverseGeocode(
+        currentLocation.latitude,
+        currentLocation.longitude
+      );
+
+      if (type === "from") {
+        setFromLocation(address);
+        setOriginCoordinate(currentLocation);
       } else {
-        setToLocation(address)
-        setDestinationCoordinate(currentLocation)
+        setToLocation(address);
+        setDestinationCoordinate(currentLocation);
       }
-      
-      Alert.alert('Thành công', `Đã lấy vị trí hiện tại: ${address}`)
+
+      Alert.alert("Thành công", `Đã lấy vị trí hiện tại: ${address}`);
     } catch (error) {
-      Alert.alert('Lỗi', 'Không thể lấy vị trí hiện tại. Vui lòng kiểm tra quyền truy cập vị trí.')
+      Alert.alert(
+        "Lỗi",
+        "Không thể lấy vị trí hiện tại. Vui lòng kiểm tra quyền truy cập vị trí."
+      );
     }
-  }
+  };
 
   const handleSearchAsDriver = async () => {
     if (!fromLocation || !toLocation) {
-      Alert.alert('Lỗi', 'Vui lòng nhập đầy đủ điểm xuất phát và điểm đến')
-      return
+      Alert.alert("Lỗi", "Vui lòng nhập đầy đủ điểm xuất phát và điểm đến");
+      return;
     }
     if (!originCoordinate || !destinationCoordinate) {
-      Alert.alert('Lỗi', 'Vui lòng chọn địa điểm từ danh sách gợi ý')
-      return
+      Alert.alert("Lỗi", "Vui lòng chọn địa điểm từ danh sách gợi ý");
+      return;
     }
-    
-    setIsLoadingDirections(true)
-    try {
-      const path = await osrmGetRoute(originCoordinate, destinationCoordinate)
-      setRoutePath(path)
 
-      let distanceKm = 0
+    setIsLoadingDirections(true);
+    try {
+      const path = await osrmGetRoute(originCoordinate, destinationCoordinate);
+      setRoutePath(path);
+
+      let distanceKm = 0;
       for (let i = 1; i < path.length; i++) {
-        const a = path[i - 1]
-        const b = path[i]
-        const dLat = (b.latitude - a.latitude) * Math.PI / 180
-        const dLon = (b.longitude - a.longitude) * Math.PI / 180
-        const lat1 = a.latitude * Math.PI / 180
-        const lat2 = b.latitude * Math.PI / 180
-        const sinDLat = Math.sin(dLat / 2)
-        const sinDLon = Math.sin(dLon / 2)
-        const h = sinDLat * sinDLat + Math.cos(lat1) * Math.cos(lat2) * sinDLon * sinDLon
-        const c = 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h))
-        distanceKm += 6371 * c
+        const a = path[i - 1];
+        const b = path[i];
+        const dLat = ((b.latitude - a.latitude) * Math.PI) / 180;
+        const dLon = ((b.longitude - a.longitude) * Math.PI) / 180;
+        const lat1 = (a.latitude * Math.PI) / 180;
+        const lat2 = (b.latitude * Math.PI) / 180;
+        const sinDLat = Math.sin(dLat / 2);
+        const sinDLon = Math.sin(dLon / 2);
+        const h =
+          sinDLat * sinDLat +
+          Math.cos(lat1) * Math.cos(lat2) * sinDLon * sinDLon;
+        const c = 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+        distanceKm += 6371 * c;
       }
-      const durationMinutes = Math.round(distanceKm * 2.5)
-      const price = calculatePrice(distanceKm)
+      const durationMinutes = Math.round(distanceKm * 2.5);
+      const price = calculatePrice(distanceKm);
 
       setRouteInfo({
         distance: `${distanceKm.toFixed(1)} km`,
         duration: `${durationMinutes} phút`,
-        price: `${price.toLocaleString('vi-VN')}đ`
-      })
+        price: `${price.toLocaleString("vi-VN")}đ`,
+      });
 
       // Mock data for available passengers
       const mockPassengers = [
         {
           id: 1,
-          name: 'Nguyễn Văn A',
-          phone: '0901234567',
-          avatar: 'https://i.pravatar.cc/150?img=12',
-          departureTime: '14:30',
-          from: 'Bến Xe Giáp Bát',
+          name: "Nguyễn Văn A",
+          phone: "0901234567",
+          avatar: "https://i.pravatar.cc/150?img=12",
+          departureTime: "14:30",
+          from: "Bến Xe Giáp Bát",
           to: toLocation,
           rating: 4.8,
-          reviews: 23
+          reviews: 23,
         },
         {
           id: 2,
-          name: 'Trần Thị B',
-          phone: '0901234568',
-          avatar: 'https://i.pravatar.cc/150?img=13',
-          departureTime: '15:00',
-          from: 'Nhà ga Hà Nội',
+          name: "Trần Thị B",
+          phone: "0901234568",
+          avatar: "https://i.pravatar.cc/150?img=13",
+          departureTime: "15:00",
+          from: "Nhà ga Hà Nội",
           to: toLocation,
           rating: 4.9,
-          reviews: 45
+          reviews: 45,
         },
         {
           id: 3,
-          name: 'Lê Văn C',
-          phone: '0901234569',
-          avatar: 'https://i.pravatar.cc/150?img=14',
-          departureTime: '15:30',
-          from: 'Aeon Mall Long Biên',
+          name: "Lê Văn C",
+          phone: "0901234569",
+          avatar: "https://i.pravatar.cc/150?img=14",
+          departureTime: "15:30",
+          from: "Aeon Mall Long Biên",
           to: toLocation,
           rating: 4.7,
-          reviews: 18
-        }
-      ]
-      setAvailablePassengers(mockPassengers)
-      setIsPassengerModalVisible(true)
+          reviews: 18,
+        },
+      ];
+      setAvailablePassengers(mockPassengers);
+      setIsPassengerModalVisible(true);
       // Alert.alert('Đã tìm thấy hành khách!', `Có ${mockPassengers.length} người đang tìm đi cùng`)
     } catch (error) {
-      console.error('Error getting directions:', error)
-      Alert.alert('Lỗi', 'Không thể lấy thông tin tuyến đường. Vui lòng thử lại.')
+      console.error("Error getting directions:", error);
+      Alert.alert(
+        "Lỗi",
+        "Không thể lấy thông tin tuyến đường. Vui lòng thử lại."
+      );
     } finally {
-      setIsLoadingDirections(false)
+      setIsLoadingDirections(false);
     }
-  }
+  };
 
   const handleSelectPassenger = (passenger) => {
-    const durationMinutes = Math.round(parseFloat(routeInfo.distance.replace(' km', '')) * 2.5)
-    const distanceKm = parseFloat(routeInfo.distance.replace(' km', ''))
-    const price = calculatePrice(distanceKm)
-    
-    navigation.navigate('MatchedRide', {
+    const durationMinutes = Math.round(
+      parseFloat(routeInfo.distance.replace(" km", "")) * 2.5
+    );
+    const distanceKm = parseFloat(routeInfo.distance.replace(" km", ""));
+    const price = calculatePrice(distanceKm);
+
+    navigation.navigate("MatchedRide", {
       isDriver: true,
       passengerName: passenger.name,
       passengerPhone: passenger.phone,
@@ -345,20 +375,16 @@ const DriverRideScreen = ({ navigation, route }) => {
       departureTime: scheduledRide?.time || passenger.departureTime,
       price: routeInfo.price,
       duration: routeInfo.duration,
-      distance: routeInfo.distance
-    })
-    setIsPassengerModalVisible(false)
-  }
+      distance: routeInfo.distance,
+    });
+    setIsPassengerModalVisible(false);
+  };
 
   return (
     <View style={styles.container}>
-      <SafeAreaView 
-        key={refreshKey}
-        style={styles.safeArea}
-        edges={['top']}
-      >
+      <SafeAreaView key={refreshKey} style={styles.safeArea} edges={["top"]}>
         <View style={styles.header}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.backBtn}
             onPress={() => navigation.goBack()}
           >
@@ -367,15 +393,19 @@ const DriverRideScreen = ({ navigation, route }) => {
           <Text style={styles.headerTitle}>Tạo chuyến đi</Text>
           <View style={styles.headerRight}>
             {scheduledRide ? (
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.headerScheduleBtn, styles.headerCancelBtn]}
                 onPress={handleCancelSchedule}
               >
-                <MaterialIcons name="event-busy" size={18} color={COLORS.WHITE} />
+                <MaterialIcons
+                  name="event-busy"
+                  size={18}
+                  color={COLORS.WHITE}
+                />
                 <Text style={styles.headerScheduleText}>Xóa lịch</Text>
               </TouchableOpacity>
             ) : (
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.headerScheduleBtn}
                 onPress={() => setIsScheduleModalVisible(true)}
               >
@@ -386,12 +416,12 @@ const DriverRideScreen = ({ navigation, route }) => {
           </View>
         </View>
       </SafeAreaView>
-      
+
       <View style={styles.contentArea}>
         <RouteMap
           origin={originCoordinate}
           destination={destinationCoordinate}
-          height={Dimensions.get('window').height}
+          height={Dimensions.get("window").height}
           showRoute={true}
           path={routePath}
           fullScreen={true}
@@ -407,17 +437,23 @@ const DriverRideScreen = ({ navigation, route }) => {
                       placeholder="Điểm xuất phát"
                       value={fromLocation}
                       onChangeText={handleChangeFromText}
-                      onLocationSelect={(location) => handleLocationSelect(location, 'from')}
+                      onLocationSelect={(location) =>
+                        handleLocationSelect(location, "from")
+                      }
                       iconName="my-location"
                       containerWidth={suggestionsWidth}
                       forceHideSuggestions={isLoadingDirections}
                     />
                   </View>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.currentLocationBtn}
-                    onPress={() => handleGetCurrentLocation('from')}
+                    onPress={() => handleGetCurrentLocation("from")}
                   >
-                    <MaterialIcons name="my-location" size={16} color={COLORS.WHITE} />
+                    <MaterialIcons
+                      name="my-location"
+                      size={16}
+                      color={COLORS.WHITE}
+                    />
                     <Text style={styles.currentLocationText}>Hiện tại</Text>
                   </TouchableOpacity>
                 </View>
@@ -427,7 +463,9 @@ const DriverRideScreen = ({ navigation, route }) => {
                       placeholder="Điểm đến"
                       value={toLocation}
                       onChangeText={handleChangeToText}
-                      onLocationSelect={(location) => handleLocationSelect(location, 'to')}
+                      onLocationSelect={(location) =>
+                        handleLocationSelect(location, "to")
+                      }
                       iconName="place"
                       containerWidth="100%"
                       forceHideSuggestions={isLoadingDirections}
@@ -443,34 +481,53 @@ const DriverRideScreen = ({ navigation, route }) => {
               <View style={styles.routeInfoContainer} pointerEvents="auto">
                 <View style={styles.routeInfoRow}>
                   <View style={styles.routeInfoItem}>
-                    <MaterialIcons name="directions-car" size={16} color={COLORS.PRIMARY} />
-                    <Text style={styles.routeInfoText}>{routeInfo.distance}</Text>
+                    <MaterialIcons
+                      name="directions-car"
+                      size={16}
+                      color={COLORS.PRIMARY}
+                    />
+                    <Text style={styles.routeInfoText}>
+                      {routeInfo.distance}
+                    </Text>
                   </View>
                   <View style={styles.routeInfoItem}>
-                    <MaterialIcons name="access-time" size={16} color={COLORS.BLUE} />
-                    <Text style={styles.routeInfoText}>{routeInfo.duration}</Text>
+                    <MaterialIcons
+                      name="access-time"
+                      size={16}
+                      color={COLORS.BLUE}
+                    />
+                    <Text style={styles.routeInfoText}>
+                      {routeInfo.duration}
+                    </Text>
                   </View>
                   <View style={styles.routeInfoItem}>
-                    <MaterialIcons name="attach-money" size={16} color={COLORS.GREEN} />
+                    <MaterialIcons
+                      name="attach-money"
+                      size={16}
+                      color={COLORS.GREEN}
+                    />
                     <Text style={styles.routeInfoText}>{routeInfo.price}</Text>
                   </View>
                 </View>
               </View>
             )}
 
-            <TouchableOpacity 
-              style={[styles.searchBtn, isLoadingDirections && styles.searchBtnDisabled]} 
+            <TouchableOpacity
+              style={[
+                styles.searchBtn,
+                isLoadingDirections && styles.searchBtnDisabled,
+              ]}
               onPress={handleSearchAsDriver}
               disabled={isLoadingDirections}
               pointerEvents="auto"
             >
-              <MaterialIcons 
-                name={isLoadingDirections ? 'hourglass-empty' : 'search'} 
-                size={20} 
-                color={COLORS.WHITE} 
+              <MaterialIcons
+                name={isLoadingDirections ? "hourglass-empty" : "search"}
+                size={20}
+                color={COLORS.WHITE}
               />
               <Text style={styles.searchBtnText}>
-                {isLoadingDirections ? 'Đang tìm kiếm...' : 'Tìm người đi cùng'}
+                {isLoadingDirections ? "Đang tìm kiếm..." : "Tìm người đi cùng"}
               </Text>
             </TouchableOpacity>
           </View>
@@ -509,10 +566,14 @@ const DriverRideScreen = ({ navigation, route }) => {
                       placeholder="Nhập điểm xuất phát"
                       value={scheduleFromText}
                       onChangeText={setScheduleFromText}
-                      onLocationSelect={(loc) => handleScheduleSelect(loc, 'from')}
+                      onLocationSelect={(loc) =>
+                        handleScheduleSelect(loc, "from")
+                      }
                       suggestions={scheduleFromSuggestions}
                       showSuggestions={scheduleFromText.length > 2}
-                      onRequestSuggestions={(q) => handleScheduleSuggestions(q, 'from')}
+                      onRequestSuggestions={(q) =>
+                        handleScheduleSuggestions(q, "from")
+                      }
                       iconName="my-location"
                     />
                   </View>
@@ -522,10 +583,14 @@ const DriverRideScreen = ({ navigation, route }) => {
                       placeholder="Nhập điểm đến"
                       value={scheduleToText}
                       onChangeText={setScheduleToText}
-                      onLocationSelect={(loc) => handleScheduleSelect(loc, 'to')}
+                      onLocationSelect={(loc) =>
+                        handleScheduleSelect(loc, "to")
+                      }
                       suggestions={scheduleToSuggestions}
                       showSuggestions={scheduleToText.length > 2}
-                      onRequestSuggestions={(q) => handleScheduleSuggestions(q, 'to')}
+                      onRequestSuggestions={(q) =>
+                        handleScheduleSuggestions(q, "to")
+                      }
                       iconName="place"
                     />
                   </View>
@@ -533,17 +598,19 @@ const DriverRideScreen = ({ navigation, route }) => {
               }
             />
             <View style={styles.modalActions}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.modalBtn, styles.modalCancel]}
                 onPress={() => setIsScheduleModalVisible(false)}
               >
                 <Text style={styles.modalBtnText}>Hủy</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.modalBtn, styles.modalConfirm]}
                 onPress={handleConfirmSchedule}
               >
-                <Text style={[styles.modalBtnText, styles.modalConfirmText]}>Xác nhận</Text>
+                <Text style={[styles.modalBtnText, styles.modalConfirmText]}>
+                  Xác nhận
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -558,7 +625,7 @@ const DriverRideScreen = ({ navigation, route }) => {
         onRequestClose={() => setIsPassengerModalVisible(false)}
       >
         <View style={styles.modalBackdrop}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.modalBackdrop}
             activeOpacity={1}
             onPress={() => setIsPassengerModalVisible(false)}
@@ -566,43 +633,65 @@ const DriverRideScreen = ({ navigation, route }) => {
           <View style={styles.modalContainer}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Chọn hành khách</Text>
-              <TouchableOpacity onPress={() => setIsPassengerModalVisible(false)}>
+              <TouchableOpacity
+                onPress={() => setIsPassengerModalVisible(false)}
+              >
                 <MaterialIcons name="close" size={24} color={COLORS.BLACK} />
               </TouchableOpacity>
             </View>
-            
+
             <Text style={styles.modalSubtitle}>
-              {availablePassengers.length} người đang tìm đi cùng từ {fromLocation} đến {toLocation}
+              {availablePassengers.length} người đang tìm đi cùng từ{" "}
+              {fromLocation} đến {toLocation}
             </Text>
 
             <FlatList
               data={availablePassengers}
               keyExtractor={(item) => item.id.toString()}
               renderItem={({ item }) => (
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.passengerCard}
                   onPress={() => handleSelectPassenger(item)}
                 >
-                  <Image source={{ uri: item.avatar }} style={styles.passengerAvatar} />
+                  <Image
+                    source={{ uri: item.avatar }}
+                    style={styles.passengerAvatar}
+                  />
                   <View style={styles.passengerInfo}>
                     <Text style={styles.passengerName}>{item.name}</Text>
                     <View style={styles.passengerDetails}>
-                      <MaterialIcons name="phone" size={14} color={COLORS.GRAY} />
+                      <MaterialIcons
+                        name="phone"
+                        size={14}
+                        color={COLORS.GRAY}
+                      />
                       <Text style={styles.passengerPhone}>{item.phone}</Text>
                     </View>
                     <View style={styles.passengerDetails}>
-                      <MaterialIcons name="star" size={14} color={COLORS.ORANGE_DARK} />
+                      <MaterialIcons
+                        name="star"
+                        size={14}
+                        color={COLORS.ORANGE_DARK}
+                      />
                       <Text style={styles.passengerRating}>{item.rating}</Text>
-                      <Text style={styles.passengerReviews}>({item.reviews} đánh giá)</Text>
+                      <Text style={styles.passengerReviews}>
+                        ({item.reviews} đánh giá)
+                      </Text>
                     </View>
                   </View>
                   <View style={styles.passengerActions}>
-                    <Text style={styles.departureTime}>{item.departureTime}</Text>
-                    <TouchableOpacity 
+                    <Text style={styles.departureTime}>
+                      {item.departureTime}
+                    </Text>
+                    <TouchableOpacity
                       style={styles.selectBtn}
                       onPress={() => handleSelectPassenger(item)}
                     >
-                      <MaterialIcons name="check-circle" size={20} color={COLORS.GREEN} />
+                      <MaterialIcons
+                        name="check-circle"
+                        size={20}
+                        color={COLORS.GREEN}
+                      />
                     </TouchableOpacity>
                   </View>
                 </TouchableOpacity>
@@ -613,8 +702,8 @@ const DriverRideScreen = ({ navigation, route }) => {
         </View>
       </Modal>
     </View>
-  )
-}
+  );
+};
 
 const styles = StyleSheet.create({
   container: {
@@ -626,8 +715,8 @@ const styles = StyleSheet.create({
     zIndex: 1000,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 20,
     paddingVertical: 15,
     backgroundColor: COLORS.WHITE,
@@ -639,21 +728,21 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.BLACK,
     flex: 1,
   },
   headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   headerScheduleBtn: {
     backgroundColor: COLORS.PRIMARY,
     borderRadius: 16,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   headerCancelBtn: {
     backgroundColor: COLORS.RED,
@@ -661,21 +750,21 @@ const styles = StyleSheet.create({
   headerScheduleText: {
     color: COLORS.WHITE,
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: "700",
     marginLeft: 6,
   },
   contentArea: {
     flex: 1,
-    position: 'relative',
+    position: "relative",
   },
   overlayContainer: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
     zIndex: 100,
-    justifyContent: 'space-between',
+    justifyContent: "space-between",
   },
   topControls: {
     paddingHorizontal: 15,
@@ -688,7 +777,7 @@ const styles = StyleSheet.create({
     zIndex: 100,
   },
   inputContainerWrapper: {
-    position: 'relative',
+    position: "relative",
   },
   inputContainer: {
     backgroundColor: COLORS.WHITE,
@@ -715,8 +804,8 @@ const styles = StyleSheet.create({
     maxHeight: 200,
   },
   suggestionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderBottomWidth: 1,
@@ -729,16 +818,16 @@ const styles = StyleSheet.create({
   suggestionTitle: {
     fontSize: 13,
     color: COLORS.BLACK,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   locationRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
     marginBottom: 10,
   },
   locationRowTo: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
     marginRight: 80,
   },
   locationSearchWrapper: {
@@ -749,17 +838,17 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 10,
     paddingVertical: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginLeft: 8,
     width: 72,
-    justifyContent: 'center',
+    justifyContent: "center",
     marginTop: 5,
   },
   currentLocationText: {
     color: COLORS.WHITE,
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: "600",
     marginLeft: 4,
   },
   routeInfoContainer: {
@@ -774,13 +863,13 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
   },
   routeInfoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-around",
+    alignItems: "center",
   },
   routeInfoItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: COLORS.BLUE_LIGHT,
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -790,15 +879,15 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.BLACK,
     marginLeft: 5,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   searchBtn: {
     backgroundColor: COLORS.PRIMARY,
     borderRadius: 12,
     padding: 15,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
     elevation: 5,
     shadowColor: COLORS.BLACK,
     shadowOffset: { width: 0, height: 2 },
@@ -808,7 +897,7 @@ const styles = StyleSheet.create({
   searchBtnText: {
     color: COLORS.WHITE,
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginLeft: 10,
   },
   searchBtnDisabled: {
@@ -817,22 +906,22 @@ const styles = StyleSheet.create({
   },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "flex-end",
   },
   modalContainer: {
     backgroundColor: COLORS.WHITE,
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     padding: 20,
-    maxHeight: Dimensions.get('window').height * 0.85,
+    maxHeight: Dimensions.get("window").height * 0.85,
   },
   modalTitle: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: "700",
     color: COLORS.BLACK,
     marginBottom: 10,
-    textAlign: 'center',
+    textAlign: "center",
   },
   modalField: {
     marginVertical: 8,
@@ -841,7 +930,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.GRAY_DARK,
     marginBottom: 6,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   modalInput: {
     backgroundColor: COLORS.WHITE,
@@ -854,15 +943,15 @@ const styles = StyleSheet.create({
     color: COLORS.BLACK,
   },
   modalActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     marginTop: 16,
   },
   modalBtn: {
     flex: 1,
     paddingVertical: 14,
     borderRadius: 12,
-    alignItems: 'center',
+    alignItems: "center",
   },
   modalCancel: {
     backgroundColor: COLORS.GRAY_BG,
@@ -874,29 +963,29 @@ const styles = StyleSheet.create({
   },
   modalBtnText: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: "700",
     color: COLORS.BLACK,
   },
   modalConfirmText: {
     color: COLORS.WHITE,
   },
   modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 10,
   },
   modalSubtitle: {
     fontSize: 14,
     color: COLORS.GRAY,
     marginBottom: 16,
-    textAlign: 'center',
+    textAlign: "center",
   },
   passengersList: {
     maxHeight: 400,
   },
   passengerCard: {
-    flexDirection: 'row',
+    flexDirection: "row",
     backgroundColor: COLORS.WHITE,
     borderRadius: 12,
     padding: 12,
@@ -921,13 +1010,13 @@ const styles = StyleSheet.create({
   },
   passengerName: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.BLACK,
     marginBottom: 4,
   },
   passengerDetails: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 2,
   },
   passengerPhone: {
@@ -939,7 +1028,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.ORANGE_DARK,
     marginLeft: 4,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   passengerReviews: {
     fontSize: 12,
@@ -947,8 +1036,8 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   passengerActions: {
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
+    alignItems: "flex-end",
+    justifyContent: "space-between",
   },
   departureTime: {
     fontSize: 12,
@@ -956,11 +1045,10 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   selectBtn: {
-    backgroundColor: COLORS.GREEN + '20',
+    backgroundColor: COLORS.GREEN + "20",
     borderRadius: 20,
     padding: 4,
   },
-})
+});
 
-export default DriverRideScreen
-
+export default DriverRideScreen;

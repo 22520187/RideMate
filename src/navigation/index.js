@@ -94,11 +94,11 @@ const UserTabNavigator = () => {
 const MainStackNavigator = () => {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name={SCREENS.LOGIN} component={Login} />
+      {/* <Stack.Screen name={SCREENS.LOGIN} component={Login} />
       <Stack.Screen
         name={SCREENS.PHONE_VERIFICATION}
         component={PhoneVerification}
-      />
+      /> */}
       <Stack.Screen name="MainTabs" component={UserTabNavigator} />
       <Stack.Screen name={SCREENS.HOME_SEARCH} component={HomeSearch} />
       <Stack.Screen name={SCREENS.MEMBER} component={Member} />
