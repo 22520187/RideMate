@@ -22,6 +22,7 @@ import { FontAwesome, MaterialIcons } from "@expo/vector-icons";
 import COLORS from "../../../constant/colors";
 import RouteMap from "../../../components/RouteMap";
 import { Modal } from "react-native";
+import { useSharedPath } from "../../../hooks/useSharedPath";
 
 const { width, height } = Dimensions.get("window");
 
@@ -41,7 +42,7 @@ const MatchedRideScreen = ({ navigation, route }) => {
   ]);
 
   const [rideStatus, setRideStatus] = useState("matched"); // 'matched' | 'ongoing' | 'completed'
-  const [path, setPath] = useState([]);
+  const { path } = useSharedPath();
   const [rewardPoints, setRewardPoints] = useState(0);
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [comment, setComment] = useState("");
@@ -57,17 +58,17 @@ const MatchedRideScreen = ({ navigation, route }) => {
     return reviews[rating - 1] || "";
   };
 
-  useEffect(() => {
-    // Ví dụ tuyến đường ngắn giữa 2 điểm Hà Nội
-    const demoPath = [
-      { latitude: 21.0285, longitude: 105.8542 },
-      { latitude: 21.026, longitude: 105.85 },
-      { latitude: 21.022, longitude: 105.845 },
-      { latitude: 21.018, longitude: 105.842 },
-      { latitude: 21.0152, longitude: 105.8415 },
-    ];
-    setPath(demoPath);
-  }, []);
+  // useEffect(() => {
+  //   // Ví dụ tuyến đường ngắn giữa 2 điểm Hà Nội
+  //   const demoPath = [
+  //     { latitude: 21.0285, longitude: 105.8542 },
+  //     { latitude: 21.026, longitude: 105.85 },
+  //     { latitude: 21.022, longitude: 105.845 },
+  //     { latitude: 21.018, longitude: 105.842 },
+  //     { latitude: 21.0152, longitude: 105.8415 },
+  //   ];
+  //   setPath(demoPath);
+  // }, []);
 
   const handleCompleteRide = () => {
     setRideStatus("completed");
