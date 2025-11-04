@@ -58,18 +58,6 @@ const MatchedRideScreen = ({ navigation, route }) => {
     return reviews[rating - 1] || "";
   };
 
-  // useEffect(() => {
-  //   // Ví dụ tuyến đường ngắn giữa 2 điểm Hà Nội
-  //   const demoPath = [
-  //     { latitude: 21.0285, longitude: 105.8542 },
-  //     { latitude: 21.026, longitude: 105.85 },
-  //     { latitude: 21.022, longitude: 105.845 },
-  //     { latitude: 21.018, longitude: 105.842 },
-  //     { latitude: 21.0152, longitude: 105.8415 },
-  //   ];
-  //   setPath(demoPath);
-  // }, []);
-
   const handleCompleteRide = () => {
     setRideStatus("completed");
     // Cộng điểm thưởng ngẫu nhiên
