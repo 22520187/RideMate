@@ -57,41 +57,41 @@ export default function Profile() {
   const [submitting, setSubmitting] = useState(false);
   const [confirmOpenVisible, setConfirmOpenVisible] = useState(false);
 
-  useEffect(() => {
-    fetchStatus();
-  }, []);
+  // useEffect(() => {
+  //   fetchStatus();
+  // }, []);
 
-  async function fetchStatus() {
-    try {
-      setLoading(true);
-      const res = await fetch(`${API_BASE}/vehicle/status`, {
-        headers: {
-          Authorization: token ? `Bearer ${token}` : undefined,
-          Accept: "application/json",
-        },
-      });
-      if (!res.ok) {
-        throw new Error("Không thể lấy trạng thái xe");
-      }
-      const data = await res.json();
-      setRegistered(!!data.registered);
-      setApproved(!!data.approved);
-      if (data.registered) {
-        setVehicleData({
-          licensePlate: data.licensePlate || "",
-          images: (data.images || []).map((it) => ({ uri: it.url, id: it.id })),
-        });
-      } else {
-        setVehicleData({ licensePlate: "", images: [] });
-      }
-    } catch (err) {
-      console.warn(err);
-      Alert.alert("Lỗi", "Không thể tải trạng thái xe. Vui lòng thử lại.");
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }
+  // async function fetchStatus() {
+  //   try {
+  //     setLoading(true);
+  //     const res = await fetch(`${API_BASE}/vehicle/status`, {
+  //       headers: {
+  //         Authorization: token ? `Bearer ${token}` : undefined,
+  //         Accept: "application/json",
+  //       },
+  //     });
+  //     if (!res.ok) {
+  //       throw new Error("Không thể lấy trạng thái xe");
+  //     }
+  //     const data = await res.json();
+  //     setRegistered(!!data.registered);
+  //     setApproved(!!data.approved);
+  //     if (data.registered) {
+  //       setVehicleData({
+  //         licensePlate: data.licensePlate || "",
+  //         images: (data.images || []).map((it) => ({ uri: it.url, id: it.id })),
+  //       });
+  //     } else {
+  //       setVehicleData({ licensePlate: "", images: [] });
+  //     }
+  //   } catch (err) {
+  //     console.warn(err);
+  //     Alert.alert("Lỗi", "Không thể tải trạng thái xe. Vui lòng thử lại.");
+  //   } finally {
+  //     setLoading(false);
+  //     setRefreshing(false);
+  //   }
+  // }
 
   const pickImage = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();

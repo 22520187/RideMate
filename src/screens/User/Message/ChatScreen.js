@@ -1,113 +1,112 @@
-import { useState, useRef, useEffect } from "react";
+import React, { useState, useRef } from "react";
 import {
   View,
   Text,
-  FlatList,
   TextInput,
   TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
-  StyleSheet,
   Image,
+  StyleSheet,
+  Keyboard,
+  TouchableWithoutFeedback,
 } from "react-native";
-import COLORS from "../../../constant/colors";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { KeyboardAwareFlatList } from "react-native-keyboard-aware-scroll-view";
+import Icon from "react-native-vector-icons/MaterialCommunityIcons";
+import { Ionicons } from "@expo/vector-icons";
+import COLORS from "../../../constant/colors";
 
-export default function ChatScreen({ route }) {
-  const { chatId } = route.params || {};
-  const currentUser = route.params?.currentUser || { id: "me", name: "Tôi" };
-
-  // Giả lập dữ liệu chat 2 chiều
+export default function ChatScreen({ route, navigation }) {
   const [messages, setMessages] = useState([
     {
       id: "1",
       text: "Chào bạn! Dạo này khỏe không?",
       senderId: "anna",
-      createdAt: new Date(Date.now() - 1000 * 60 * 10),
+      createdAt: "23:01",
     },
     {
       id: "2",
       text: "Mình ổn, cảm ơn nha! Còn bạn thì sao?",
       senderId: "me",
-      createdAt: new Date(Date.now() - 1000 * 60 * 8),
+      createdAt: "23:03",
     },
     {
       id: "3",
       text: "Mình cũng ổn lắm. Tối nay có rảnh không?",
       senderId: "anna",
-      createdAt: new Date(Date.now() - 1000 * 60 * 5),
+      createdAt: "23:06",
     },
     {
       id: "4",
-      text: "Có chứ! Cầu lông không ?",
+      text: "Có chứ! Cầu lông không?",
       senderId: "me",
-      createdAt: new Date(Date.now() - 1000 * 60 * 3),
+      createdAt: "23:08",
+    },
+    {
+      id: "5",
+      text: "Ok",
+      senderId: "anna",
+      createdAt: "23:11",
     },
   ]);
-
   const [inputText, setInputText] = useState("");
   const flatListRef = useRef(null);
 
-  // Gửi tin nhắn
   const handleSend = () => {
     if (!inputText.trim()) return;
 
-    const newMessage = {
+    const newMsg = {
       id: Date.now().toString(),
       text: inputText,
-      senderId: currentUser?.id || "me",
-      createdAt: new Date(),
+      senderId: "me",
+      createdAt: new Date().toLocaleTimeString().slice(0, 5),
     };
 
-    setMessages((prev) => [...prev, newMessage]);
+    setMessages((prev) => [...prev, newMsg]);
     setInputText("");
-
-    setTimeout(() => {
-      flatListRef.current?.scrollToEnd({ animated: true });
-    }, 100);
   };
 
-  useEffect(() => {
-    setTimeout(() => {
-      flatListRef.current?.scrollToEnd({ animated: false });
-    }, 100);
-  }, []);
-
   const renderMessage = ({ item }) => {
-    const isMyMessage = item.senderId === currentUser?.id;
-
+    const isMe = item.senderId === "me";
     return (
       <View
         style={[
-          styles.messageRow,
-          { justifyContent: isMyMessage ? "flex-end" : "flex-start" },
+          styles.messageContainer,
+          { justifyContent: isMe ? "flex-end" : "flex-start" },
         ]}
       >
-        {!isMyMessage && (
+        {!isMe && (
           <Image
             source={{ uri: "https://i.pravatar.cc/100?img=5" }}
-            style={styles.avatarSmall}
+            style={styles.avatar}
           />
         )}
         <View
           style={[
-            styles.messageContainer,
-            isMyMessage ? styles.myMessage : styles.theirMessage,
+            styles.messageBubble,
+            {
+              backgroundColor: isMe ? COLORS.PRIMARY : COLORS.GRAY_LIGHT,
+              borderBottomRightRadius: isMe ? 0 : 15,
+              borderBottomLeftRadius: isMe ? 15 : 0,
+            },
           ]}
         >
           <Text
-            style={[
-              styles.messageText,
-              isMyMessage ? { color: COLORS.WHITE } : { color: COLORS.BLACK },
-            ]}
+            style={{
+              color: isMe ? COLORS.WHITE : COLORS.BLACK,
+              fontSize: 15,
+            }}
           >
             {item.text}
           </Text>
-          <Text style={styles.timeText}>
-            {item.createdAt.toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
+          <Text
+            style={{
+              color: isMe ? COLORS.WHITE : COLORS.BLACK,
+              fontSize: 11,
+              alignSelf: "flex-end",
+              marginTop: 4,
+            }}
+          >
+            {item.createdAt}
           </Text>
         </View>
       </View>
@@ -116,48 +115,56 @@ export default function ChatScreen({ route }) {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
-      >
-        {/* Header */}
-        <View style={styles.header}>
-          <Image
-            source={{ uri: "https://i.pravatar.cc/100?img=5" }}
-            style={styles.avatar}
-          />
-          <Text style={styles.headerName}>Anna Nguyen</Text>
-        </View>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backBtn}
+        >
+          <Ionicons name="chevron-back" size={24} color={COLORS.WHITE} />
+        </TouchableOpacity>
+        <Image
+          source={{ uri: "https://i.pravatar.cc/100?img=5" }}
+          style={styles.avatarLarge}
+        />
+        <Text style={styles.headerName}>Anna Nguyen</Text>
+      </View>
 
-        {/* Danh sách tin nhắn */}
-        <FlatList
+      {/* Nội dung chat */}
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <KeyboardAwareFlatList
           ref={flatListRef}
           data={messages}
           keyExtractor={(item) => item.id}
           renderItem={renderMessage}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingVertical: 10 }}
-          keyboardShouldPersistTaps="handled"
           onContentSizeChange={() =>
             flatListRef.current?.scrollToEnd({ animated: true })
           }
+          keyboardShouldPersistTaps="handled"
         />
+      </TouchableWithoutFeedback>
 
-        {/* Ô nhập tin nhắn */}
-        <View style={styles.inputContainer}>
-          <TextInput
-            value={inputText}
-            onChangeText={setInputText}
-            placeholder="Nhập tin nhắn..."
-            style={styles.input}
-            multiline
+      {/* Ô nhập tin nhắn */}
+      <View style={styles.inputContainer}>
+        <TextInput
+          value={inputText}
+          onChangeText={setInputText}
+          placeholder="Nhập tin nhắn..."
+          style={styles.input}
+          multiline
+        />
+        <TouchableOpacity onPress={handleSend} style={styles.sendButton}>
+          <Text style={styles.sendText}>Gửi</Text>
+          <Icon
+            name="send"
+            size={18}
+            color="#fff"
+            style={{ marginLeft: 4, marginTop: 1 }}
           />
-          <TouchableOpacity onPress={handleSend} style={styles.sendButton}>
-            <Text style={styles.sendText}>Gửi</Text>
-          </TouchableOpacity>
-        </View>
-      </KeyboardAvoidingView>
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 }
@@ -167,88 +174,70 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.WHITE,
   },
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.WHITE,
-  },
   header: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 12,
     backgroundColor: COLORS.PRIMARY,
-    borderBottomLeftRadius: 16,
-    borderBottomRightRadius: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 15,
   },
-  avatar: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: "#ddd",
+  backBtn: {
+    marginRight: 10,
+  },
+  avatarLarge: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     marginRight: 10,
   },
   headerName: {
     color: COLORS.WHITE,
     fontSize: 18,
-    fontWeight: "600",
-  },
-  messageRow: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    marginHorizontal: 10,
-    marginVertical: 4,
+    fontWeight: "bold",
   },
   messageContainer: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    paddingHorizontal: 10,
+    marginVertical: 5,
+  },
+  messageBubble: {
+    maxWidth: "70%",
     padding: 10,
+    borderRadius: 15,
+  },
+  avatar: {
+    width: 28,
+    height: 28,
     borderRadius: 14,
-    maxWidth: "75%",
-  },
-  myMessage: {
-    backgroundColor: COLORS.PRIMARY,
-    borderBottomRightRadius: 0,
-  },
-  theirMessage: {
-    backgroundColor: COLORS.GRAY_LIGHT,
-    borderBottomLeftRadius: 0,
-  },
-  avatarSmall: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
     marginRight: 6,
-  },
-  messageText: {
-    fontSize: 16,
-  },
-  timeText: {
-    color: COLORS.GRAY,
-    fontSize: 10,
-    marginTop: 3,
-    textAlign: "right",
   },
   inputContainer: {
     flexDirection: "row",
-    alignItems: "flex-end",
-    padding: 10,
+    alignItems: "center",
+    padding: 8,
     borderTopWidth: 1,
-    borderColor: COLORS.GRAY_LIGHT,
+    borderColor: "#ddd",
     backgroundColor: COLORS.WHITE,
   },
   input: {
     flex: 1,
     borderWidth: 1,
-    borderColor: COLORS.GRAY_LIGHT,
+    borderColor: "#ddd",
     borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    fontSize: 16,
-    maxHeight: 100,
+    paddingHorizontal: 15,
+    paddingVertical: 6,
+    marginRight: 8,
+    fontSize: 15,
+    maxHeight: 120,
   },
   sendButton: {
-    marginLeft: 8,
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: COLORS.PRIMARY,
-    borderRadius: 20,
     paddingVertical: 8,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
+    borderRadius: 20,
   },
   sendText: {
     color: COLORS.WHITE,
