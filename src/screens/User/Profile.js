@@ -780,7 +780,7 @@ export default function Profile() {
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 16 },
+  container: { padding: 16, backgroundColor: COLORS.BG },
   title: {
     fontSize: 22,
     fontWeight: "700",
