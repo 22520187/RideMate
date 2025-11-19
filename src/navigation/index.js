@@ -22,9 +22,18 @@ import Login from "../screens/Auth/Login";
 import PhoneVerification from "../screens/Auth/PhoneVerification";
 import MessageListScreen from "../screens/User/Message/MessageListScreen";
 import ChatScreen from "../screens/User/Message/ChatScreen";
+import AdminDashboard from "../screens/Admin/AdminDashboard";
+import TripManagement from "../screens/Admin/TripManagement";
+import UserManagement from "../screens/Admin/UserManagement";
+import ReportManagement from "../screens/Admin/ReportManagement";
+import RewardManagement from "../screens/Admin/RewardManagement";
+import AdminProfile from "../screens/Admin/AdminProfile";
+
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 const MessageStack = createStackNavigator();
+const AdminStack = createStackNavigator();
+const AdminTab = createBottomTabNavigator();
 
 const MessageStackNavigator = () => {
   return (
@@ -32,6 +41,73 @@ const MessageStackNavigator = () => {
       <MessageStack.Screen name="MessageList" component={MessageListScreen} />
       <MessageStack.Screen name="ChatScreen" component={ChatScreen} />
     </MessageStack.Navigator>
+  );
+};
+
+const AdminTabNavigator = () => {
+  const insets = useSafeAreaInsets();
+  return (
+    <AdminTab.Navigator
+      initialRouteName={SCREENS.ADMIN_DASHBOARD}
+      screenOptions={({ route }) => ({
+        tabBarIcon: ({ focused, color, size }) => {
+          let iconName = "ellipse";
+          if (route.name === SCREENS.ADMIN_DASHBOARD) {
+            iconName = focused ? "speedometer" : "speedometer-outline";
+          } else if (route.name === SCREENS.ADMIN_TRIP_MANAGEMENT) {
+            iconName = focused ? "navigate" : "navigate-outline";
+          } else if (route.name === SCREENS.ADMIN_USER_MANAGEMENT) {
+            iconName = focused ? "people" : "people-outline";
+          } else if (route.name === SCREENS.ADMIN_REPORT_MANAGEMENT) {
+            iconName = focused ? "alert-circle" : "alert-circle-outline";
+          } else if (route.name === SCREENS.ADMIN_REWARD_MANAGEMENT) {
+            iconName = focused ? "gift" : "gift-outline";
+          } else if (route.name === SCREENS.ADMIN_PROFILE) {
+            iconName = focused ? "settings" : "settings-outline";
+          }
+          return <Ionicons name={iconName} size={size} color={color} />;
+        },
+        tabBarActiveTintColor: COLORS.BLUE,
+        tabBarInactiveTintColor: COLORS.GRAY,
+        tabBarStyle: {
+          height: 60 + insets.bottom,
+          paddingBottom: 8 + insets.bottom,
+          paddingTop: 8,
+        },
+        headerShown: false,
+      })}
+    >
+      <AdminTab.Screen
+        name={SCREENS.ADMIN_DASHBOARD}
+        component={AdminDashboard}
+        options={{ tabBarLabel: "Dashboard" }}
+      />
+      <AdminTab.Screen
+        name={SCREENS.ADMIN_TRIP_MANAGEMENT}
+        component={TripManagement}
+        options={{ tabBarLabel: "Trips" }}
+      />
+      <AdminTab.Screen
+        name={SCREENS.ADMIN_USER_MANAGEMENT}
+        component={UserManagement}
+        options={{ tabBarLabel: "Users" }}
+      />
+      <AdminTab.Screen
+        name={SCREENS.ADMIN_REPORT_MANAGEMENT}
+        component={ReportManagement}
+        options={{ tabBarLabel: "Reports" }}
+      />
+      <AdminTab.Screen
+        name={SCREENS.ADMIN_REWARD_MANAGEMENT}
+        component={RewardManagement}
+        options={{ tabBarLabel: "Rewards" }}
+      />
+      <AdminTab.Screen
+        name={SCREENS.ADMIN_PROFILE}
+        component={AdminProfile}
+        options={{ tabBarLabel: "Profile" }}
+      />
+    </AdminTab.Navigator>
   );
 };
 
@@ -91,15 +167,20 @@ const UserTabNavigator = () => {
   );
 };
 
+
 const MainStackNavigator = () => {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      {/* <Stack.Screen name={SCREENS.LOGIN} component={Login} />
+      <Stack.Screen name={SCREENS.LOGIN} component={Login} />
       <Stack.Screen
         name={SCREENS.PHONE_VERIFICATION}
         component={PhoneVerification}
-      /> */}
+      />
       <Stack.Screen name="MainTabs" component={UserTabNavigator} />
+      <Stack.Screen
+        name={SCREENS.ADMIN_STACK}
+        component={AdminTabNavigator}
+      />
       <Stack.Screen name={SCREENS.HOME_SEARCH} component={HomeSearch} />
       <Stack.Screen name={SCREENS.MEMBER} component={Member} />
       <Stack.Screen name={SCREENS.DRIVER_RIDE} component={DriverRideScreen} />

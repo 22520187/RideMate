@@ -14,12 +14,13 @@ import { Ionicons } from '@expo/vector-icons';
 import COLORS from '../../constant/colors';
 import Toast from 'react-native-toast-message';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { 
-  validatePhoneNumber, 
-  formatPhoneNumber, 
-  performGoogleAuth, 
-  performFacebookAuth 
+import {
+  validatePhoneNumber,
+  formatPhoneNumber,
+  performGoogleAuth,
+  performFacebookAuth,
 } from '../../config/auth';
+import SCREENS from '..';
 
 const Login = ({ navigation }) => {
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -242,6 +243,19 @@ const Login = ({ navigation }) => {
             <Text style={styles.termsLink}>Chính sách bảo mật</Text>
           </Text>
         </View>
+
+        <TouchableOpacity
+          style={styles.adminAccess}
+          onPress={() =>
+            navigation.reset({
+              index: 0,
+              routes: [{ name: SCREENS.ADMIN_STACK }],
+            })
+          }
+        >
+          <Ionicons name="shield-checkmark" size={18} color={COLORS.BLUE} />
+          <Text style={styles.adminAccessText}>Dành cho quản trị viên</Text>
+        </TouchableOpacity>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -388,6 +402,22 @@ const styles = StyleSheet.create({
   termsLink: {
     color: COLORS.BLUE,
     fontWeight: '500',
+  },
+  adminAccess: {
+    marginTop: 24,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: COLORS.BLUE_LIGHT,
+  },
+  adminAccessText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.BLUE,
   },
 });
 
