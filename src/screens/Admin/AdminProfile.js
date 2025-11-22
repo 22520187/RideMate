@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import {
-  SafeAreaView,
   View,
   Text,
   StyleSheet,
@@ -8,6 +7,7 @@ import {
   TouchableOpacity,
   ScrollView,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import COLORS from "../../constant/colors";
 
@@ -32,21 +32,20 @@ const AdminProfile = () => {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.title}>Hồ sơ quản trị</Text>
+          <Text style={styles.subtitle}>
+            Cập nhật thông tin cá nhân và thiết lập bảo mật tài khoản admin
+          </Text>
+        </View>
+        <Ionicons name="settings-outline" size={28} color={COLORS.WHITE} />
+      </View>
       <ScrollView
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.title}>Hồ sơ quản trị</Text>
-            <Text style={styles.subtitle}>
-              Cập nhật thông tin cá nhân và thiết lập bảo mật tài khoản admin
-            </Text>
-          </View>
-          <Ionicons name="settings-outline" size={28} color={COLORS.BLUE} />
-        </View>
-
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Thông tin cơ bản</Text>
           <View style={styles.field}>
@@ -168,20 +167,27 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   header: {
+    backgroundColor: COLORS.PRIMARY,
+    paddingHorizontal: 16,
+    paddingTop: 20,
+    paddingBottom: 20,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+    width: "100%",
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 24,
   },
   title: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: "700",
-    color: COLORS.BLACK,
+    color: COLORS.WHITE,
   },
   subtitle: {
-    marginTop: 6,
+    marginTop: 4,
     fontSize: 14,
-    color: COLORS.GRAY,
+    color: COLORS.WHITE,
+    opacity: 0.9,
     lineHeight: 20,
   },
   section: {
