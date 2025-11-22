@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from "react";
 import {
-  SafeAreaView,
   View,
   Text,
   StyleSheet,
@@ -9,6 +8,7 @@ import {
   Modal,
   TextInput,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import COLORS from "../../constant/colors";
 
@@ -155,12 +155,14 @@ const RewardManagement = () => {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.title}>Quản lý đổi thưởng</Text>
-        <Text style={styles.subtitle}>
-          Thiết lập ưu đãi và chương trình tích điểm cho người dùng trung thành
-        </Text>
+        <View>
+          <Text style={styles.title}>Quản lý đổi thưởng</Text>
+          <Text style={styles.subtitle}>
+            Thiết lập ưu đãi và chương trình tích điểm cho người dùng trung thành
+          </Text>
+        </View>
       </View>
 
       <View style={styles.summaryRow}>
@@ -246,19 +248,24 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.BG,
   },
   header: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 12,
+    backgroundColor: COLORS.PRIMARY,
+    paddingHorizontal: 16,
+    paddingTop: 20,
+    paddingBottom: 20,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+    width: "100%",
   },
   title: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: "700",
-    color: COLORS.BLACK,
+    color: COLORS.WHITE,
   },
   subtitle: {
-    marginTop: 6,
+    marginTop: 4,
     fontSize: 14,
-    color: COLORS.GRAY,
+    color: COLORS.WHITE,
+    opacity: 0.9,
     lineHeight: 20,
   },
   summaryRow: {
