@@ -28,6 +28,7 @@ import UserManagement from "../screens/Admin/UserManagement";
 import ReportManagement from "../screens/Admin/ReportManagement";
 import RewardManagement from "../screens/Admin/RewardManagement";
 import AdminProfile from "../screens/Admin/AdminProfile";
+import MembershipManagement from "../screens/Admin/MembershipManagement";
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -194,6 +195,10 @@ const MainStackNavigator = () => {
       <Stack.Screen name={SCREENS.MEMBER_DETAIL} component={MemberDetail} />
       <Stack.Screen name={SCREENS.VOUCHER} component={Voucher} />
       <Stack.Screen name={SCREENS.MISSION} component={Mission} />
+      <Stack.Screen
+        name={SCREENS.ADMIN_MEMBERSHIP_MANAGEMENT}
+        component={MembershipManagement}
+      />
     </Stack.Navigator>
   );
 };

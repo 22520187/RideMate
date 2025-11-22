@@ -22,6 +22,7 @@ const SCREENS = {
   ADMIN_REPORT_MANAGEMENT: 'AdminReportManagement',
   ADMIN_REWARD_MANAGEMENT: 'AdminRewardManagement',
   ADMIN_PROFILE: 'AdminProfile',
+  ADMIN_MEMBERSHIP_MANAGEMENT: 'MembershipManagement',
 };
 
 export default SCREENS;
