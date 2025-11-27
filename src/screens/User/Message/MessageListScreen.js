@@ -1,21 +1,16 @@
-import React, { useEffect } from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { ChannelList } from "stream-chat-expo";
-import { connectUserDev } from "../../../services/streamAuth";
 import COLORS from "../../../constant/colors";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { chatClient } from "../../../utils/StreamClient";
 
 export default function MessageListScreen({ navigation }) {
-  useEffect(() => {
-    // Đăng nhập user dev
-    connectUserDev(
-      "fish_02174dd6-ffd6-47af-bc86-20fa19825fa5",
-      "fish",
-      "https://i.pravatar.cc/150?img=1"
-    );
-  }, []);
+  const userId = chatClient.user.id;
 
-  const filters = { type: "messaging", members: { $in: ["fish"] } };
+  const filters = {
+    type: "messaging",
+    members: { $in: [userId] },
+  };
   const sort = { last_message_at: -1 };
 
   return (
