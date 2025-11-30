@@ -25,6 +25,7 @@ import ChatScreen from "../screens/User/Message/ChatScreen";
 import AdminDashboard from "../screens/Admin/AdminDashboard";
 import TripManagement from "../screens/Admin/TripManagement";
 import UserManagement from "../screens/Admin/UserManagement";
+import UserDetail from "../screens/Admin/UserDetail";
 import ReportManagement from "../screens/Admin/ReportManagement";
 import RewardManagement from "../screens/Admin/RewardManagement";
 import AdminProfile from "../screens/Admin/AdminProfile";
@@ -198,6 +199,10 @@ const MainStackNavigator = () => {
       <Stack.Screen
         name={SCREENS.ADMIN_MEMBERSHIP_MANAGEMENT}
         component={MembershipManagement}
+      />
+      <Stack.Screen
+        name={SCREENS.ADMIN_USER_DETAIL}
+        component={UserDetail}
       />
     </Stack.Navigator>
   );
