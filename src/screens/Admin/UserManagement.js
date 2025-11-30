@@ -6,16 +6,20 @@ import {
   TouchableOpacity,
   FlatList,
   TextInput,
+  Alert,
+  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import COLORS from "../../constant/colors";
+import SCREENS from "../../screens";
 
 const roleFilters = [
   { key: "all", label: "Tất cả" },
-  { key: "driver", label: "Tài xế" },
-  { key: "passenger", label: "Hành khách" },
   { key: "flagged", label: "Bị cảnh báo" },
+  { key: "banned", label: "Bị cấm" },
+  { key: "licenses", label: "Duyệt đơn" },
 ];
 
 const statusStyles = {
@@ -31,6 +35,11 @@ const statusStyles = {
   },
   flagged: {
     label: "Bị cảnh báo",
+    color: COLORS.RED,
+    background: COLORS.RED_LIGHT,
+  },
+  banned: {
+    label: "Bị cấm",
     color: COLORS.RED,
     background: COLORS.RED_LIGHT,
   },
@@ -75,17 +84,75 @@ const initialUsers = [
   },
 ];
 
+const initialLicenseApplications = [
+  {
+    id: "LIC-001",
+    userId: "USR-1005",
+    userName: "Nguyễn Văn E",
+    phone: "0911 222 333",
+    licenseNumber: "A987654321",
+    expiryDate: "20/12/2027",
+    submittedDate: "13/11/2024 • 10:30",
+    licenseImage: "https://via.placeholder.com/400x250/4A90E2/FFFFFF?text=Driver+License+Image", // URL to image
+    status: "pending",
+  },
+  {
+    id: "LIC-002",
+    userId: "USR-1006",
+    userName: "Trần Văn F",
+    phone: "0922 333 444",
+    licenseNumber: "B123456789",
+    expiryDate: "15/08/2026",
+    submittedDate: "12/11/2024 • 14:20",
+    licenseImage: "https://via.placeholder.com/400x250/4A90E2/FFFFFF?text=Driver+License+Image",
+    status: "pending",
+  },
+  {
+    id: "LIC-003",
+    userId: "USR-1007",
+    userName: "Lê Thị G",
+    phone: "0933 444 555",
+    licenseNumber: "C456789012",
+    expiryDate: "10/05/2028",
+    submittedDate: "11/11/2024 • 09:15",
+    licenseImage: "https://via.placeholder.com/400x250/4A90E2/FFFFFF?text=Driver+License+Image",
+    status: "pending",
+  },
+];
+
 const UserManagement = () => {
+  const navigation = useNavigation();
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [users, setUsers] = useState(initialUsers);
+  const [licenseApplications, setLicenseApplications] = useState(initialLicenseApplications);
+
+  const pendingLicenses = useMemo(() => {
+    return licenseApplications.filter((app) => app.status === "pending");
+  }, [licenseApplications]);
 
   const listDescriptor = useMemo(() => {
-    return users
+    if (filter === "licenses") {
+      return pendingLicenses
+        .filter((app) => {
+          if (!search.trim()) return true;
+          const keyword = search.trim().toLowerCase();
+          return (
+            app.userName.toLowerCase().includes(keyword) ||
+            app.phone.toLowerCase().includes(keyword) ||
+            app.userId.toLowerCase().includes(keyword) ||
+            app.licenseNumber.toLowerCase().includes(keyword)
+          );
+        })
+        .map((app) => ({ ...app, type: "license" }));
+    }
+
+    const filteredUsers = users
       .filter((user) => {
         if (filter === "all") return true;
         if (filter === "flagged") return user.status === "flagged";
-        return user.role === filter;
+        if (filter === "banned") return user.status === "banned";
+        return false;
       })
       .filter((user) => {
         if (!search.trim()) return true;
@@ -95,8 +162,29 @@ const UserManagement = () => {
           user.phone.toLowerCase().includes(keyword) ||
           user.id.toLowerCase().includes(keyword)
         );
-      });
-  }, [filter, search, users]);
+      })
+      .map((user) => ({ ...user, type: "user" }));
+
+    // Khi filter là "all", thêm cả đơn bằng lái xe vào danh sách
+    if (filter === "all") {
+      const filteredLicenses = pendingLicenses
+        .filter((app) => {
+          if (!search.trim()) return true;
+          const keyword = search.trim().toLowerCase();
+          return (
+            app.userName.toLowerCase().includes(keyword) ||
+            app.phone.toLowerCase().includes(keyword) ||
+            app.userId.toLowerCase().includes(keyword) ||
+            app.licenseNumber.toLowerCase().includes(keyword)
+          );
+        })
+        .map((app) => ({ ...app, type: "license" }));
+      
+      return [...filteredUsers, ...filteredLicenses];
+    }
+
+    return filteredUsers;
+  }, [filter, search, users, pendingLicenses]);
 
   const handleStatusChange = (userId, nextStatus) => {
     setUsers((prev) =>
@@ -156,10 +244,112 @@ const UserManagement = () => {
     );
   };
 
+  const handleUserPress = (user) => {
+    navigation.navigate(SCREENS.ADMIN_USER_DETAIL, { user });
+  };
+
+  const handleLicenseAction = (licenseId, action) => {
+    Alert.alert(
+      action === "approve" ? "Duyệt bằng lái xe" : "Từ chối bằng lái xe",
+      action === "approve"
+        ? "Bạn có chắc chắn muốn duyệt đơn này?"
+        : "Bạn có chắc chắn muốn từ chối đơn này?",
+      [
+        { text: "Hủy", style: "cancel" },
+        {
+          text: action === "approve" ? "Duyệt" : "Từ chối",
+          style: action === "reject" ? "destructive" : "default",
+          onPress: () => {
+            setLicenseApplications((prev) =>
+              prev.map((app) =>
+                app.id === licenseId
+                  ? { ...app, status: action === "approve" ? "approved" : "rejected" }
+                  : app
+              )
+            );
+            // Trong thực tế, sẽ gọi API để cập nhật
+          },
+        },
+      ]
+    );
+  };
+
+  const renderLicenseItem = ({ item }) => (
+    <View style={styles.licenseCard}>
+      <View style={styles.licenseHeader}>
+        <View>
+          <Text style={styles.licenseUserName}>{item.userName}</Text>
+          <Text style={styles.licenseUserId}>{item.userId}</Text>
+        </View>
+        <View style={[styles.licenseStatusBadge, { backgroundColor: COLORS.ORANGE_LIGHT }]}>
+          <Text style={[styles.licenseStatusText, { color: COLORS.ORANGE_DARK }]}>
+            Chờ duyệt
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.licenseInfoRow}>
+        <Ionicons name="call-outline" size={16} color={COLORS.GRAY} />
+        <Text style={styles.licenseInfoText}>{item.phone}</Text>
+      </View>
+      <View style={styles.licenseInfoRow}>
+        <Ionicons name="card-outline" size={16} color={COLORS.GRAY} />
+        <Text style={styles.licenseInfoText}>Số bằng: {item.licenseNumber}</Text>
+      </View>
+      <View style={styles.licenseInfoRow}>
+        <Ionicons name="calendar-outline" size={16} color={COLORS.GRAY} />
+        <Text style={styles.licenseInfoText}>Hết hạn: {item.expiryDate}</Text>
+      </View>
+      <View style={styles.licenseInfoRow}>
+        <Ionicons name="time-outline" size={16} color={COLORS.GRAY} />
+        <Text style={styles.licenseInfoText}>Gửi: {item.submittedDate}</Text>
+      </View>
+
+      {item.licenseImage && (
+        <View style={styles.licenseImageContainer}>
+          <Text style={styles.licenseImageLabel}>Ảnh bằng lái xe:</Text>
+          <Image
+            source={{ uri: item.licenseImage }}
+            style={styles.licenseImage}
+            resizeMode="contain"
+          />
+        </View>
+      )}
+
+      <View style={styles.licenseActions}>
+        <TouchableOpacity
+          style={[styles.licenseActionButton, styles.approveLicenseButton]}
+          onPress={() => handleLicenseAction(item.id, "approve")}
+        >
+          <Ionicons name="checkmark-circle" size={18} color={COLORS.WHITE} />
+          <Text style={styles.licenseActionText}>Duyệt</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.licenseActionButton, styles.rejectLicenseButton]}
+          onPress={() => handleLicenseAction(item.id, "reject")}
+        >
+          <Ionicons name="close-circle" size={18} color={COLORS.WHITE} />
+          <Text style={styles.licenseActionText}>Từ chối</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  const renderItem = ({ item }) => {
+    if (item.type === "license") {
+      return renderLicenseItem({ item });
+    }
+    return renderUserItem({ item });
+  };
+
   const renderUserItem = ({ item }) => {
     const style = statusStyles[item.status] || statusStyles.active;
     return (
-      <View style={styles.userCard}>
+      <TouchableOpacity
+        style={styles.userCard}
+        onPress={() => handleUserPress(item)}
+        activeOpacity={0.7}
+      >
         <View style={styles.userHeader}>
           <View>
             <Text style={styles.userName}>{item.name}</Text>
@@ -193,7 +383,7 @@ const UserManagement = () => {
         </View>
 
         <View style={styles.actionContainer}>{renderActions(item)}</View>
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -202,9 +392,6 @@ const UserManagement = () => {
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Quản lý người dùng</Text>
-          <Text style={styles.subtitle}>
-            Giám sát trạng thái tài khoản và đảm bảo an toàn nền tảng
-          </Text>
         </View>
       </View>
 
@@ -212,7 +399,11 @@ const UserManagement = () => {
         <Ionicons name="search-outline" size={18} color={COLORS.GRAY} />
         <TextInput
           style={styles.searchInput}
-          placeholder="Tìm kiếm theo tên, số điện thoại hoặc mã người dùng"
+          placeholder={
+            filter === "licenses"
+              ? "Tìm kiếm theo tên, số điện thoại"
+              : "Tìm kiếm theo tên, số điện thoại"
+          }
           placeholderTextColor={COLORS.GRAY}
           value={search}
           onChangeText={setSearch}
@@ -231,6 +422,11 @@ const UserManagement = () => {
               <Text style={[styles.filterChipLabel, active && styles.filterChipLabelActive]}>
                 {item.label}
               </Text>
+              {item.key === "licenses" && pendingLicenses.length > 0 && (
+                <View style={styles.filterBadge}>
+                  <Text style={styles.filterBadgeText}>{pendingLicenses.length}</Text>
+                </View>
+              )}
             </TouchableOpacity>
           );
         })}
@@ -239,15 +435,25 @@ const UserManagement = () => {
       <FlatList
         data={listDescriptor}
         keyExtractor={(item) => item.id}
-        renderItem={renderUserItem}
+        renderItem={renderItem}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Ionicons name="people-outline" size={48} color={COLORS.GRAY} />
-            <Text style={styles.emptyTitle}>Không có người dùng phù hợp</Text>
+            <Ionicons
+              name={filter === "licenses" ? "card-outline" : "people-outline"}
+              size={48}
+              color={COLORS.GRAY}
+            />
+            <Text style={styles.emptyTitle}>
+              {filter === "licenses"
+                ? "Không có đơn chờ duyệt"
+                : "Không có người dùng phù hợp"}
+            </Text>
             <Text style={styles.emptyDescription}>
-              Điều chỉnh tiêu chí lọc hoặc kiểm tra lại sau.
+              {filter === "licenses"
+                ? "Tất cả đơn duyệt bằng lái xe đã được xử lý."
+                : "Điều chỉnh tiêu chí lọc hoặc kiểm tra lại sau."}
             </Text>
           </View>
         }
@@ -285,6 +491,7 @@ const styles = StyleSheet.create({
   searchContainer: {
     marginHorizontal: 20,
     marginBottom: 12,
+    marginTop: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 14,
@@ -304,6 +511,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     marginHorizontal: 20,
+    marginTop: 8,
     marginBottom: 12,
   },
   filterChip: {
@@ -315,6 +523,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderWidth: 1,
     borderColor: COLORS.GRAY_LIGHT,
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 6,
   },
   filterChipActive: {
     borderColor: COLORS.BLUE,
@@ -327,6 +538,20 @@ const styles = StyleSheet.create({
   filterChipLabelActive: {
     color: COLORS.BLUE,
     fontWeight: "600",
+  },
+  filterBadge: {
+    backgroundColor: COLORS.RED,
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 6,
+  },
+  filterBadgeText: {
+    fontSize: 11,
+    color: COLORS.WHITE,
+    fontWeight: "700",
   },
   listContent: {
     paddingHorizontal: 20,
@@ -446,6 +671,95 @@ const styles = StyleSheet.create({
     textAlign: "center",
     paddingHorizontal: 32,
     lineHeight: 18,
+  },
+  licenseCard: {
+    backgroundColor: COLORS.WHITE,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: COLORS.BLACK,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 1,
+  },
+  licenseHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  licenseUserName: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: COLORS.BLACK,
+  },
+  licenseUserId: {
+    marginTop: 4,
+    fontSize: 13,
+    color: COLORS.GRAY,
+  },
+  licenseStatusBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  licenseStatusText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  licenseInfoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 8,
+  },
+  licenseInfoText: {
+    fontSize: 14,
+    color: COLORS.GRAY,
+  },
+  licenseImageContainer: {
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  licenseImageLabel: {
+    fontSize: 13,
+    color: COLORS.GRAY,
+    marginBottom: 8,
+    fontWeight: "500",
+  },
+  licenseImage: {
+    width: "100%",
+    height: 200,
+    borderRadius: 12,
+    backgroundColor: COLORS.BG,
+    borderWidth: 1,
+    borderColor: COLORS.GRAY_LIGHT,
+  },
+  licenseActions: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 16,
+  },
+  licenseActionButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 6,
+  },
+  approveLicenseButton: {
+    backgroundColor: COLORS.GREEN,
+  },
+  rejectLicenseButton: {
+    backgroundColor: COLORS.RED,
+  },
+  licenseActionText: {
+    fontSize: 14,
+    color: COLORS.WHITE,
+    fontWeight: "600",
   },
 });
 

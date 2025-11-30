@@ -19,6 +19,7 @@ const SCREENS = {
   ADMIN_DASHBOARD: 'AdminDashboard',
   ADMIN_TRIP_MANAGEMENT: 'AdminTripManagement',
   ADMIN_USER_MANAGEMENT: 'AdminUserManagement',
+  ADMIN_USER_DETAIL: 'AdminUserDetail',
   ADMIN_REPORT_MANAGEMENT: 'AdminReportManagement',
   ADMIN_REWARD_MANAGEMENT: 'AdminRewardManagement',
   ADMIN_PROFILE: 'AdminProfile',
