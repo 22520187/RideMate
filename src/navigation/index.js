@@ -169,7 +169,6 @@ const UserTabNavigator = () => {
   );
 };
 
-
 const MainStackNavigator = () => {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
@@ -179,10 +178,7 @@ const MainStackNavigator = () => {
         component={PhoneVerification}
       />
       <Stack.Screen name="MainTabs" component={UserTabNavigator} />
-      <Stack.Screen
-        name={SCREENS.ADMIN_STACK}
-        component={AdminTabNavigator}
-      />
+      <Stack.Screen name={SCREENS.ADMIN_STACK} component={AdminTabNavigator} />
       <Stack.Screen name={SCREENS.HOME_SEARCH} component={HomeSearch} />
       <Stack.Screen name={SCREENS.MEMBER} component={Member} />
       <Stack.Screen name={SCREENS.DRIVER_RIDE} component={DriverRideScreen} />

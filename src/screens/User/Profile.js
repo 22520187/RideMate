@@ -387,7 +387,7 @@ export default function Profile() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.title}>🧾 QUẢN LÝ TÀI KHOẢN</Text>
+        <Text style={styles.title}>QUẢN LÝ TÀI KHOẢN</Text>
 
         {/* Thông tin cá nhân */}
         <View style={[styles.section, { marginTop: 80 }]}>
@@ -792,7 +792,7 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    paddingVertical: 24,
+    paddingVertical: 25,
     zIndex: 999,
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,

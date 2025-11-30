@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -9,69 +9,93 @@ import {
   KeyboardAvoidingView,
   Platform,
   Image,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import COLORS from '../../constant/colors';
-import Toast from 'react-native-toast-message';
-import { SafeAreaView } from 'react-native-safe-area-context';
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import COLORS from "../../constant/colors";
+import Toast from "react-native-toast-message";
+import { SafeAreaView } from "react-native-safe-area-context";
 import {
   validatePhoneNumber,
   formatPhoneNumber,
   performGoogleAuth,
   performFacebookAuth,
-} from '../../config/auth';
-import SCREENS from '..';
+} from "../../config/auth";
+import SCREENS from "..";
+import { chatClient } from "../../utils/StreamClient";
+import { BASE_URL } from "@env";
 
 const Login = ({ navigation }) => {
-  const [phoneNumber, setPhoneNumber] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   const handlePhoneLogin = async () => {
-    if (!phoneNumber.trim()) {
+    if (!phoneNumber.trim() || !password.trim()) {
       Toast.show({
-        type: 'error',
-        text1: 'Lỗi',
-        text2: 'Vui lòng nhập số điện thoại',
+        type: "error",
+        text1: "Lỗi",
+        text2: "Vui lòng nhập số điện thoại và mật khẩu",
       });
       return;
     }
 
-    // Validate phone number format (Vietnamese format)
     if (!validatePhoneNumber(phoneNumber)) {
       Toast.show({
-        type: 'error',
-        text1: 'Lỗi',
-        text2: 'Số điện thoại không hợp lệ',
+        type: "error",
+        text1: "Lỗi",
+        text2: "Số điện thoại không hợp lệ",
       });
       return;
     }
 
-    setIsLoading(true);
-    
     try {
-      // Check if user exists in the system
-      const userExists = await checkUserExists(phoneNumber);
-      
-      if (userExists) {
-        // User exists, navigate to password input
-        navigation.navigate('PhoneVerification', {
-          phoneNumber: phoneNumber,
-          isExistingUser: true,
-          mode: 'password',
-        });
-      } else {
-        // New user, navigate to OTP verification
-        navigation.navigate('PhoneVerification', {
-          phoneNumber: phoneNumber,
-          isExistingUser: false,
-          mode: 'otp',
-        });
-      }
-    } catch (error) {
+      setIsLoading(true);
+
+      // Gọi API backend
+      const response = await fetch(`${BASE_URL}/api/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phoneNumber: phoneNumber.replace(/\s/g, ""),
+          password,
+        }),
+      });
+
+      if (!response.ok) throw new Error("Login failed");
+
+      const res = await response.json();
+
+      const { chatToken, user } = res.data;
+
+      // Kết nối user lên Stream
+      await chatClient.connectUser(
+        {
+          id: user.id.toString(),
+          name: user.fullName,
+          image: user.profilePictureUrl,
+        },
+        chatToken
+      );
+
+      console.log("Stream user connected successfully");
+
       Toast.show({
-        type: 'error',
-        text1: 'Lỗi',
-        text2: 'Có lỗi xảy ra, vui lòng thử lại',
+        type: "success",
+        text1: "Thành công",
+        text2: "Đăng nhập thành công!",
+      });
+
+      // Redirect sang MainTabs
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "MainTabs" }],
+      });
+    } catch (error) {
+      console.log(error);
+      Toast.show({
+        type: "error",
+        text1: "Lỗi",
+        text2: "Sai thông tin đăng nhập",
       });
     } finally {
       setIsLoading(false);
@@ -92,32 +116,32 @@ const Login = ({ navigation }) => {
     try {
       setIsLoading(true);
       const result = await performGoogleAuth();
-      
+
       if (result.success) {
         Toast.show({
-          type: 'success',
-          text1: 'Thành công',
+          type: "success",
+          text1: "Thành công",
           text2: `Chào mừng ${result.user.name}!`,
         });
         // Navigate to main app
         navigation.reset({
           index: 0,
-          routes: [{ name: 'MainTabs' }],
+          routes: [{ name: "MainTabs" }],
         });
       } else {
-        if (result.error !== 'Authentication cancelled') {
+        if (result.error !== "Authentication cancelled") {
           Toast.show({
-            type: 'error',
-            text1: 'Lỗi',
-            text2: result.error || 'Có lỗi xảy ra khi đăng nhập Google',
+            type: "error",
+            text1: "Lỗi",
+            text2: result.error || "Có lỗi xảy ra khi đăng nhập Google",
           });
         }
       }
     } catch (error) {
       Toast.show({
-        type: 'error',
-        text1: 'Lỗi',
-        text2: 'Có lỗi xảy ra khi đăng nhập Google',
+        type: "error",
+        text1: "Lỗi",
+        text2: "Có lỗi xảy ra khi đăng nhập Google",
       });
     } finally {
       setIsLoading(false);
@@ -128,43 +152,42 @@ const Login = ({ navigation }) => {
     try {
       setIsLoading(true);
       const result = await performFacebookAuth();
-      
+
       if (result.success) {
         Toast.show({
-          type: 'success',
-          text1: 'Thành công',
+          type: "success",
+          text1: "Thành công",
           text2: `Chào mừng ${result.user.name}!`,
         });
         // Navigate to main app
         navigation.reset({
           index: 0,
-          routes: [{ name: 'MainTabs' }],
+          routes: [{ name: "MainTabs" }],
         });
       } else {
-        if (result.error !== 'Authentication cancelled') {
+        if (result.error !== "Authentication cancelled") {
           Toast.show({
-            type: 'error',
-            text1: 'Lỗi',
-            text2: result.error || 'Có lỗi xảy ra khi đăng nhập Facebook',
+            type: "error",
+            text1: "Lỗi",
+            text2: result.error || "Có lỗi xảy ra khi đăng nhập Facebook",
           });
         }
       }
     } catch (error) {
       Toast.show({
-        type: 'error',
-        text1: 'Lỗi',
-        text2: 'Có lỗi xảy ra khi đăng nhập Facebook',
+        type: "error",
+        text1: "Lỗi",
+        text2: "Có lỗi xảy ra khi đăng nhập Facebook",
       });
     } finally {
       setIsLoading(false);
     }
   };
 
-
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardAvoidingView}
       >
         <View style={styles.content}>
@@ -196,14 +219,32 @@ const Login = ({ navigation }) => {
             </View>
           </View>
 
+          {/* Password */}
+          <View style={styles.inputContainer}>
+            <Text style={styles.inputLabel}>Mật khẩu</Text>
+            <View style={styles.phoneInputWrapper}>
+              <TextInput
+                style={styles.phoneInput}
+                placeholder="Nhập mật khẩu"
+                placeholderTextColor={COLORS.PLACEHOLDER_COLOR}
+                secureTextEntry={true}
+                value={password}
+                onChangeText={(password) => setPassword(password)}
+              />
+            </View>
+          </View>
+
           {/* Login Button */}
           <TouchableOpacity
-            style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
+            style={[
+              styles.loginButton,
+              isLoading && styles.loginButtonDisabled,
+            ]}
             onPress={handlePhoneLogin}
             disabled={isLoading}
           >
             <Text style={styles.loginButtonText}>
-              {isLoading ? 'Đang xử lý...' : 'Tiếp tục'}
+              {isLoading ? "Đang xử lý..." : "Tiếp tục"}
             </Text>
           </TouchableOpacity>
 
@@ -217,7 +258,11 @@ const Login = ({ navigation }) => {
           {/* Social Login Buttons */}
           <View style={styles.socialContainer}>
             <TouchableOpacity
-              style={[styles.socialButton, styles.googleButton, isLoading && styles.socialButtonDisabled]}
+              style={[
+                styles.socialButton,
+                styles.googleButton,
+                isLoading && styles.socialButtonDisabled,
+              ]}
               onPress={handleGoogleLogin}
               disabled={isLoading}
             >
@@ -226,7 +271,11 @@ const Login = ({ navigation }) => {
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.socialButton, styles.facebookButton, isLoading && styles.socialButtonDisabled]}
+              style={[
+                styles.socialButton,
+                styles.facebookButton,
+                isLoading && styles.socialButtonDisabled,
+              ]}
               onPress={handleFacebookLogin}
               disabled={isLoading}
             >
@@ -237,9 +286,8 @@ const Login = ({ navigation }) => {
 
           {/* Terms */}
           <Text style={styles.termsText}>
-            Bằng cách đăng nhập, bạn đồng ý với{' '}
-            <Text style={styles.termsLink}>Điều khoản sử dụng</Text>
-            {' '}và{' '}
+            Bằng cách đăng nhập, bạn đồng ý với{" "}
+            <Text style={styles.termsLink}>Điều khoản sử dụng</Text> và{" "}
             <Text style={styles.termsLink}>Chính sách bảo mật</Text>
           </Text>
         </View>
@@ -275,21 +323,21 @@ const styles = StyleSheet.create({
     paddingTop: 60,
   },
   logoContainer: {
-    alignItems: 'center',
-    marginBottom: 50,
+    alignItems: "center",
+    marginBottom: 20,
   },
   logoCircle: {
-    width: 120,
-    height: 120,
+    width: 80,
+    height: 80,
     borderRadius: 60,
     backgroundColor: COLORS.BLUE,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 10,
   },
   appName: {
     fontSize: 32,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: COLORS.BLACK,
     marginBottom: 8,
   },
@@ -302,13 +350,13 @@ const styles = StyleSheet.create({
   },
   inputLabel: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.BLACK,
     marginBottom: 12,
   },
   phoneInputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     borderWidth: 1,
     borderColor: COLORS.GRAY_LIGHT,
     borderRadius: 12,
@@ -323,7 +371,7 @@ const styles = StyleSheet.create({
   countryCodeText: {
     fontSize: 16,
     color: COLORS.BLACK,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   phoneInput: {
     flex: 1,
@@ -336,7 +384,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.BLUE,
     paddingVertical: 16,
     borderRadius: 12,
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 24,
   },
   loginButtonDisabled: {
@@ -345,11 +393,11 @@ const styles = StyleSheet.create({
   loginButtonText: {
     color: COLORS.WHITE,
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   dividerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 24,
   },
   dividerLine: {
@@ -363,15 +411,15 @@ const styles = StyleSheet.create({
     color: COLORS.GRAY,
   },
   socialContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     marginBottom: 32,
   },
   socialButton: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 16,
     borderRadius: 12,
     borderWidth: 1,
@@ -387,7 +435,7 @@ const styles = StyleSheet.create({
   socialButtonText: {
     marginLeft: 8,
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: "500",
     color: COLORS.BLACK,
   },
   socialButtonDisabled: {
@@ -396,18 +444,18 @@ const styles = StyleSheet.create({
   termsText: {
     fontSize: 12,
     color: COLORS.GRAY,
-    textAlign: 'center',
+    textAlign: "center",
     lineHeight: 18,
   },
   termsLink: {
     color: COLORS.BLUE,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   adminAccess: {
     marginTop: 24,
-    alignSelf: 'center',
-    flexDirection: 'row',
-    alignItems: 'center',
+    alignSelf: "center",
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
     paddingHorizontal: 18,
     paddingVertical: 10,
@@ -416,7 +464,7 @@ const styles = StyleSheet.create({
   },
   adminAccessText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.BLUE,
   },
 });
