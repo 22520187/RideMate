@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -8,30 +8,47 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import COLORS from '../../constant/colors';
-import Toast from 'react-native-toast-message';
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { SafeAreaView } from "react-native-safe-area-context";
+import COLORS from "../../constant/colors";
+import Toast from "react-native-toast-message";
+import SCREENS from "../../screens";
+import {
+  initiateRegister,
+  sendOtp,
+  verifyOtp,
+} from "../../services/authService";
 
 const PhoneVerification = ({ navigation, route }) => {
   const { phoneNumber, isExistingUser, mode } = route.params;
-  const [code, setCode] = useState(['', '', '', '']);
-  const [password, setPassword] = useState(['', '', '', '', '', '']);
-  const [confirmPassword, setConfirmPassword] = useState(['', '', '', '', '', '']);
+  const [code, setCode] = useState(["", "", "", "", "", ""]);
+  const [password, setPassword] = useState(["", "", "", "", "", ""]);
+  const [confirmPassword, setConfirmPassword] = useState([
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+  ]);
   const [isLoading, setIsLoading] = useState(false);
   const [timeLeft, setTimeLeft] = useState(60);
   const [canResend, setCanResend] = useState(false);
-  const [step, setStep] = useState(mode === 'password' ? 'password' : 'otp');
+  const [step, setStep] = useState(mode === "password" ? "password" : "otp");
   const passwordRefs = useRef([]);
   const confirmPasswordRefs = useRef([]);
 
   useEffect(() => {
     if (!isExistingUser) {
-      // Send OTP for new user registration
-      sendOTP();
+      // Send OTP for new user registration via API
+      initiateRegistration();
     }
   }, []);
+
+  const formattedPhone = phoneNumber.replace(/\s/g, "").startsWith("+84")
+    ? phoneNumber.replace(/\s/g, "").replace("+84", "0")
+    : phoneNumber.replace(/\s/g, "");
 
   useEffect(() => {
     if (!isExistingUser && timeLeft > 0) {
@@ -44,17 +61,38 @@ const PhoneVerification = ({ navigation, route }) => {
 
   const sendOTP = async () => {
     try {
-      // Simulate sending OTP
+      // Call API to send OTP (fallback to general sendOtp if needed)
+      await sendOtp({ phoneNumber: formattedPhone, purpose: "REGISTER" });
       Toast.show({
-        type: 'success',
-        text1: 'Thành công',
+        type: "success",
+        text1: "Thành công",
         text2: `Mã xác thực đã được gửi đến ${phoneNumber}`,
       });
     } catch (error) {
       Toast.show({
-        type: 'error',
-        text1: 'Lỗi',
-        text2: 'Không thể gửi mã xác thực',
+        type: "error",
+        text1: "Lỗi",
+        text2: "Không thể gửi mã xác thực",
+      });
+    }
+  };
+
+  const initiateRegistration = async () => {
+    try {
+      await initiateRegister({
+        phoneNumber: formattedPhone,
+        purpose: "REGISTER",
+      });
+      Toast.show({
+        type: "success",
+        text1: "Thành công",
+        text2: `Mã xác thực đã được gửi đến ${phoneNumber}`,
+      });
+    } catch (error) {
+      Toast.show({
+        type: "error",
+        text1: "Lỗi",
+        text2: error?.response?.data?.message || "Không thể gửi mã xác thực",
       });
     }
   };
@@ -65,7 +103,7 @@ const PhoneVerification = ({ navigation, route }) => {
     setCode(newCode);
 
     // Auto focus next input
-    if (text && index < 3) {
+    if (text && index < code.length - 1) {
       passwordRefs.current[index + 1]?.focus();
     }
   };
@@ -76,13 +114,21 @@ const PhoneVerification = ({ navigation, route }) => {
     setPassword(newPassword);
 
     // Auto focus next input
-    if (text && index < 5) {
+    if (text && index < password.length - 1) {
       passwordRefs.current[index + 1]?.focus();
     }
   };
 
-  const handleKeyPress = (key, index, isPassword = false, isConfirm = false) => {
-    if (key === 'Backspace' && !((isPassword || isConfirm) ? password[index] : code[index])) {
+  const handleKeyPress = (
+    key,
+    index,
+    isPassword = false,
+    isConfirm = false
+  ) => {
+    if (
+      key === "Backspace" &&
+      !(isPassword || isConfirm ? password[index] : code[index])
+    ) {
       // Focus previous input on backspace
       if (index > 0) {
         if (isConfirm) {
@@ -97,14 +143,14 @@ const PhoneVerification = ({ navigation, route }) => {
   };
 
   const handleVerify = async () => {
-    if (step === 'password') {
+    if (step === "password") {
       // Verify password for existing user
-      const passwordString = password.join('');
+      const passwordString = password.join("");
       if (passwordString.length !== 6) {
         Toast.show({
-          type: 'error',
-          text1: 'Lỗi',
-          text2: 'Vui lòng nhập đầy đủ mật khẩu 6 số',
+          type: "error",
+          text1: "Lỗi",
+          text2: "Vui lòng nhập đầy đủ mật khẩu 6 số",
         });
         return;
       }
@@ -114,94 +160,101 @@ const PhoneVerification = ({ navigation, route }) => {
         // Simulate password verification
         await verifyPassword(passwordString);
         Toast.show({
-          type: 'success',
-          text1: 'Thành công',
-          text2: 'Đăng nhập thành công',
+          type: "success",
+          text1: "Thành công",
+          text2: "Đăng nhập thành công",
         });
         // Navigate to main app
         navigation.reset({
           index: 0,
-          routes: [{ name: 'MainTabs' }],
+          routes: [{ name: "MainTabs" }],
         });
       } catch (error) {
         Toast.show({
-          type: 'error',
-          text1: 'Lỗi',
-          text2: 'Mật khẩu không đúng',
+          type: "error",
+          text1: "Lỗi",
+          text2: "Mật khẩu không đúng",
         });
       } finally {
         setIsLoading(false);
       }
-    } else if (step === 'otp') {
+    } else if (step === "otp") {
       // Verify OTP
-      const codeString = code.join('');
-      if (codeString.length !== 4) {
+      const codeString = code.join("");
+      if (codeString.length !== 6) {
         Toast.show({
-          type: 'error',
-          text1: 'Lỗi',
-          text2: 'Vui lòng nhập đầy đủ mã xác thực',
+          type: "error",
+          text1: "Lỗi",
+          text2: "Vui lòng nhập đầy đủ mã xác thực",
         });
         return;
       }
 
       setIsLoading(true);
       try {
-        // Simulate OTP verification
-        await verifyOTP(codeString);
+        // Call API to verify OTP for registration
+        await verifyOtp({
+          phoneNumber: formattedPhone,
+          otpCode: codeString,
+          purpose: "REGISTER",
+        });
         Toast.show({
-          type: 'success',
-          text1: 'Thành công',
-          text2: 'Xác thực thành công',
+          type: "success",
+          text1: "Thành công",
+          text2: "Xác thực thành công",
         });
         // Move to password setting step for new users
         if (!isExistingUser) {
-          setStep('set_password');
-          setPassword(['', '', '', '', '', '']);
-          setConfirmPassword(['', '', '', '', '', '']);
+          // Navigate to registration completion screen to collect profile
+          navigation.navigate(SCREENS.REGISTER_COMPLETE, {
+            phoneNumber: formattedPhone,
+          });
+          setPassword(["", "", "", "", "", ""]);
+          setConfirmPassword(["", "", "", "", "", ""]);
         } else {
           // Navigate to main app for existing users
           navigation.reset({
             index: 0,
-            routes: [{ name: 'MainTabs' }],
+            routes: [{ name: "MainTabs" }],
           });
         }
       } catch (error) {
         Toast.show({
-          type: 'error',
-          text1: 'Lỗi',
-          text2: 'Mã xác thực không đúng',
+          type: "error",
+          text1: "Lỗi",
+          text2: "Mã xác thực không đúng",
         });
       } finally {
         setIsLoading(false);
       }
-    } else if (step === 'set_password') {
+    } else if (step === "set_password") {
       // Set new password
-      const passwordString = password.join('');
-      const confirmPasswordString = confirmPassword.join('');
+      const passwordString = password.join("");
+      const confirmPasswordString = confirmPassword.join("");
 
       if (passwordString.length !== 6) {
         Toast.show({
-          type: 'error',
-          text1: 'Lỗi',
-          text2: 'Vui lòng nhập đầy đủ mật khẩu 6 số',
+          type: "error",
+          text1: "Lỗi",
+          text2: "Vui lòng nhập đầy đủ mật khẩu 6 số",
         });
         return;
       }
 
       if (confirmPasswordString.length !== 6) {
         Toast.show({
-          type: 'error',
-          text1: 'Lỗi',
-          text2: 'Vui lòng xác nhận mật khẩu',
+          type: "error",
+          text1: "Lỗi",
+          text2: "Vui lòng xác nhận mật khẩu",
         });
         return;
       }
 
       if (passwordString !== confirmPasswordString) {
         Toast.show({
-          type: 'error',
-          text1: 'Lỗi',
-          text2: 'Mật khẩu xác nhận không khớp',
+          type: "error",
+          text1: "Lỗi",
+          text2: "Mật khẩu xác nhận không khớp",
         });
         return;
       }
@@ -211,20 +264,20 @@ const PhoneVerification = ({ navigation, route }) => {
         // Simulate setting new password
         await setNewPassword(passwordString);
         Toast.show({
-          type: 'success',
-          text1: 'Thành công',
-          text2: 'Đăng ký thành công',
+          type: "success",
+          text1: "Thành công",
+          text2: "Đăng ký thành công",
         });
         // Navigate to main app
         navigation.reset({
           index: 0,
-          routes: [{ name: 'MainTabs' }],
+          routes: [{ name: "MainTabs" }],
         });
       } catch (error) {
         Toast.show({
-          type: 'error',
-          text1: 'Lỗi',
-          text2: 'Không thể đặt mật khẩu',
+          type: "error",
+          text1: "Lỗi",
+          text2: "Không thể đặt mật khẩu",
         });
       } finally {
         setIsLoading(false);
@@ -236,11 +289,11 @@ const PhoneVerification = ({ navigation, route }) => {
     // Simulate API call
     return new Promise((resolve, reject) => {
       setTimeout(() => {
-        // For demo purposes, accept any 4-digit code
-        if (otp.length === 4) {
+        // For demo purposes, accept any 6-digit code
+        if (otp.length === 6) {
           resolve(true);
         } else {
-          reject(new Error('Invalid OTP'));
+          reject(new Error("Invalid OTP"));
         }
       }, 1000);
     });
@@ -254,7 +307,7 @@ const PhoneVerification = ({ navigation, route }) => {
         if (pwd.length === 6) {
           resolve(true);
         } else {
-          reject(new Error('Invalid password'));
+          reject(new Error("Invalid password"));
         }
       }, 1000);
     });
@@ -267,7 +320,7 @@ const PhoneVerification = ({ navigation, route }) => {
         if (pwd.length === 6) {
           resolve(true);
         } else {
-          reject(new Error('Invalid password'));
+          reject(new Error("Invalid password"));
         }
       }, 1000);
     });
@@ -279,7 +332,7 @@ const PhoneVerification = ({ navigation, route }) => {
     setConfirmPassword(newConfirmPassword);
 
     // Auto focus next input
-    if (text && index < 5) {
+    if (text && index < confirmPassword.length - 1) {
       confirmPasswordRefs.current[index + 1]?.focus();
     }
   };
@@ -288,8 +341,8 @@ const PhoneVerification = ({ navigation, route }) => {
     if (canResend) {
       setTimeLeft(60);
       setCanResend(false);
-      setCode(['', '', '', '']);
-      await sendOTP();
+      setCode(["", "", "", "", "", ""]);
+      await initiateRegistration();
     }
   };
 
@@ -303,7 +356,9 @@ const PhoneVerification = ({ navigation, route }) => {
             style={styles.codeInput}
             value={digit}
             onChangeText={(text) => handleCodeChange(text, index)}
-            onKeyPress={({ nativeEvent }) => handleKeyPress(nativeEvent.key, index)}
+            onKeyPress={({ nativeEvent }) =>
+              handleKeyPress(nativeEvent.key, index)
+            }
             keyboardType="numeric"
             maxLength={1}
             textAlign="center"
@@ -316,9 +371,11 @@ const PhoneVerification = ({ navigation, route }) => {
 
   const renderPasswordInputs = (isConfirm = false) => {
     const values = isConfirm ? confirmPassword : password;
-    const handleChange = isConfirm ? handleConfirmPasswordChange : handlePasswordChange;
+    const handleChange = isConfirm
+      ? handleConfirmPasswordChange
+      : handlePasswordChange;
     const refs = isConfirm ? confirmPasswordRefs : passwordRefs;
-    
+
     return (
       <View style={styles.passwordContainer}>
         {values.map((digit, index) => (
@@ -328,7 +385,9 @@ const PhoneVerification = ({ navigation, route }) => {
             style={styles.passwordInput}
             value={digit}
             onChangeText={(text) => handleChange(text, index)}
-            onKeyPress={({ nativeEvent }) => handleKeyPress(nativeEvent.key, index, true, isConfirm)}
+            onKeyPress={({ nativeEvent }) =>
+              handleKeyPress(nativeEvent.key, index, true, isConfirm)
+            }
             keyboardType="numeric"
             maxLength={1}
             textAlign="center"
@@ -343,7 +402,7 @@ const PhoneVerification = ({ navigation, route }) => {
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardAvoidingView}
       >
         <View style={styles.content}>
@@ -358,62 +417,77 @@ const PhoneVerification = ({ navigation, route }) => {
           {/* Title */}
           <View style={styles.titleContainer}>
             <Text style={styles.title}>
-              {step === 'password' ? 'Nhập mật khẩu' : 
-               step === 'otp' ? 'Xác thực số điện thoại' :
-               'Tạo mật khẩu mới'}
+              {step === "password"
+                ? "Nhập mật khẩu"
+                : step === "otp"
+                ? "Xác thực số điện thoại"
+                : "Tạo mật khẩu mới"}
             </Text>
             <Text style={styles.subtitle}>
-              {step === 'password' ? `Nhập mật khẩu 6 số cho ${phoneNumber}` :
-               step === 'otp' ? `Nhập mã xác thực 4 số đã gửi đến ${phoneNumber}` :
-               `Tạo mật khẩu 6 số cho tài khoản ${phoneNumber}`}
+              {step === "password"
+                ? `Nhập mật khẩu 6 số cho ${phoneNumber}`
+                : step === "otp"
+                ? `Nhập mã xác thực 6 số đã gửi đến ${phoneNumber}`
+                : `Tạo mật khẩu 6 số cho tài khoản ${phoneNumber}`}
             </Text>
           </View>
 
           {/* Input Fields */}
           <View style={styles.inputContainer}>
-            {step === 'otp' ? renderCodeInputs() :
-             step === 'password' ? renderPasswordInputs() : (
+            {step === "otp" ? (
+              renderCodeInputs()
+            ) : step === "password" ? (
+              renderPasswordInputs()
+            ) : (
               <>
                 <Text style={styles.inputLabel}>Nhập mật khẩu mới</Text>
                 {renderPasswordInputs()}
-                <Text style={[styles.inputLabel, { marginTop: 20 }]}>Xác nhận mật khẩu</Text>
+                <Text style={[styles.inputLabel, { marginTop: 20 }]}>
+                  Xác nhận mật khẩu
+                </Text>
                 {renderPasswordInputs(true)}
               </>
             )}
           </View>
 
           {/* Resend Code (only for OTP) */}
-          {step === 'otp' && (
+          {step === "otp" && (
             <View style={styles.resendContainer}>
               {canResend ? (
                 <TouchableOpacity onPress={handleResendCode}>
                   <Text style={styles.resendText}>Gửi lại mã</Text>
                 </TouchableOpacity>
               ) : (
-                <Text style={styles.timerText}>
-                  Gửi lại mã sau {timeLeft}s
-                </Text>
+                <Text style={styles.timerText}>Gửi lại mã sau {timeLeft}s</Text>
               )}
             </View>
           )}
 
           {/* Verify Button */}
           <TouchableOpacity
-            style={[styles.verifyButton, isLoading && styles.verifyButtonDisabled]}
+            style={[
+              styles.verifyButton,
+              isLoading && styles.verifyButtonDisabled,
+            ]}
             onPress={handleVerify}
             disabled={isLoading}
           >
             <Text style={styles.verifyButtonText}>
-              {isLoading ? 'Đang xử lý...' : 
-               step === 'set_password' ? 'Đăng ký' : 'Xác thực'}
+              {isLoading
+                ? "Đang xử lý..."
+                : step === "set_password"
+                ? "Đăng ký"
+                : "Xác thực"}
             </Text>
           </TouchableOpacity>
 
           {/* Help Text */}
           <Text style={styles.helpText}>
-            {step === 'password' ? 'Quên mật khẩu? Liên hệ hỗ trợ' :
-             step === 'otp' ? 'Không nhận được mã? Kiểm tra tin nhắn spam' :
-             'Mật khẩu phải có đủ 6 số'}
+            {step === "password"
+              ? "Quên mật khẩu? Liên hệ hỗ trợ"
+              : step === "otp"
+              ? "Không nhận được mã? Kiểm tra tin nhắn spam"
+              : "Mật khẩu phải có đủ 6 số"}
           </Text>
         </View>
       </KeyboardAvoidingView>
@@ -442,8 +516,8 @@ const styles = StyleSheet.create({
   backButton: {
     width: 40,
     height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginBottom: 20,
   },
   titleContainer: {
@@ -451,7 +525,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 28,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: COLORS.BLACK,
     marginBottom: 12,
   },
@@ -464,8 +538,8 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   codeContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     marginBottom: 24,
   },
   codeInput: {
@@ -475,13 +549,13 @@ const styles = StyleSheet.create({
     borderColor: COLORS.GRAY_LIGHT,
     borderRadius: 12,
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: COLORS.BLACK,
     backgroundColor: COLORS.WHITE,
   },
   passwordContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     marginBottom: 24,
   },
   passwordInput: {
@@ -491,18 +565,18 @@ const styles = StyleSheet.create({
     borderColor: COLORS.GRAY_LIGHT,
     borderRadius: 12,
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: COLORS.BLACK,
     backgroundColor: COLORS.WHITE,
   },
   resendContainer: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 32,
   },
   resendText: {
     fontSize: 16,
     color: COLORS.BLUE,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   timerText: {
     fontSize: 16,
@@ -512,7 +586,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.BLUE,
     paddingVertical: 16,
     borderRadius: 12,
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 24,
   },
   verifyButtonDisabled: {
@@ -521,12 +595,12 @@ const styles = StyleSheet.create({
   verifyButtonText: {
     color: COLORS.WHITE,
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   helpText: {
     fontSize: 14,
     color: COLORS.GRAY,
-    textAlign: 'center',
+    textAlign: "center",
     lineHeight: 20,
   },
 });

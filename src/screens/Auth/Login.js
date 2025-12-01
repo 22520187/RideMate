@@ -23,6 +23,7 @@ import {
 import SCREENS from "..";
 import { chatClient } from "../../utils/StreamClient";
 import { API_BASE_URL } from "@env";
+import { saveToken, saveRefreshToken } from "../../utils/storage";
 
 const Login = ({ navigation }) => {
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -52,7 +53,7 @@ const Login = ({ navigation }) => {
       setIsLoading(true);
 
       // Gọi API backend
-      const response = await fetch(`${API_BASE_URL}/api/api/auth/login`, {
+      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -64,8 +65,13 @@ const Login = ({ navigation }) => {
       if (!response.ok) throw new Error("Login failed");
 
       const res = await response.json();
+      const authData = res.data; // ApiResponse.data -> AuthResponse
 
-      const { chatToken, user } = res.data;
+      const { chatToken, user, accessToken, refreshToken } = authData;
+
+      // Save tokens
+      if (accessToken) await saveToken(accessToken);
+      if (refreshToken) await saveRefreshToken(refreshToken);
 
       // Kết nối user lên Stream
       await chatClient.connectUser(
@@ -304,6 +310,38 @@ const Login = ({ navigation }) => {
           <Ionicons name="shield-checkmark" size={18} color={COLORS.BLUE} />
           <Text style={styles.adminAccessText}>Dành cho quản trị viên</Text>
         </TouchableOpacity>
+        {/* Register Button */}
+        <TouchableOpacity
+          style={styles.registerButton}
+          onPress={async () => {
+            // Validate phone number
+            if (!phoneNumber.trim()) {
+              Toast.show({
+                type: "error",
+                text1: "Lỗi",
+                text2: "Vui lòng nhập số điện thoại",
+              });
+              return;
+            }
+            if (!validatePhoneNumber(phoneNumber)) {
+              Toast.show({
+                type: "error",
+                text1: "Lỗi",
+                text2: "Số điện thoại không hợp lệ",
+              });
+              return;
+            }
+            navigation.navigate(SCREENS.PHONE_VERIFICATION, {
+              phoneNumber: phoneNumber.replace(/\s/g, ""),
+              isExistingUser: false,
+              mode: "register",
+            });
+          }}
+        >
+          <Text style={styles.registerButtonText}>
+            Chưa có tài khoản? Đăng ký
+          </Text>
+        </TouchableOpacity>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -320,11 +358,11 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     paddingHorizontal: 24,
-    paddingTop: 60,
+    paddingTop: 20,
   },
   logoContainer: {
     alignItems: "center",
-    marginBottom: 20,
+    marginBottom: 10,
   },
   logoCircle: {
     width: 80,
@@ -333,7 +371,6 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.BLUE,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 10,
   },
   appName: {
     fontSize: 32,
@@ -346,7 +383,7 @@ const styles = StyleSheet.create({
     color: COLORS.GRAY,
   },
   inputContainer: {
-    marginBottom: 24,
+    marginBottom: 12,
   },
   inputLabel: {
     fontSize: 16,
@@ -466,6 +503,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: COLORS.BLUE,
+  },
+  registerButton: {
+    marginTop: 24,
+    alignSelf: "center",
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: COLORS.WHITE,
+    borderWidth: 1,
+    borderColor: COLORS.BLUE,
+    marginBottom: 16,
+  },
+  registerButtonText: {
+    color: COLORS.BLUE,
+    fontSize: 14,
+    fontWeight: "600",
   },
 });
 
