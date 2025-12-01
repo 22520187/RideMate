@@ -20,6 +20,7 @@ import Voucher from "../screens/User/Voucher";
 import Mission from "../screens/User/Mission";
 import Login from "../screens/Auth/Login";
 import PhoneVerification from "../screens/Auth/PhoneVerification";
+import RegisterComplete from "../screens/Auth/RegisterComplete";
 import MessageListScreen from "../screens/User/Message/MessageListScreen";
 import ChatScreen from "../screens/User/Message/ChatScreen";
 import AdminDashboard from "../screens/Admin/AdminDashboard";
@@ -177,6 +178,10 @@ const MainStackNavigator = () => {
         name={SCREENS.PHONE_VERIFICATION}
         component={PhoneVerification}
       />
+      <Stack.Screen
+        name={SCREENS.REGISTER_COMPLETE}
+        component={RegisterComplete}
+      />
       <Stack.Screen name="MainTabs" component={UserTabNavigator} />
       <Stack.Screen name={SCREENS.ADMIN_STACK} component={AdminTabNavigator} />
       <Stack.Screen name={SCREENS.HOME_SEARCH} component={HomeSearch} />
@@ -196,10 +201,7 @@ const MainStackNavigator = () => {
         name={SCREENS.ADMIN_MEMBERSHIP_MANAGEMENT}
         component={MembershipManagement}
       />
-      <Stack.Screen
-        name={SCREENS.ADMIN_USER_DETAIL}
-        component={UserDetail}
-      />
+      <Stack.Screen name={SCREENS.ADMIN_USER_DETAIL} component={UserDetail} />
     </Stack.Navigator>
   );
 };
