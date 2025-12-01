@@ -22,7 +22,7 @@ import {
 } from "../../config/auth";
 import SCREENS from "..";
 import { chatClient } from "../../utils/StreamClient";
-import { BASE_URL } from "@env";
+import { API_BASE_URL } from "@env";
 
 const Login = ({ navigation }) => {
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -52,7 +52,7 @@ const Login = ({ navigation }) => {
       setIsLoading(true);
 
       // Gọi API backend
-      const response = await fetch(`${BASE_URL}/api/api/auth/login`, {
+      const response = await fetch(`${API_BASE_URL}/api/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

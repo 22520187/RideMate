@@ -1,4 +1,4 @@
 import { StreamChat } from "stream-chat";
+import { STREAM_API_KEY } from "@env";
 
-const API_KEY = "b3j3ftwzjmhk";
-export const chatClient = StreamChat.getInstance(API_KEY);
+export const chatClient = StreamChat.getInstance(STREAM_API_KEY);
