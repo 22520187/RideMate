@@ -19,10 +19,10 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import COLORS from "../../constant/colors";
-import axios from "axios";
+import { getProfile } from "../../services/userService";
+import { getMyVehicle, registerVehicle } from "../../services/vehicleService";
+import { uploadImage } from "../../services/uploadService";
 import { SafeAreaView } from "react-native-safe-area-context";
-
-const API_BASE = "https://localhost:5000/v1";
 
 export default function Profile() {
   const [profile, setProfile] = useState({
@@ -47,51 +47,76 @@ export default function Profile() {
 
   const [refreshing, setRefreshing] = useState(false);
 
+  useEffect(() => {
+    fetchUserAndVehicle();
+  }, []);
+
+  const fetchUserAndVehicle = async () => {
+    try {
+      setLoading(true);
+      const apiResp = await getProfile(); // returns ApiResponse wrapper
+      const user = apiResp?.data;
+      if (user) {
+        setProfile((p) => ({
+          ...p,
+          fullName: user.fullName || "",
+          phone: user.phoneNumber || "",
+          email: user.email || "",
+        }));
+
+        // If user is a driver, try to fetch vehicle info
+        if (user.userType === "DRIVER") {
+          try {
+            const vehResp = await getMyVehicle();
+            const vehicle = vehResp?.data;
+            if (vehicle) {
+              setRegistered(true);
+              setApproved(vehicle.status === "APPROVED");
+              setVehicleData({
+                licensePlate: vehicle.licensePlate || "",
+                images: vehicle.registrationDocumentUrl
+                  ? [{ uri: vehicle.registrationDocumentUrl }]
+                  : [],
+              });
+            } else {
+              setRegistered(false);
+            }
+          } catch (e) {
+            // no vehicle found or error
+            setRegistered(false);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to load profile:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const [registered, setRegistered] = useState(false);
   const [approved, setApproved] = useState(false);
   const [vehicleData, setVehicleData] = useState({
     licensePlate: "",
+    make: "",
+    model: "",
+    color: "",
+    capacity: 1,
+    vehicleType: "MOTORBIKE",
     images: [],
+    registrationDocumentUrl: "",
   });
   const [editing, setEditing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [confirmOpenVisible, setConfirmOpenVisible] = useState(false);
+  const [vehicleTypeModalVisible, setVehicleTypeModalVisible] = useState(false);
 
-  // useEffect(() => {
-  //   fetchStatus();
-  // }, []);
-
-  // async function fetchStatus() {
-  //   try {
-  //     setLoading(true);
-  //     const res = await fetch(`${API_BASE}/vehicle/status`, {
-  //       headers: {
-  //         Authorization: token ? `Bearer ${token}` : undefined,
-  //         Accept: "application/json",
-  //       },
-  //     });
-  //     if (!res.ok) {
-  //       throw new Error("Không thể lấy trạng thái xe");
-  //     }
-  //     const data = await res.json();
-  //     setRegistered(!!data.registered);
-  //     setApproved(!!data.approved);
-  //     if (data.registered) {
-  //       setVehicleData({
-  //         licensePlate: data.licensePlate || "",
-  //         images: (data.images || []).map((it) => ({ uri: it.url, id: it.id })),
-  //       });
-  //     } else {
-  //       setVehicleData({ licensePlate: "", images: [] });
-  //     }
-  //   } catch (err) {
-  //     console.warn(err);
-  //     Alert.alert("Lỗi", "Không thể tải trạng thái xe. Vui lòng thử lại.");
-  //   } finally {
-  //     setLoading(false);
-  //     setRefreshing(false);
-  //   }
-  // }
+  const vehicleTypes = [
+    { label: "Xe máy", value: "MOTORBIKE" },
+    { label: "Ô tô", value: "CAR" },
+    { label: "Van", value: "VAN" },
+    { label: "Tải", value: "TRUCK" },
+  ];
 
   const pickImage = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -197,7 +222,7 @@ export default function Profile() {
     if (!registered) {
       setVehicleData({ licensePlate: "", images: [] });
     } else {
-      fetchStatus();
+      fetchUserAndVehicle();
     }
     setEditing(false);
   };
@@ -209,8 +234,29 @@ export default function Profile() {
   };
 
   const submitRegistration = async () => {
+    // Validate required fields
     if (!vehicleData.licensePlate?.trim()) {
       Alert.alert("Thiếu thông tin", "Vui lòng nhập biển số xe.");
+      return;
+    }
+    if (!vehicleData.make?.trim()) {
+      Alert.alert("Thiếu thông tin", "Vui lòng nhập hãng xe.");
+      return;
+    }
+    if (!vehicleData.model?.trim()) {
+      Alert.alert("Thiếu thông tin", "Vui lòng nhập dòng xe.");
+      return;
+    }
+    if (!vehicleData.color?.trim()) {
+      Alert.alert("Thiếu thông tin", "Vui lòng nhập màu sắc.");
+      return;
+    }
+    if (!vehicleData.capacity || vehicleData.capacity < 1) {
+      Alert.alert("Thiếu thông tin", "Vui lòng nhập sức chứa (tối thiểu 1).");
+      return;
+    }
+    if (!vehicleData.vehicleType) {
+      Alert.alert("Thiếu thông tin", "Vui lòng chọn loại xe.");
       return;
     }
     if (!vehicleData.images || vehicleData.images.length === 0) {
@@ -221,67 +267,84 @@ export default function Profile() {
     try {
       setSubmitting(true);
 
-      const form = new FormData();
-      form.append("licensePlate", vehicleData.licensePlate.trim());
-      // images
-      for (let i = 0; i < vehicleData.images.length; i++) {
-        const img = vehicleData.images[i];
-        if (img.id && img.uri.startsWith("http")) {
-          form.append("existingImageIds[]", String(img.id));
-        } else {
-          const blob = await uriToBlob(img.uri);
-          form.append("images", {
-            uri: img.uri,
-            name: img.name || `photo_${i}.jpg`,
-            type: img.type || "image/jpeg",
+      // Upload first image to get registrationDocumentUrl
+      let registrationDocumentUrl = vehicleData.registrationDocumentUrl;
+
+      // If no URL stored yet, upload the first local image
+      if (!registrationDocumentUrl) {
+        const firstImage = vehicleData.images[0];
+        if (!firstImage.uri.startsWith("http")) {
+          // Local image - need to upload
+          const blob = await uriToBlob(firstImage.uri);
+          const uploadForm = new FormData();
+          uploadForm.append("file", {
+            uri: firstImage.uri,
+            name: firstImage.name || "registration.jpg",
+            type: firstImage.type || "image/jpeg",
           });
+
+          const uploadResp = await uploadImage(uploadForm);
+          registrationDocumentUrl = uploadResp?.data?.url;
+
+          if (!registrationDocumentUrl) {
+            Alert.alert("Lỗi", "Không thể tải ảnh lên. Vui lòng thử lại.");
+            return;
+          }
+        } else {
+          // Already a remote URL
+          registrationDocumentUrl = firstImage.uri;
         }
       }
 
-      const isNew = !registered;
-      const url = isNew
-        ? `${API_BASE}/vehicle/register`
-        : `${API_BASE}/vehicle/update`;
+      // Prepare vehicle registration data (matching backend DTO)
+      const vehicleRegisterData = {
+        licensePlate: vehicleData.licensePlate.trim(),
+        make: vehicleData.make.trim(),
+        model: vehicleData.model.trim(),
+        color: vehicleData.color.trim(),
+        capacity: parseInt(vehicleData.capacity),
+        vehicleType: vehicleData.vehicleType,
+        registrationDocumentUrl: registrationDocumentUrl,
+      };
 
-      const res = await fetch(url, {
-        method: "POST",
-        headers: {
-          Authorization: token ? `Bearer ${token}` : undefined,
-          Accept: "application/json",
-        },
-        body: form,
-      });
-
-      if (!res.ok) {
-        const text = await res.text();
-        console.warn("Server error:", text);
-        throw new Error("Lỗi từ máy chủ");
-      }
-      const resJson = await res.json();
+      // Call API using vehicleService wrapper
+      const apiResp = await registerVehicle(vehicleRegisterData);
+      const vehicleResp = apiResp?.data;
 
       Alert.alert(
         "Thành công",
-        resJson.message || "Đã gửi thông tin. Đang chờ duyệt."
+        vehicleResp?.message ||
+          apiResp?.message ||
+          "Đã gửi thông tin. Đang chờ duyệt."
       );
 
       setRegistered(true);
-      setApproved(!!resJson.approved);
-      setVehicleData({
-        licensePlate: resJson.licensePlate || vehicleData.licensePlate,
-        images: (resJson.images || []).map((it) => ({
-          uri: it.url,
-          id: it.id,
-        })),
-      });
+      setApproved(vehicleResp?.status === "APPROVED");
+      setVehicleData((prev) => ({
+        ...prev,
+        licensePlate: vehicleResp?.licensePlate || prev.licensePlate,
+        make: vehicleResp?.make || prev.make,
+        model: vehicleResp?.model || prev.model,
+        color: vehicleResp?.color || prev.color,
+        capacity: vehicleResp?.capacity || prev.capacity,
+        vehicleType: vehicleResp?.vehicleType || prev.vehicleType,
+        registrationDocumentUrl: vehicleResp?.registrationDocumentUrl,
+        images: vehicleResp?.registrationDocumentUrl
+          ? [{ uri: vehicleResp.registrationDocumentUrl }]
+          : prev.images,
+      }));
       setEditing(false);
     } catch (err) {
-      console.warn(err);
-      Alert.alert("Lỗi", "Gửi thông tin thất bại. Vui lòng thử lại.");
+      console.warn("Vehicle registration error:", err);
+      Alert.alert(
+        "Lỗi",
+        err?.response?.data?.message ||
+          "Gửi thông tin thất bại. Vui lòng thử lại."
+      );
     } finally {
       setSubmitting(false);
     }
   };
-
   function renderImageItem({ item, index }) {
     const remote = item.uri && item.uri.startsWith("http");
     return (
@@ -568,16 +631,92 @@ export default function Profile() {
                         </TouchableOpacity>
                       </View>
 
-                      <View style={{ marginTop: 8 }}>
+                      <ScrollView
+                        showsVerticalScrollIndicator={true}
+                        keyboardShouldPersistTaps="handled"
+                        contentContainerStyle={{
+                          paddingVertical: 12,
+                          paddingHorizontal: 12,
+                        }}
+                      >
                         <Text style={styles.label}>Biển số xe</Text>
                         <TextInput
                           style={styles.input}
-                          placeholder="VD: 51A-123.45"
+                          placeholder="VD: 51A-12345"
                           value={vehicleData.licensePlate}
                           onChangeText={(t) =>
                             setVehicleData((p) => ({ ...p, licensePlate: t }))
                           }
                         />
+
+                        <Text style={[styles.label, { marginTop: 12 }]}>
+                          Hãng xe
+                        </Text>
+                        <TextInput
+                          style={styles.input}
+                          placeholder="VD: Honda"
+                          value={vehicleData.make}
+                          onChangeText={(t) =>
+                            setVehicleData((p) => ({ ...p, make: t }))
+                          }
+                        />
+
+                        <Text style={[styles.label, { marginTop: 12 }]}>
+                          Dòng xe
+                        </Text>
+                        <TextInput
+                          style={styles.input}
+                          placeholder="VD: Wave RSX"
+                          value={vehicleData.model}
+                          onChangeText={(t) =>
+                            setVehicleData((p) => ({ ...p, model: t }))
+                          }
+                        />
+
+                        <Text style={[styles.label, { marginTop: 12 }]}>
+                          Màu sắc
+                        </Text>
+                        <TextInput
+                          style={styles.input}
+                          placeholder="VD: Đỏ"
+                          value={vehicleData.color}
+                          onChangeText={(t) =>
+                            setVehicleData((p) => ({ ...p, color: t }))
+                          }
+                        />
+
+                        <Text style={[styles.label, { marginTop: 12 }]}>
+                          Sức chứa (người)
+                        </Text>
+                        <TextInput
+                          style={styles.input}
+                          placeholder="VD: 2"
+                          keyboardType="numeric"
+                          value={String(vehicleData.capacity)}
+                          onChangeText={(t) =>
+                            setVehicleData((p) => ({
+                              ...p,
+                              capacity: parseInt(t) || 1,
+                            }))
+                          }
+                        />
+
+                        <Text style={[styles.label, { marginTop: 12 }]}>
+                          Loại xe
+                        </Text>
+                        <TouchableOpacity
+                          style={[
+                            styles.input,
+                            { justifyContent: "center", paddingVertical: 12 },
+                          ]}
+                          onPress={() => setVehicleTypeModalVisible(true)}
+                        >
+                          <Text style={{ fontSize: 14, color: "#333" }}>
+                            {vehicleTypes.find(
+                              (v) => v.value === vehicleData.vehicleType
+                            )?.label || "Chọn loại xe"}
+                          </Text>
+                        </TouchableOpacity>
 
                         <Text style={[styles.label, { marginTop: 12 }]}>
                           Ảnh xác thực (CMND/CCCD/GPLX)
@@ -667,12 +806,87 @@ export default function Profile() {
                             chỉnh sửa thông tin.
                           </Text>
                         </View>
-                      </View>
+                      </ScrollView>
                     </View>
                   </View>
                 </Modal>
 
-                {/* Confirm open register modal */}
+                {/* Vehicle Type Picker Modal */}
+                <Modal
+                  transparent
+                  visible={vehicleTypeModalVisible}
+                  onRequestClose={() => setVehicleTypeModalVisible(false)}
+                >
+                  <View
+                    style={{
+                      flex: 1,
+                      justifyContent: "flex-end",
+                      backgroundColor: "rgba(0,0,0,0.5)",
+                    }}
+                  >
+                    <View
+                      style={{
+                        backgroundColor: "#fff",
+                        borderTopLeftRadius: 12,
+                        borderTopRightRadius: 12,
+                        paddingVertical: 12,
+                      }}
+                    >
+                      <View
+                        style={{
+                          paddingHorizontal: 16,
+                          paddingVertical: 10,
+                          borderBottomWidth: 1,
+                          borderBottomColor: "#eee",
+                        }}
+                      >
+                        <Text
+                          style={{
+                            fontSize: 16,
+                            fontWeight: "600",
+                            color: "#333",
+                          }}
+                        >
+                          Chọn loại xe
+                        </Text>
+                      </View>
+                      {vehicleTypes.map((type) => (
+                        <TouchableOpacity
+                          key={type.value}
+                          style={{
+                            paddingHorizontal: 16,
+                            paddingVertical: 12,
+                            borderBottomWidth: 1,
+                            borderBottomColor: "#f0f0f0",
+                          }}
+                          onPress={() => {
+                            setVehicleData((p) => ({
+                              ...p,
+                              vehicleType: type.value,
+                            }));
+                            setVehicleTypeModalVisible(false);
+                          }}
+                        >
+                          <Text
+                            style={{
+                              fontSize: 14,
+                              color:
+                                vehicleData.vehicleType === type.value
+                                  ? "#0d6efd"
+                                  : "#333",
+                              fontWeight:
+                                vehicleData.vehicleType === type.value
+                                  ? "600"
+                                  : "400",
+                            }}
+                          >
+                            {type.label}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                </Modal>
                 <Modal
                   visible={confirmOpenVisible}
                   animationType="fade"
