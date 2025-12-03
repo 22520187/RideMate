@@ -1,17 +1,26 @@
 export default {
   auth: {
-    login: "/api/api/auth/login",
-    register: "/api/api/auth/register",
-    sendOtp: "/api/api/auth/send-otp",
-    verifyOtp: "/api/api/auth/verify-otp",
-    registerInitiate: "/api/api/auth/register/initiate",
-    registerComplete: "/api/api/auth/register/complete",
-    refresh: "/api/api/auth/refresh-token",
+    login: "/api/auth/login",
+    register: "/api/auth/register",
+    sendOtp: "/api/auth/send-otp",
+    verifyOtp: "/api/auth/verify-otp",
+    registerInitiate: "/api/auth/register/initiate",
+    registerComplete: "/api/auth/register/complete",
+    refresh: "/api/auth/refresh-token",
   },
 
   user: {
-    profile: "/user/profile",
-    update: "/user/update",
+    profile: "/api/users/me",
+    update: "/api/users",
+  },
+
+  vehicles: {
+    register: "/vehicles/register",
+    myVehicle: "/vehicles/my-vehicle",
+    byId: (id) => `/vehicles/${id}`,
+    updateStatus: (id) => `/vehicles/${id}/status`,
+    listByDriver: (driverId) => `/vehicles/driver/${driverId}`,
+    pending: "/vehicles/pending",
   },
 
   ride: {
