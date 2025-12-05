@@ -64,8 +64,8 @@ export default function Profile() {
           email: user.email || "",
         }));
 
-        // If user is a driver, try to fetch vehicle info
-        if (user.userType === "DRIVER") {
+        // Try to fetch vehicle info for both DRIVER and PASSENGER
+        if (user.userType === "DRIVER" || user.userType === "PASSENGER") {
           try {
             const vehResp = await getMyVehicle();
             const vehicle = vehResp?.data;
@@ -74,9 +74,15 @@ export default function Profile() {
               setApproved(vehicle.status === "APPROVED");
               setVehicleData({
                 licensePlate: vehicle.licensePlate || "",
+                make: vehicle.make || "",
+                model: vehicle.model || "",
+                color: vehicle.color || "",
+                capacity: vehicle.capacity || 1,
+                vehicleType: vehicle.vehicleType || "MOTORBIKE",
                 images: vehicle.registrationDocumentUrl
                   ? [{ uri: vehicle.registrationDocumentUrl }]
                   : [],
+                registrationDocumentUrl: vehicle.registrationDocumentUrl || "",
               });
             } else {
               setRegistered(false);
@@ -315,7 +321,7 @@ export default function Profile() {
         "Thành công",
         vehicleResp?.message ||
           apiResp?.message ||
-          "Đã gửi thông tin. Đang chờ duyệt."
+          "Đã gửi thông tin xe. Đang chờ admin duyệt.\n\nSau khi xe được duyệt, bạn sẽ có thể tạo chuyến đi."
       );
 
       setRegistered(true);
@@ -334,6 +340,9 @@ export default function Profile() {
           : prev.images,
       }));
       setEditing(false);
+      
+      // Reload user profile to refresh userType (in case backend changes it)
+      fetchUserAndVehicle();
     } catch (err) {
       console.warn("Vehicle registration error:", err);
       Alert.alert(
@@ -603,10 +612,12 @@ export default function Profile() {
                         ]}
                         onPress={() => {
                           setRefreshing(true);
-                          fetchStatus();
+                          fetchUserAndVehicle().finally(() => setRefreshing(false));
                         }}
                       >
-                        <Text style={styles.actionBtnText}>Tải lại</Text>
+                        <Text style={styles.actionBtnText}>
+                          {refreshing ? "Đang tải..." : "Tải lại"}
+                        </Text>
                       </TouchableOpacity>
                     </View>
                   </View>

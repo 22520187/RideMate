@@ -27,11 +27,20 @@ import {
   getRoute as osrmGetRoute,
 } from "../../../utils/api";
 import { useSharedPath } from "../../../hooks/useSharedPath";
+import { getProfile } from "../../../services/userService";
+import { getMyVehicle } from "../../../services/vehicleService";
 
 const DriverRideScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
   const [refreshKey, setRefreshKey] = useState(0);
   const { updatePath } = useSharedPath();
+  const [userProfile, setUserProfile] = useState(null);
+  const [vehicleStatus, setVehicleStatus] = useState(null);
+
+  // Check user permissions on mount
+  useEffect(() => {
+    checkUserPermissions();
+  }, []);
 
   // Force refresh SafeArea khi app resume từ background
   useEffect(() => {
@@ -39,6 +48,8 @@ const DriverRideScreen = ({ navigation, route }) => {
       if (nextAppState === "active") {
         // Force component re-render để refresh SafeArea insets
         setRefreshKey((prev) => prev + 1);
+        // Recheck permissions
+        checkUserPermissions();
       }
     };
 
@@ -48,6 +59,77 @@ const DriverRideScreen = ({ navigation, route }) => {
     );
     return () => subscription?.remove();
   }, []);
+
+  const checkUserPermissions = async () => {
+    try {
+      const profileResp = await getProfile();
+      const profile = profileResp?.data;
+      setUserProfile(profile);
+
+      if (!profile) {
+        Alert.alert('Lỗi', 'Không thể tải thông tin người dùng', [
+          { text: 'OK', onPress: () => navigation.goBack() }
+        ]);
+        return;
+      }
+
+      // Try to get vehicle info
+      try {
+        const vehicleResp = await getMyVehicle();
+        const vehicle = vehicleResp?.data;
+        setVehicleStatus(vehicle?.status || null);
+
+        // Check if vehicle is not approved
+        if (!vehicle || vehicle.status !== 'APPROVED') {
+          let message = '';
+          let buttons = [];
+
+          if (!vehicle) {
+            message = 'Bạn cần đăng ký xe trước khi tạo chuyến đi. Vui lòng vào Quản lý tài khoản để đăng ký xe.';
+            buttons = [
+              { text: 'Hủy', style: 'cancel', onPress: () => navigation.goBack() },
+              { text: 'Đi tới Profile', onPress: () => {
+                navigation.goBack();
+                navigation.navigate('Profile');
+              }}
+            ];
+          } else if (vehicle.status === 'PENDING') {
+            message = 'Thông tin xe của bạn đang được admin xem xét. Vui lòng chờ phê duyệt để có thể tạo chuyến đi.';
+            buttons = [{ text: 'Đã hiểu', onPress: () => navigation.goBack() }];
+          } else if (vehicle.status === 'REJECTED') {
+            message = 'Thông tin xe của bạn không được phê duyệt. Vui lòng cập nhật lại thông tin trong mục Quản lý tài khoản.';
+            buttons = [
+              { text: 'Hủy', style: 'cancel', onPress: () => navigation.goBack() },
+              { text: 'Đi tới Profile', onPress: () => {
+                navigation.goBack();
+                navigation.navigate('Profile');
+              }}
+            ];
+          }
+
+          Alert.alert('Không thể tạo chuyến đi', message, buttons);
+        }
+      } catch (vehicleErr) {
+        // No vehicle found
+        Alert.alert(
+          'Cần đăng ký xe',
+          'Bạn cần đăng ký xe trước khi tạo chuyến đi. Vui lòng vào Quản lý tài khoản để đăng ký xe.',
+          [
+            { text: 'Hủy', style: 'cancel', onPress: () => navigation.goBack() },
+            { text: 'Đi tới Profile', onPress: () => {
+              navigation.goBack();
+              navigation.navigate('Profile');
+            }}
+          ]
+        );
+      }
+    } catch (err) {
+      console.warn('Failed to check user permissions:', err);
+      Alert.alert('Lỗi', 'Không thể kiểm tra quyền truy cập', [
+        { text: 'OK', onPress: () => navigation.goBack() }
+      ]);
+    }
+  };
   const [fromLocation, setFromLocation] = useState("");
   const [toLocation, setToLocation] = useState("");
   const [originCoordinate, setOriginCoordinate] = useState(null);
