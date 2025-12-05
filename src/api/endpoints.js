@@ -28,5 +28,12 @@ export default {
     detail: (id) => `/ride/${id}`,
   },
 
+  vouchers: {
+    list: "/api/vouchers",
+    myVouchers: "/api/vouchers/my-vouchers",
+    redeem: (id) => `/api/vouchers/${id}/redeem`,
+    create: "/api/vouchers",
+  },
+
   //... other endpoints
 };

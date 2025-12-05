@@ -1,15 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, ScrollView, Dimensions, Image, AppState } from 'react-native'
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, ScrollView, Dimensions, Image, AppState, ActivityIndicator, Alert } from 'react-native'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import COLORS from '../../constant/colors'
 import { MaterialIcons } from '@expo/vector-icons'
+import { getAllVouchers, getMyVouchers, redeemVoucher } from '../../services/voucherService'
+import { getProfile } from '../../services/userService'
+import { useNavigation } from '@react-navigation/native'
 
 const { width: screenWidth } = Dimensions.get('window')
 
 const Award = () => {
-  const [points, setPoints] = useState(1200)
+  const navigation = useNavigation()
+  const [points, setPoints] = useState(0)
   const insets = useSafeAreaInsets()
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [refreshKey, setRefreshKey] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
 
   // Force refresh SafeArea khi app resume từ background
   useEffect(() => {
@@ -30,20 +36,14 @@ const Award = () => {
     { id: 'b3', title: 'Chương trình mới', subtitle: 'Đổi điểm nhận quà tặng', image: require('../../../assets/banner3.jpg') },
   ])
 
-  const [promos, setPromos] = useState([
-    { id: 'p1', brand: 'Phúc Long', title: 'Voucher 30.000đ đồ uống', desc: 'Áp dụng tại cửa hàng Phúc Long', cost: 400, code: 'PL30K', redeemed: false, category: 'cafe', image: 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=200&h=150&fit=crop' },
-    { id: 'p2', brand: 'Highlands Coffee', title: 'Voucher 25.000đ', desc: 'Áp dụng toàn quốc', cost: 350, code: 'HLC25K', redeemed: false, category: 'cafe', image: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=200&h=150&fit=crop' },
-    { id: 'p3', brand: 'Lotteria', title: 'Voucher 40.000đ', desc: 'Áp dụng đơn tối thiểu 100.000đ', cost: 500, code: 'LOT40K', redeemed: false, category: 'food', image: 'https://images.unsplash.com/photo-1571091718767-18b5b1457add?w=200&h=150&fit=crop' },
-    { id: 'p4', brand: 'Circle K', title: 'Voucher 20.000đ', desc: 'Áp dụng cho mọi sản phẩm', cost: 300, code: 'CK20K', redeemed: false, category: 'convenience', image: 'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=200&h=150&fit=crop' },
-    { id: 'p5', brand: 'Starbucks', title: 'Voucher 50.000đ', desc: 'Áp dụng đồ uống cao cấp', cost: 600, code: 'SB50K', redeemed: false, category: 'cafe', image: 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=200&h=150&fit=crop' },
-    { id: 'p6', brand: 'McDonald\'s', title: 'Voucher 35.000đ', desc: 'Áp dụng combo burger', cost: 450, code: 'MC35K', redeemed: false, category: 'food', image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=200&h=150&fit=crop' },
-  ])
+  const [promos, setPromos] = useState([])
+  const [myVouchers, setMyVouchers] = useState([])
 
   const [categories] = useState([
     { id: 'all', name: 'Tất cả', icon: 'apps' },
-    { id: 'cafe', name: 'Cà phê', icon: 'local-cafe' },
-    { id: 'food', name: 'Đồ ăn', icon: 'restaurant' },
-    { id: 'convenience', name: 'Tiện ích', icon: 'store' },
+    { id: 'food_and_beverage', name: 'Đồ ăn & Uống', icon: 'local-cafe' },
+    { id: 'shopping', name: 'Mua sắm', icon: 'shopping-cart' },
+    { id: 'vehicle_service', name: 'Dịch vụ xe', icon: 'local-gas-station' },
   ])
   const [selectedPromo, setSelectedPromo] = useState(null)
   const [modalVisible, setModalVisible] = useState(false)
@@ -64,21 +64,69 @@ const Award = () => {
       id: 'h2',
       amount: -400,
       type: 'spent',
-      desc: 'Đổi voucher Phúc Long 30.000đ',
+      desc: 'Đổi voucher',
       date: '2025-10-07'
     },
   ])
 
-  const [redeemedVouchers] = useState([
-    {
-      id: 'rv1',
-      brand: 'Phúc Long',
-      title: 'Voucher 30.000đ đồ uống',
-      code: 'PL30K',
-      redeemedDate: '2025-10-07',
-      expiryDate: '2025-11-07'
+  // Load data from API
+  const loadData = async () => {
+    try {
+      const [vouchersResponse, myVouchersResponse, profileResponse] = await Promise.all([
+        getAllVouchers(),
+        getMyVouchers(),
+        getProfile()
+      ])
+
+      console.log('📦 Vouchers Response:', JSON.stringify(vouchersResponse, null, 2))
+      console.log('📦 My Vouchers Response:', JSON.stringify(myVouchersResponse, null, 2))
+      console.log('📦 Profile Response:', JSON.stringify(profileResponse, null, 2))
+
+      // All APIs now return {statusCode, message, data}
+      if (vouchersResponse?.data && Array.isArray(vouchersResponse.data)) {
+        console.log('✅ Setting promos:', vouchersResponse.data.length, 'vouchers')
+        setPromos(vouchersResponse.data)
+      } else {
+        console.log('❌ Vouchers response has no data array')
+      }
+
+      if (myVouchersResponse?.data && Array.isArray(myVouchersResponse.data)) {
+        console.log('✅ Setting my vouchers:', myVouchersResponse.data.length, 'vouchers')
+        setMyVouchers(myVouchersResponse.data)
+      } else {
+        console.log('❌ My vouchers response has no data array')
+        // Empty array is still valid
+        if (myVouchersResponse?.data) {
+          setMyVouchers([])
+        }
+      }
+
+      if (profileResponse?.data) {
+        console.log('✅ Setting points:', profileResponse.data.coins)
+        setPoints(profileResponse.data.coins || 0)
+      } else {
+        console.log('❌ Profile response has no data field')
+      }
+    } catch (error) {
+      console.error('❌ Error loading data:', error)
+      console.error('Error details:', error.response?.data)
+      Alert.alert('Lỗi', 'Không thể tải dữ liệu. Vui lòng thử lại.')
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
     }
-  ])
+  }
+
+  // Initial load
+  useEffect(() => {
+    loadData()
+  }, [])
+
+  // Refresh handler
+  const handleRefresh = () => {
+    setRefreshing(true)
+    loadData()
+  }
 
   // Auto slide banner
   useEffect(() => {
@@ -98,27 +146,72 @@ const Award = () => {
     return () => clearInterval(interval)
   }, [banners.length])
 
+  // Get voucher type badge and category
+  const getVoucherTypeInfo = (type) => {
+    switch (type) {
+      case 'FOOD_AND_BEVERAGE':
+        return { category: 'food_and_beverage', icon: 'local-cafe', label: 'Đồ ăn & Uống' }
+      case 'SHOPPING':
+        return { category: 'shopping', icon: 'shopping-cart', label: 'Mua sắm' }
+      case 'VEHICLE_SERVICE':
+        return { category: 'vehicle_service', icon: 'local-gas-station', label: 'Dịch vụ xe' }
+      default:
+        return { category: 'all', icon: 'local-offer', label: 'Khác' }
+    }
+  }
+
+  // Format date
+  const formatDate = (dateString) => {
+    if (!dateString) return ''
+    const date = new Date(dateString)
+    return date.toLocaleDateString('vi-VN')
+  }
+
   // Filter promos by category
   const filteredPromos = selectedCategory === 'all'
     ? promos
-    : promos.filter(promo => promo.category === selectedCategory)
+    : promos.filter(promo => {
+        const typeInfo = getVoucherTypeInfo(promo.voucherType)
+        return typeInfo.category === selectedCategory
+      })
 
-  const canRedeem = (promo) => !promo.redeemed && points >= promo.cost
+  const canRedeem = (promo) => {
+    // Check if user already has this voucher
+    const alreadyHas = myVouchers.some(v => v.voucher?.id === promo.id)
+    return !alreadyHas && points >= promo.cost && promo.isActive
+  }
 
   const openRedeemModal = (promo) => {
     setSelectedPromo(promo)
     setModalVisible(true)
   }
 
-  const confirmRedeem = () => {
+  const confirmRedeem = async () => {
     if (!selectedPromo) return
-    if (points < selectedPromo.cost || selectedPromo.redeemed) {
+    
+    try {
       setModalVisible(false)
-      return
+      setLoading(true)
+      
+      const response = await redeemVoucher(selectedPromo.id)
+      
+      // Check if redeem was successful (statusCode 200 or has data)
+      if (response?.statusCode === 200 || response?.data) {
+        Alert.alert('Thành công', response?.message || 'Đổi voucher thành công!')
+        // Reload data
+        await loadData()
+      } else {
+        Alert.alert('Lỗi', response?.message || 'Không thể đổi voucher.')
+      }
+    } catch (error) {
+      console.error('Redeem error:', error)
+      Alert.alert(
+        'Lỗi',
+        error.response?.data?.message || error.message || 'Không thể đổi voucher. Vui lòng thử lại.'
+      )
+    } finally {
+      setLoading(false)
     }
-    setPoints(points - selectedPromo.cost)
-    setPromos(prev => prev.map(p => p.id === selectedPromo.id ? { ...p, redeemed: true } : p))
-    setModalVisible(false)
   }
 
   const renderBannerSlider = () => (
@@ -232,34 +325,46 @@ const Award = () => {
 
   const renderItem = ({ item }) => {
     const disabled = !canRedeem(item)
+    const alreadyHas = myVouchers.some(v => v.voucher?.id === item.id)
+    const typeInfo = getVoucherTypeInfo(item.voucherType)
+    
     return (
-      <View style={styles.promoCard}>
-        <Image source={{ uri: item.image }} style={styles.promoImage} />
+      <TouchableOpacity 
+        style={styles.promoCard}
+        onPress={() => navigation.navigate('Voucher', { voucher: item })}
+      >
+        <View style={styles.promoImageContainer}>
+          <MaterialIcons name={typeInfo.icon} size={48} color={COLORS.PRIMARY} />
+        </View>
         <View style={styles.promoContent}>
           <View style={styles.promoHeader}>
-            <Text style={styles.promoBrand}>{item.brand}</Text>
+            <Text style={styles.promoBrand}>{item.voucherCode}</Text>
             <View style={styles.costPill}>
               <MaterialIcons name="stars" size={14} color={COLORS.ORANGE_DARK} />
               <Text style={styles.costText}>{item.cost}</Text>
             </View>
           </View>
-          <Text style={styles.promoTitle}>{item.title}</Text>
-          <Text style={styles.promoDesc}>{item.desc}</Text>
-          {item.redeemed && (
+          <Text style={styles.promoTitle} numberOfLines={1}>{item.description}</Text>
+          <Text style={styles.promoDesc} numberOfLines={2}>
+            Hết hạn: {formatDate(item.expiryDate)}
+          </Text>
+          {alreadyHas && (
             <View style={styles.redeemedPill}>
               <MaterialIcons name="check-circle" size={14} color={COLORS.WHITE} />
-              <Text style={styles.redeemedText}>Đã đổi: {item.code}</Text>
+              <Text style={styles.redeemedText}>Đã có</Text>
             </View>
           )}
           <TouchableOpacity
-            disabled={disabled}
+            disabled={disabled || alreadyHas}
             onPress={() => openRedeemModal(item)}
-            style={[styles.redeemBtn, (disabled || item.redeemed) && styles.redeemBtnDisabled]}
+            style={[styles.redeemBtn, (disabled || alreadyHas) && styles.redeemBtnDisabled]}
           >
-            <Text style={styles.redeemBtnText}>{item.redeemed ? 'Đã đổi' : disabled ? 'Không đủ điểm' : 'Đổi voucher'}</Text>
+            <Text style={styles.redeemBtnText}>
+              {alreadyHas ? 'Đã đổi' : disabled ? 'Không đủ điểm' : 'Đổi voucher'}
+            </Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </TouchableOpacity>
     )
   }
 
@@ -285,33 +390,58 @@ const Award = () => {
     </View>
   )
 
-  const renderRedeemedVoucherItem = ({ item }) => (
-    <View style={styles.redeemedCard}>
-      <View style={styles.redeemedHeader}>
-        <View style={styles.promoIconWrap}>
-          <MaterialIcons name="local-offer" size={22} color={COLORS.WHITE} />
+  const renderRedeemedVoucherItem = ({ item }) => {
+    const voucher = item.voucher
+    // Status: UNUSED, REDEEMED, EXPIRED
+    const isUsed = item.status === 'REDEEMED' || item.status === 'EXPIRED'
+    
+    return (
+      <TouchableOpacity 
+        style={styles.redeemedCard}
+        onPress={() => navigation.navigate('Voucher', { userVoucher: item })}
+      >
+        <View style={styles.redeemedHeader}>
+          <View style={[styles.promoIconWrap, isUsed && { backgroundColor: COLORS.GRAY }]}>
+            <MaterialIcons name="local-offer" size={22} color={COLORS.WHITE} />
+          </View>
+          <View style={styles.redeemedTextWrap}>
+            <Text style={styles.promoBrand}>{voucher.voucherCode}</Text>
+            <Text style={styles.promoTitle} numberOfLines={1}>{voucher.description}</Text>
+          </View>
+          {isUsed && (
+            <View style={styles.usedBadge}>
+              <Text style={styles.usedBadgeText}>Đã dùng</Text>
+            </View>
+          )}
         </View>
-        <View style={styles.redeemedTextWrap}>
-          <Text style={styles.promoBrand}>{item.brand}</Text>
-          <Text style={styles.promoTitle}>{item.title}</Text>
+        <View style={styles.redeemedBody}>
+          <View style={styles.redeemedRow}>
+            <Text style={styles.redeemedLabel}>Mã voucher:</Text>
+            <Text style={styles.redeemedValue}>{voucher.voucherCode}</Text>
+          </View>
+          <View style={styles.redeemedRow}>
+            <Text style={styles.redeemedLabel}>Ngày đổi:</Text>
+            <Text style={styles.redeemedValue}>{formatDate(item.acquiredDate)}</Text>
+          </View>
+          <View style={styles.redeemedRow}>
+            <Text style={styles.redeemedLabel}>Hết hạn:</Text>
+            <Text style={styles.redeemedValue}>{formatDate(voucher.expiryDate)}</Text>
+          </View>
         </View>
-      </View>
-      <View style={styles.redeemedBody}>
-        <View style={styles.redeemedRow}>
-          <Text style={styles.redeemedLabel}>Mã voucher:</Text>
-          <Text style={styles.redeemedValue}>{item.code}</Text>
+      </TouchableOpacity>
+    )
+  }
+
+  if (loading && !refreshing) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.PRIMARY} />
+          <Text style={styles.loadingText}>Đang tải...</Text>
         </View>
-        <View style={styles.redeemedRow}>
-          <Text style={styles.redeemedLabel}>Ngày đổi:</Text>
-          <Text style={styles.redeemedValue}>{item.redeemedDate}</Text>
-        </View>
-        <View style={styles.redeemedRow}>
-          <Text style={styles.redeemedLabel}>Hết hạn:</Text>
-          <Text style={styles.redeemedValue}>{item.expiryDate}</Text>
-        </View>
-      </View>
-    </View>
-  )
+      </SafeAreaView>
+    )
+  }
 
   return (
     <SafeAreaView 
@@ -327,33 +457,51 @@ const Award = () => {
           {renderCategoryFilter()}
           <FlatList
             data={filteredPromos}
-            keyExtractor={(item) => item.id}
+            keyExtractor={(item) => item.id.toString()}
             renderItem={renderItem}
             contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom }]}
             showsVerticalScrollIndicator={false}
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <MaterialIcons name="card-giftcard" size={64} color={COLORS.GRAY_LIGHT} />
+                <Text style={styles.emptyText}>Chưa có voucher nào</Text>
+              </View>
+            }
           />
         </View>
       ) : (
         <View style={styles.historyContainer}>
           <Text style={styles.historyTitle}>Voucher đã đổi</Text>
           <FlatList
-            data={redeemedVouchers}
-            keyExtractor={(item) => item.id}
+            data={myVouchers}
+            keyExtractor={(item) => item.id.toString()}
             renderItem={renderRedeemedVoucherItem}
             contentContainerStyle={[styles.historyList, { paddingBottom: insets.bottom }]}
             showsVerticalScrollIndicator={false}
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <MaterialIcons name="inbox" size={64} color={COLORS.GRAY_LIGHT} />
+                <Text style={styles.emptyText}>Bạn chưa đổi voucher nào</Text>
+              </View>
+            }
             ListFooterComponent={
-              <>
-                <Text style={[styles.historyTitle, styles.pointsHistoryTitle]}>
-                  Lịch sử điểm thưởng
-                </Text>
-                <FlatList
-                  data={pointsHistory}
-                  keyExtractor={(item) => item.id}
-                  renderItem={renderPointHistoryItem}
-                  scrollEnabled={false}
-                />
-              </>
+              myVouchers.length > 0 ? (
+                <>
+                  <Text style={[styles.historyTitle, styles.pointsHistoryTitle]}>
+                    Lịch sử điểm thưởng
+                  </Text>
+                  <FlatList
+                    data={pointsHistory}
+                    keyExtractor={(item) => item.id}
+                    renderItem={renderPointHistoryItem}
+                    scrollEnabled={false}
+                  />
+                </>
+              ) : null
             }
           />
         </View>
@@ -370,10 +518,17 @@ const Award = () => {
             <Text style={styles.modalTitle}>Xác nhận đổi voucher</Text>
             {selectedPromo && (
               <View style={styles.modalBody}>
-                <Text style={styles.modalLine}>Đối tác: <Text style={styles.modalStrong}>{selectedPromo.brand}</Text></Text>
-                <Text style={styles.modalLine}>Voucher: <Text style={styles.modalStrong}>{selectedPromo.title}</Text></Text>
-                <Text style={styles.modalLine}>Mã: <Text style={styles.modalStrong}>{selectedPromo.code}</Text></Text>
+                <Text style={styles.modalLine}>Mã voucher: <Text style={styles.modalStrong}>{selectedPromo.voucherCode}</Text></Text>
+                <Text style={styles.modalLine}>Mô tả: <Text style={styles.modalStrong}>{selectedPromo.description}</Text></Text>
+                <Text style={styles.modalLine}>Loại: <Text style={styles.modalStrong}>
+                  {selectedPromo.voucherType === 'FOOD_AND_BEVERAGE' ? 'Đồ ăn & Uống' : 
+                   selectedPromo.voucherType === 'SHOPPING' ? 'Mua sắm' : 
+                   selectedPromo.voucherType === 'VEHICLE_SERVICE' ? 'Dịch vụ xe' : 
+                   'Khác'}
+                </Text></Text>
                 <Text style={styles.modalLine}>Chi phí: <Text style={styles.modalStrong}>{selectedPromo.cost} điểm</Text></Text>
+                <Text style={styles.modalLine}>Điểm hiện tại: <Text style={styles.modalStrong}>{points} điểm</Text></Text>
+                <Text style={styles.modalLine}>Điểm còn lại: <Text style={styles.modalStrong}>{points - selectedPromo.cost} điểm</Text></Text>
               </View>
             )}
             <View style={styles.modalActions}>
@@ -567,6 +722,13 @@ const styles = StyleSheet.create({
     width: 120,
     height: 100,
     resizeMode: 'cover',
+  },
+  promoImageContainer: {
+    width: 120,
+    height: 100,
+    backgroundColor: `${COLORS.PRIMARY}15`,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   promoContent: {
     flex: 1,
@@ -824,6 +986,45 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: COLORS.BLACK,
     fontWeight: '600',
+  },
+  promoIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.PRIMARY,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: COLORS.GRAY,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: COLORS.GRAY,
+    marginTop: 16,
+  },
+  usedBadge: {
+    backgroundColor: COLORS.GRAY,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  usedBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.WHITE,
   },
 })
 

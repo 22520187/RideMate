@@ -9,7 +9,9 @@ import {
   Image,
   Dimensions,
   FlatList,
-  AppState
+  AppState,
+  Modal,
+  Alert
 } from 'react-native'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { 
@@ -27,9 +29,12 @@ import {
   Ban,
   Package,
   Ticket,
+  AlertCircle,
 } from 'lucide-react-native'
 import COLORS from '../../../constant/colors'
 import SCREENS from '../../../screens'
+import { getProfile } from '../../../services/userService'
+import { getMyVehicle } from '../../../services/vehicleService'
 
 const { width } = Dimensions.get('window')
 
@@ -37,6 +42,14 @@ const Home = ({ navigation }) => {
   const [searchText, setSearchText] = useState('')
   const insets = useSafeAreaInsets();
   const [refreshKey, setRefreshKey] = useState(0);
+  const [userProfile, setUserProfile] = useState(null);
+  const [vehicleStatus, setVehicleStatus] = useState(null);
+  const [showVehicleRequiredModal, setShowVehicleRequiredModal] = useState(false);
+
+  // Load user profile and vehicle status
+  useEffect(() => {
+    loadUserData();
+  }, []);
 
   // Force refresh SafeArea khi app resume từ background
   useEffect(() => {
@@ -44,12 +57,90 @@ const Home = ({ navigation }) => {
       if (nextAppState === 'active') {
         // Force component re-render để refresh SafeArea insets
         setRefreshKey(prev => prev + 1);
+        // Reload user data when app becomes active
+        loadUserData();
       }
     };
 
     const subscription = AppState.addEventListener('change', handleAppStateChange);
     return () => subscription?.remove();
   }, []);
+
+  // Reload user data when screen gains focus
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadUserData();
+    });
+    return unsubscribe;
+  }, [navigation]);
+
+  const loadUserData = async () => {
+    try {
+      const profileResp = await getProfile();
+      const profile = profileResp?.data;
+      setUserProfile(profile);
+
+      // Try to get vehicle info if user is DRIVER or PASSENGER
+      if (profile && (profile.userType === 'DRIVER' || profile.userType === 'PASSENGER')) {
+        try {
+          const vehicleResp = await getMyVehicle();
+          const vehicle = vehicleResp?.data;
+          setVehicleStatus(vehicle?.status || null);
+        } catch (err) {
+          // No vehicle registered yet
+          setVehicleStatus(null);
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to load user data:', err);
+    }
+  };
+
+  const checkCanCreateRide = () => {
+    // Check if user has vehicle and it's approved
+    if (!userProfile) {
+      Alert.alert('Lỗi', 'Không thể tải thông tin người dùng');
+      return false;
+    }
+
+    // PASSENGER without vehicle - show registration guide
+    if (userProfile.userType === 'PASSENGER' && !vehicleStatus) {
+      setShowVehicleRequiredModal(true);
+      return false;
+    }
+
+    // PASSENGER or DRIVER with pending vehicle
+    if (vehicleStatus === 'PENDING') {
+      Alert.alert(
+        'Xe đang chờ duyệt',
+        'Thông tin xe của bạn đang được admin xem xét. Vui lòng chờ phê duyệt để có thể tạo chuyến đi.',
+        [{ text: 'Đã hiểu' }]
+      );
+      return false;
+    }
+
+    // PASSENGER or DRIVER with rejected vehicle
+    if (vehicleStatus === 'REJECTED') {
+      Alert.alert(
+        'Xe bị từ chối',
+        'Thông tin xe của bạn không được phê duyệt. Vui lòng cập nhật lại thông tin trong mục Quản lý tài khoản.',
+        [
+          { text: 'Hủy', style: 'cancel' },
+          { text: 'Đi tới Profile', onPress: () => navigation.navigate(SCREENS.PROFILE) }
+        ]
+      );
+      return false;
+    }
+
+    // All checks passed
+    return true;
+  };
+
+  const handleCreateRide = () => {
+    if (checkCanCreateRide()) {
+      navigation.navigate('DriverRide');
+    }
+  };
 
   // Mock data for current ride status
   const currentRide = {
@@ -70,7 +161,7 @@ const Home = ({ navigation }) => {
       subtitle: 'Người có xe',
       icon: Car,
       color: COLORS.GREEN,
-      onPress: () => navigation.navigate('DriverRide')
+      onPress: handleCreateRide
     },
     {
       id: 2,
@@ -333,6 +424,49 @@ const Home = ({ navigation }) => {
             />
           </View>
         </ScrollView>
+
+        {/* Modal hướng dẫn đăng ký xe */}
+        <Modal
+          visible={showVehicleRequiredModal}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setShowVehicleRequiredModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalIconContainer}>
+                <AlertCircle size={60} color={COLORS.ORANGE} />
+              </View>
+              
+              <Text style={styles.modalTitle}>Cần đăng ký xe</Text>
+              
+              <Text style={styles.modalMessage}>
+                Để có thể tạo chuyến đi, bạn cần đăng ký thông tin xe trước.{'\n\n'}
+                Vui lòng vào <Text style={styles.modalHighlight}>Quản lý tài khoản</Text> để đăng ký xe của bạn.{'\n\n'}
+                Sau khi đăng ký, admin sẽ xem xét và phê duyệt. Khi xe được duyệt, bạn sẽ có thể tạo chuyến đi.
+              </Text>
+
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.modalButtonSecondary]}
+                  onPress={() => setShowVehicleRequiredModal(false)}
+                >
+                  <Text style={styles.modalButtonTextSecondary}>Để sau</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.modalButtonPrimary]}
+                  onPress={() => {
+                    setShowVehicleRequiredModal(false);
+                    navigation.navigate(SCREENS.PROFILE);
+                  }}
+                >
+                  <Text style={styles.modalButtonTextPrimary}>Đăng ký ngay</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
     </SafeAreaView>
   )
 }
@@ -637,6 +771,76 @@ const styles = StyleSheet.create({
     color: COLORS.WHITE,
     opacity: 0.95,
     lineHeight: 18,
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: COLORS.WHITE,
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  modalIconContainer: {
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: COLORS.BLACK,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  modalMessage: {
+    fontSize: 15,
+    color: COLORS.GRAY_DARK,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  modalHighlight: {
+    fontWeight: '700',
+    color: COLORS.PRIMARY,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    width: '100%',
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalButtonSecondary: {
+    backgroundColor: COLORS.GRAY_LIGHT,
+  },
+  modalButtonPrimary: {
+    backgroundColor: COLORS.PRIMARY,
+  },
+  modalButtonTextSecondary: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.GRAY_DARK,
+  },
+  modalButtonTextPrimary: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.WHITE,
   },
 })
 
