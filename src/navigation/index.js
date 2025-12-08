@@ -148,7 +148,7 @@ const UserTabNavigator = () => {
     >
       <Tab.Screen
         name={SCREENS.HOME}
-        component={Home}
+        component={MatchedRideScreen}
         options={{ tabBarLabel: "Home" }}
       />
       <Tab.Screen
