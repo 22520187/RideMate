@@ -7,19 +7,22 @@ import { MainStackNavigator } from "./src/navigation";
 import COLORS from "./src/constant/colors";
 import { OverlayProvider, Chat } from "stream-chat-expo";
 import { chatClient } from "./src/utils/StreamClient";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 export default function App() {
   return (
-    <OverlayProvider>
-      <Chat client={chatClient}>
-        <SafeAreaProvider>
-          <NavigationContainer>
-            <StatusBar style="auto" backgroundColor={COLORS.BLUE} />
-            <MainStackNavigator />
-            <Toast />
-          </NavigationContainer>
-        </SafeAreaProvider>
-      </Chat>
-    </OverlayProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <OverlayProvider>
+        <Chat client={chatClient}>
+          <SafeAreaProvider>
+            <NavigationContainer>
+              <StatusBar style="auto" backgroundColor={COLORS.BLUE} />
+              <MainStackNavigator />
+              <Toast />
+            </NavigationContainer>
+          </SafeAreaProvider>
+        </Chat>
+      </OverlayProvider>
+    </GestureHandlerRootView>
   );
 }
