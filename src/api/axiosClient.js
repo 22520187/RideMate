@@ -11,9 +11,6 @@ import {
 const axiosClient = axios.create({
   baseURL: API_BASE_URL,
   timeout: 10000,
-  headers: {
-    "Content-Type": "application/json",
-  },
 });
 
 // Add token to header
