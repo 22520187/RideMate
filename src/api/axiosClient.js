@@ -10,22 +10,34 @@ import {
 
 const axiosClient = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10000,
-  headers: {
-    "Content-Type": "application/json",
-  },
+  timeout: 15000,
 });
 
-// Add token to header
 axiosClient.interceptors.request.use(async (config) => {
   const token = await getToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+
+  // Detect FormData for React Native
+  const isFormData =
+    typeof FormData !== "undefined" &&
+    (config.data instanceof FormData ||
+      (config.data && typeof config.data.append === "function"));
+
+  // If FormData → DO NOT set Content-Type
+  if (isFormData) {
+    delete config.headers["Content-Type"];
+  } else {
+    // JSON request → set JSON type
+    if (!config.headers["Content-Type"]) {
+      config.headers["Content-Type"] = "application/json";
+    }
+  }
+
   return config;
 });
 
-// Handle response with refresh token mechanism
 let isRefreshing = false;
 let failedQueue = [];
 
@@ -38,12 +50,16 @@ const processQueue = (error, token = null) => {
 };
 
 axiosClient.interceptors.response.use(
-  (response) => response.data,
+  (response) => {
+    // Return full response, not response.data
+    return response;
+  },
+
   async (error) => {
     const originalRequest = error.config;
     const status = error.response?.status;
-    if (status === 401 && !originalRequest?._retry) {
-      // Try to refresh access token once
+
+    if (status === 401 && !originalRequest._retry) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
@@ -57,6 +73,7 @@ axiosClient.interceptors.response.use(
 
       originalRequest._retry = true;
       isRefreshing = true;
+
       try {
         const refreshToken = await getRefreshToken();
         if (!refreshToken) {
@@ -65,38 +82,39 @@ axiosClient.interceptors.response.use(
           return Promise.reject(error);
         }
 
-        // Call refresh endpoint directly using axios (without interceptors)
         const resp = await axios.post(
-          `${API_BASE_URL}/api/auth/refresh-token`,
+          `${API_BASE_URL}/auth/refresh-token`,
           { refreshToken }
         );
-        const apiResponse = resp.data; // wrapper with data
-        const authData = apiResponse.data;
-        if (authData && authData.accessToken) {
-          // Save new tokens
-          await saveToken(authData.accessToken);
-          if (authData.refreshToken)
-            await saveRefreshToken(authData.refreshToken);
-          // Update axiosClient defaults
-          axiosClient.defaults.headers.common[
-            "Authorization"
-          ] = `Bearer ${authData.accessToken}`;
-          processQueue(null, authData.accessToken);
-          return axiosClient(originalRequest);
-        } else {
-          processQueue(new Error("No access token returned"), null);
+
+        const newTokens = resp.data?.data;
+        if (!newTokens?.accessToken) {
           await clearTokens();
           return Promise.reject(error);
         }
-      } catch (refreshError) {
-        processQueue(refreshError, null);
+
+        await saveToken(newTokens.accessToken);
+        if (newTokens.refreshToken) {
+          await saveRefreshToken(newTokens.refreshToken);
+        }
+
+        axiosClient.defaults.headers.common[
+          "Authorization"
+        ] = `Bearer ${newTokens.accessToken}`;
+
+        processQueue(null, newTokens.accessToken);
+
+        originalRequest.headers.Authorization = `Bearer ${newTokens.accessToken}`;
+        return axiosClient(originalRequest);
+      } catch (err) {
+        processQueue(err, null);
         await clearTokens();
-        return Promise.reject(refreshError);
+        return Promise.reject(err);
       } finally {
         isRefreshing = false;
       }
     }
-    // Not 401 or retried already
+
     return Promise.reject(error);
   }
 );

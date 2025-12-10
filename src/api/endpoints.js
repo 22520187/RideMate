@@ -1,24 +1,24 @@
 export default {
   auth: {
-    login: "/api/auth/login",
-    register: "/api/auth/register",
-    sendOtp: "/api/auth/send-otp",
-    verifyOtp: "/api/auth/verify-otp",
-    registerInitiate: "/api/auth/register/initiate",
-    registerComplete: "/api/auth/register/complete",
-    refresh: "/api/auth/refresh-token",
+    login: "/auth/login",
+    register: "/auth/register",
+    sendOtp: "/auth/send-otp",
+    verifyOtp: "/auth/verify-otp",
+    registerInitiate: "/auth/register/initiate",
+    registerComplete: "/auth/register/complete",
+    refresh: "/auth/refresh-token",
   },
 
   user: {
-    profile: "/api/users/me",
-    update: "/api/users",
+    profile: "/users/me",
+    update: "/users",
   },
 
   vehicles: {
     register: "/vehicles/register",
     myVehicle: "/vehicles/my-vehicle",
     byId: (id) => `/vehicles/${id}`,
-    updateStatus: (id) => `/vehicles/${id}/status`,
+    updateStatus: (id) => `/api/vehicles/${id}/status`,
     listByDriver: (driverId) => `/vehicles/driver/${driverId}`,
     pending: "/vehicles/pending",
   },
@@ -29,11 +29,14 @@ export default {
   },
 
   vouchers: {
-    list: "/api/vouchers",
-    myVouchers: "/api/vouchers/my-vouchers",
-    redeem: (id) => `/api/vouchers/${id}/redeem`,
-    create: "/api/vouchers",
+    list: "/vouchers",
+    myVouchers: "/vouchers/my-vouchers",
+    redeem: (id) => `/vouchers/${id}/redeem`,
+    create: "/vouchers",
   },
 
-  //... other endpoints
+  upload: {
+    image: "/upload/image",
+  },
+
 };
