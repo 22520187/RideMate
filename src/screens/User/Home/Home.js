@@ -50,18 +50,14 @@ const Home = ({ navigation }) => {
   const [showVehicleRequiredModal, setShowVehicleRequiredModal] =
     useState(false);
 
-  // Load user profile and vehicle status
   useEffect(() => {
     loadUserData();
   }, []);
 
-  // Force refresh SafeArea khi app resume từ background
   useEffect(() => {
     const handleAppStateChange = (nextAppState) => {
-      if (nextAppState === "active") {
-        // Force component re-render để refresh SafeArea insets
-        setRefreshKey((prev) => prev + 1);
-        // Reload user data when app becomes active
+      if (nextAppState === 'active') {
+        setRefreshKey(prev => prev + 1);
         loadUserData();
       }
     };
@@ -73,7 +69,6 @@ const Home = ({ navigation }) => {
     return () => subscription?.remove();
   }, []);
 
-  // Reload user data when screen gains focus
   useEffect(() => {
     const unsubscribe = navigation.addListener("focus", () => {
       loadUserData();
@@ -87,17 +82,12 @@ const Home = ({ navigation }) => {
       const profile = profileResp?.data;
       setUserProfile(profile);
 
-      // Try to get vehicle info if user is DRIVER or PASSENGER
-      if (
-        profile &&
-        (profile.userType === "DRIVER" || profile.userType === "PASSENGER")
-      ) {
+      if (profile && (profile.userType === 'DRIVER' || profile.userType === 'PASSENGER')) {
         try {
           const vehicleResp = await getMyVehicle();
           const vehicle = vehicleResp?.data;
           setVehicleStatus(vehicle?.status || null);
         } catch (err) {
-          // No vehicle registered yet
           setVehicleStatus(null);
         }
       }
@@ -107,20 +97,16 @@ const Home = ({ navigation }) => {
   };
 
   const checkCanCreateRide = () => {
-    // Check if user has vehicle and it's approved
     if (!userProfile) {
       Alert.alert("Lỗi", "Không thể tải thông tin người dùng");
       return false;
     }
 
-    // PASSENGER without vehicle - show registration guide
-    if (userProfile.userType === "PASSENGER" && !vehicleStatus) {
+    if (userProfile.userType === 'PASSENGER' && !vehicleStatus) {
       setShowVehicleRequiredModal(true);
       return false;
     }
-
-    // PASSENGER or DRIVER with pending vehicle
-    if (vehicleStatus === "PENDING") {
+    if (vehicleStatus === 'PENDING') {
       Alert.alert(
         "Xe đang chờ duyệt",
         "Thông tin xe của bạn đang được admin xem xét. Vui lòng chờ phê duyệt để có thể tạo chuyến đi.",
@@ -129,8 +115,7 @@ const Home = ({ navigation }) => {
       return false;
     }
 
-    // PASSENGER or DRIVER with rejected vehicle
-    if (vehicleStatus === "REJECTED") {
+    if (vehicleStatus === 'REJECTED') {
       Alert.alert(
         "Xe bị từ chối",
         "Thông tin xe của bạn không được phê duyệt. Vui lòng cập nhật lại thông tin trong mục Quản lý tài khoản.",
@@ -145,27 +130,26 @@ const Home = ({ navigation }) => {
       return false;
     }
 
-    // All checks passed
     return true;
   };
 
   const handleCreateRide = () => {
-    if (checkCanCreateRide()) {
-      navigation.navigate("DriverRide");
+    if (checkCanCreateRide() == false) {
+      navigation.navigate('DriverRide');
+    } else {
+      navigation.navigate('DriverRide');
     }
   };
 
-  // Mock data for current ride status
   const currentRide = {
     hasActiveRide: false,
-    type: "driver", // 'driver' or 'passenger'
-    destination: "Trường Đại học Công nghệ",
-    time: "15 phút",
-    passengers: [],
-  };
+    type: 'driver',
+    destination: 'Trường Đại học Công nghệ',
+    time: '15 phút',
+    passengers: []
+  }
 
-  // Mock data for points
-  const userPoints = 1250;
+  const userPoints = 1250
 
   const mainFunctions = [
     {

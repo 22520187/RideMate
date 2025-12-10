@@ -1,8 +1,7 @@
 import axiosClient from "../api/axiosClient";
 import endpoints from "../api/endpoints";
 
-export const registerVehicle = (data) =>
-  axiosClient.post(endpoints.vehicles.register, data);
+export const registerVehicle = (data) => axiosClient.post(endpoints.vehicles.register, data);
 export const getMyVehicle = () => axiosClient.get(endpoints.vehicles.myVehicle);
 export const getVehicleById = (id) =>
   axiosClient.get(endpoints.vehicles.byId(id));

@@ -24,6 +24,7 @@ import SCREENS from "..";
 import { chatClient } from "../../utils/StreamClient";
 import { API_BASE_URL } from "@env";
 import { saveToken, saveRefreshToken } from "../../utils/storage";
+import endpoints from "../../api/endpoints";
 
 const Login = ({ navigation }) => {
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -49,20 +50,26 @@ const Login = ({ navigation }) => {
       return;
     }
 
+    const formattedPhone = phoneNumber.replace(/\s/g, "");
+
     try {
       setIsLoading(true);
+      const loginUrl = `${API_BASE_URL}${endpoints.auth.login}`;
 
       // Gọi API backend
-      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+      const response = await fetch(loginUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          phoneNumber: phoneNumber.replace(/\s/g, ""),
+          phoneNumber: formattedPhone,
           password,
         }),
       });
 
-      if (!response.ok) throw new Error("Login failed");
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Login failed: ${response.status}`);
+      }
 
       const res = await response.json();
       const authData = res.data; // ApiResponse.data -> AuthResponse
@@ -70,8 +77,12 @@ const Login = ({ navigation }) => {
       const { chatToken, user, accessToken, refreshToken } = authData;
 
       // Save tokens
-      if (accessToken) await saveToken(accessToken);
-      if (refreshToken) await saveRefreshToken(refreshToken);
+      if (accessToken) {
+        await saveToken(accessToken);
+      }
+      if (refreshToken) {
+        await saveRefreshToken(refreshToken);
+      }
 
       // Kết nối user lên Stream
       await chatClient.connectUser(
@@ -82,8 +93,6 @@ const Login = ({ navigation }) => {
         },
         chatToken
       );
-
-      console.log("Stream user connected successfully");
 
       Toast.show({
         type: "success",
@@ -97,7 +106,6 @@ const Login = ({ navigation }) => {
         routes: [{ name: "MainTabs" }],
       });
     } catch (error) {
-      console.log(error);
       Toast.show({
         type: "error",
         text1: "Lỗi",
@@ -109,10 +117,8 @@ const Login = ({ navigation }) => {
   };
 
   const checkUserExists = async (phone) => {
-    // Simulate API call - replace with actual API
     return new Promise((resolve) => {
       setTimeout(() => {
-        // For demo purposes, assume user exists if phone ends with even number
         resolve(phone.slice(-1) % 2 === 0);
       }, 1000);
     });

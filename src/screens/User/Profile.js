@@ -15,6 +15,7 @@ import {
   Modal,
   FlatList,
 } from "react-native";
+import { normalizeMimeType } from "../../services/uploadService";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
@@ -117,6 +118,44 @@ export default function Profile() {
   const [confirmOpenVisible, setConfirmOpenVisible] = useState(false);
   const [vehicleTypeModalVisible, setVehicleTypeModalVisible] = useState(false);
 
+  // Helper function to format license plate
+  const formatLicensePlate = (text) => {
+    // Remove all spaces and convert to uppercase
+    let formatted = text.replace(/\s/g, '').toUpperCase();
+    
+    // Remove any non-alphanumeric except dash
+    formatted = formatted.replace(/[^0-9A-Z-]/g, '');
+    
+    // Auto-format: XX-YZZZZ or XX-YY-ZZZZ
+    // Pattern: 2 digits, 1-2 letters, dash, 4-5 digits
+    // Limit to max 10 characters (e.g., "51AB-12345")
+    if (formatted.length > 10) {
+      formatted = formatted.substring(0, 10);
+    }
+    
+    return formatted;
+  };
+
+  // Helper function to validate license plate format
+  const validateLicensePlate = (plate) => {
+    if (!plate || !plate.trim()) {
+      return { valid: false, message: "Biển số xe không được để trống" };
+    }
+    
+    const trimmed = plate.trim().toUpperCase();
+    // Backend regex: ^[0-9]{2}[A-Z]{1,2}-[0-9]{4,5}$
+    const regex = /^[0-9]{2}[A-Z]{1,2}-[0-9]{4,5}$/;
+    
+    if (!regex.test(trimmed)) {
+      return {
+        valid: false,
+        message: "Biển số phải có định dạng: XX-YZZZZ hoặc XX-YY-ZZZZ\nVí dụ: 30A-12345 hoặc 51AB-12345"
+      };
+    }
+    
+    return { valid: true, message: null };
+  };
+
   const vehicleTypes = [
     { label: "Xe máy", value: "MOTORBIKE" },
     { label: "Ô tô", value: "CAR" },
@@ -145,7 +184,22 @@ export default function Profile() {
         asset.uri.split("/").pop() ||
         `photo_${Date.now()}.jpg`;
       const ext = (name && name.split(".").pop()) || "jpg";
-      const type = asset.type || `image/${ext === "jpg" ? "jpeg" : ext}`;
+      const getMimeType = (assetType, fileName) => {
+        if (assetType && assetType.startsWith("image/")) {
+          return assetType;
+        }
+        const ext = (fileName && fileName.split(".").pop()?.toLowerCase()) || "jpg";
+        const mimeMap = {
+          jpg: "image/jpeg",
+          jpeg: "image/jpeg",
+          png: "image/png",
+          gif: "image/gif",
+          webp: "image/webp",
+        };
+        return mimeMap[ext] || "image/jpeg";
+      };
+      
+      const type = getMimeType(asset.type, name);
 
       if (editing) {
         setVehicleData((prev) => ({
@@ -242,7 +296,16 @@ export default function Profile() {
   const submitRegistration = async () => {
     // Validate required fields
     if (!vehicleData.licensePlate?.trim()) {
+      setErrors((e) => ({ ...e, licensePlate: "Biển số xe không được để trống" }));
       Alert.alert("Thiếu thông tin", "Vui lòng nhập biển số xe.");
+      return;
+    }
+
+    // Validate license plate format
+    const licenseValidation = validateLicensePlate(vehicleData.licensePlate);
+    if (!licenseValidation.valid) {
+      setErrors((e) => ({ ...e, licensePlate: licenseValidation.message }));
+      Alert.alert("Lỗi định dạng", licenseValidation.message);
       return;
     }
     if (!vehicleData.make?.trim()) {
@@ -281,19 +344,53 @@ export default function Profile() {
         const firstImage = vehicleData.images[0];
         if (!firstImage.uri.startsWith("http")) {
           // Local image - need to upload
-          const blob = await uriToBlob(firstImage.uri);
-          const uploadForm = new FormData();
-          uploadForm.append("file", {
+          console.log("[UPLOAD] Preparing to upload image:", {
             uri: firstImage.uri,
-            name: firstImage.name || "registration.jpg",
-            type: firstImage.type || "image/jpeg",
+            name: firstImage.name,
+            type: firstImage.type,
           });
 
-          const uploadResp = await uploadImage(uploadForm);
-          registrationDocumentUrl = uploadResp?.data?.url;
+          let imageUri = firstImage.uri;
+          if (Platform.OS === "android") {
+            if (!imageUri.startsWith("file://") && !imageUri.startsWith("http")) {
+              imageUri = `file://${imageUri}`;
+            }
+          } else {
+            if (imageUri.startsWith("file://")) {
+              imageUri = imageUri.replace("file://", "");
+            }
+          }
 
-          if (!registrationDocumentUrl) {
-            Alert.alert("Lỗi", "Không thể tải ảnh lên. Vui lòng thử lại.");
+          const fileName = firstImage.name || `registration_${Date.now()}.jpg`;
+          const mimeType = normalizeMimeType(firstImage.type, fileName);
+
+          const uploadForm = new FormData();
+          uploadForm.append("file", {
+            uri: imageUri,
+            type: mimeType, // Đảm bảo là MIME type hợp lệ
+            name: fileName,
+          });
+
+          console.log("[UPLOAD] Uploading with:", {
+            uri: imageUri,
+            type: mimeType,
+            name: fileName,
+          });
+
+          try {
+            const uploadResp = await uploadImage(uploadForm);
+            registrationDocumentUrl = uploadResp?.data?.url;
+
+            if (!registrationDocumentUrl) {
+              Alert.alert("Lỗi", "Không thể tải ảnh lên. Vui lòng thử lại.");
+              return;
+            }
+          } catch (uploadError) {
+            console.error("[UPLOAD] Upload error:", uploadError);
+            const errorMessage =
+              uploadError?.message ||
+              "Không thể tải ảnh lên. Vui lòng thử lại.";
+            Alert.alert("Lỗi upload", errorMessage);
             return;
           }
         } else {
@@ -301,10 +398,9 @@ export default function Profile() {
           registrationDocumentUrl = firstImage.uri;
         }
       }
-
-      // Prepare vehicle registration data (matching backend DTO)
+      const formattedLicensePlate = vehicleData.licensePlate.trim().toUpperCase();
       const vehicleRegisterData = {
-        licensePlate: vehicleData.licensePlate.trim(),
+        licensePlate: formattedLicensePlate,
         make: vehicleData.make.trim(),
         model: vehicleData.model.trim(),
         color: vehicleData.color.trim(),
@@ -320,8 +416,8 @@ export default function Profile() {
       Alert.alert(
         "Thành công",
         vehicleResp?.message ||
-          apiResp?.message ||
-          "Đã gửi thông tin xe. Đang chờ admin duyệt.\n\nSau khi xe được duyệt, bạn sẽ có thể tạo chuyến đi."
+        apiResp?.message ||
+        "Đã gửi thông tin xe. Đang chờ admin duyệt.\n\nSau khi xe được duyệt, bạn sẽ có thể tạo chuyến đi."
       );
 
       setRegistered(true);
@@ -340,16 +436,30 @@ export default function Profile() {
           : prev.images,
       }));
       setEditing(false);
-      
-      // Reload user profile to refresh userType (in case backend changes it)
+
       fetchUserAndVehicle();
     } catch (err) {
       console.warn("Vehicle registration error:", err);
-      Alert.alert(
-        "Lỗi",
-        err?.response?.data?.message ||
-          "Gửi thông tin thất bại. Vui lòng thử lại."
-      );
+      console.warn("Error details:", {
+        message: err?.message,
+        response: err?.response?.data,
+        status: err?.response?.status,
+        config: err?.config,
+      });
+
+      let errorMessage = "Gửi thông tin thất bại. Vui lòng thử lại.";
+
+      if (err?.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      } else if (err?.message) {
+        if (err.message.includes("Network Error")) {
+          errorMessage = "Lỗi kết nối. Vui lòng kiểm tra kết nối mạng và thử lại.";
+        } else {
+          errorMessage = err.message;
+        }
+      }
+
+      Alert.alert("Lỗi", errorMessage);
     } finally {
       setSubmitting(false);
     }
@@ -652,13 +762,26 @@ export default function Profile() {
                       >
                         <Text style={styles.label}>Biển số xe</Text>
                         <TextInput
-                          style={styles.input}
-                          placeholder="VD: 51A-12345"
+                          style={[
+                            styles.input,
+                            errors.licensePlate && styles.inputError,
+                          ]}
+                          placeholder="VD: 30A-12345 hoặc 51AB-12345"
                           value={vehicleData.licensePlate}
-                          onChangeText={(t) =>
-                            setVehicleData((p) => ({ ...p, licensePlate: t }))
-                          }
+                          onChangeText={(t) => {
+                            const formatted = formatLicensePlate(t);
+                            setVehicleData((p) => ({ ...p, licensePlate: formatted }));
+                            // Clear error when user types
+                            if (errors.licensePlate) {
+                              setErrors((e) => ({ ...e, licensePlate: null }));
+                            }
+                          }}
+                          autoCapitalize="characters"
+                          maxLength={10}
                         />
+                        {errors.licensePlate && (
+                          <Text style={styles.errorText}>{errors.licensePlate}</Text>
+                        )}
 
                         <Text style={[styles.label, { marginTop: 12 }]}>
                           Hãng xe
@@ -1098,6 +1221,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   errorText: { color: "red", marginTop: 4 },
+  inputError: {
+    borderColor: "#ff4444",
+    borderWidth: 1,
+  },
   section: {
     backgroundColor: "#fff",
     borderRadius: 12,
