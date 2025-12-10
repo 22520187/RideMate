@@ -13,6 +13,7 @@ import {
   Dimensions,
   AppState,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import {
   SafeAreaView,
@@ -23,6 +24,12 @@ import COLORS from "../../../constant/colors";
 import RouteMap from "../../../components/RouteMap";
 import { Modal } from "react-native";
 import { useSharedPath } from "../../../hooks/useSharedPath";
+import {
+  getOrCreateDirectChannel,
+  sendMessage,
+  watchChannel,
+  unwatchChannel,
+} from "../../../services/chatService";
 
 const { width, height } = Dimensions.get("window");
 
@@ -32,14 +39,9 @@ const MatchedRideScreen = ({ navigation, route }) => {
   const [refreshKey, setRefreshKey] = useState(0);
 
   const [inputText, setInputText] = useState("");
-  const [messages, setMessages] = useState([
-    {
-      id: "1",
-      text: "Mình sẽ đón bạn trong 5 phút nữa nhé!",
-      senderId: "driver",
-      createdAt: new Date(Date.now() - 1000 * 60 * 5),
-    },
-  ]);
+  const [messages, setMessages] = useState([]);
+  const [channel, setChannel] = useState(null);
+  const [loadingChat, setLoadingChat] = useState(true);
 
   const [rideStatus, setRideStatus] = useState("matched"); // 'matched' | 'ongoing' | 'completed'
   const { path } = useSharedPath();
@@ -58,15 +60,69 @@ const MatchedRideScreen = ({ navigation, route }) => {
     return reviews[rating - 1] || "";
   };
 
-  const handleCompleteRide = () => {
-    setRideStatus("completed");
-    // Cộng điểm thưởng ngẫu nhiên
-    const earned = Math.floor(Math.random() * 20) + 10;
-    setRewardPoints(earned);
+  // Initialize Stream Chat channel on mount
+  useEffect(() => {
+    const initializeChat = async () => {
+      try {
+        setLoadingChat(true);
 
-    // Hiện modal đánh giá
-    setShowRatingModal(true);
-  };
+        // Assuming current user info is available in matchedRideData or navigation params
+        const currentUserId = matchedRideData.currentUserId;
+        const otherUserId = matchedRideData.isDriver
+          ? matchedRideData.passengerId
+          : matchedRideData.driverId;
+
+        if (!currentUserId || !otherUserId) {
+          console.warn("Missing user IDs for chat initialization");
+          setLoadingChat(false);
+          return;
+        }
+
+        // Create or get direct message channel
+        const chatChannel = await getOrCreateDirectChannel(
+          currentUserId,
+          otherUserId,
+          {
+            rideId: matchedRideData.rideId,
+            from: matchedRideData.from,
+            to: matchedRideData.to,
+          }
+        );
+
+        // Watch channel for real-time updates
+        await watchChannel(chatChannel, {
+          messages: { limit: 50 },
+        });
+
+        // Set up listener for new messages
+        const handleMessage = (event) => {
+          if (event.message) {
+            setMessages((prev) => [...prev, event.message]);
+          }
+        };
+
+        chatChannel.on("message.new", handleMessage);
+
+        setChannel(chatChannel);
+
+        // Load initial messages
+        const initialMessages = chatChannel.state.messages || [];
+        setMessages(initialMessages);
+
+        setLoadingChat(false);
+
+        return () => {
+          chatChannel.off("message.new", handleMessage);
+          unwatchChannel(chatChannel);
+        };
+      } catch (error) {
+        console.warn("Error initializing chat:", error);
+        setLoadingChat(false);
+      }
+    };
+
+    initializeChat();
+  }, [matchedRideData]);
 
   // Force refresh SafeArea khi app resume từ background
   useEffect(() => {
@@ -138,23 +194,55 @@ const MatchedRideScreen = ({ navigation, route }) => {
     [rideDetails.to]
   );
 
-  const handleSend = () => {
-    if (!inputText.trim()) return;
+  const handleSend = async () => {
+    if (!inputText.trim() || !channel) return;
 
-    const newMessage = {
-      id: Date.now().toString(),
-      text: inputText,
-      senderId: "me",
-      createdAt: new Date(),
-    };
-
-    setMessages((prev) => [...prev, newMessage]);
-    setInputText("");
+    try {
+      // Send message via Stream Chat
+      await sendMessage(channel, inputText.trim());
+      setInputText("");
+    } catch (error) {
+      console.warn("Error sending message:", error);
+      Alert.alert("Lỗi", "Không thể gửi tin nhắn. Vui lòng thử lại.");
+    }
   };
 
-  const handleCall = useCallback(() => {
-    Linking.openURL(`tel:${otherPerson.phone}`);
-  }, [otherPerson.phone]);
+  const handleCompleteRide = () => {
+    setRideStatus("completed");
+    // Cộng điểm thưởng ngẫu nhiên
+    const earned = Math.floor(Math.random() * 20) + 10;
+    setRewardPoints(earned);
+
+    // Hiện modal đánh giá
+    setShowRatingModal(true);
+  };
+
+  const handleAudioCall = useCallback(async () => {
+    if (!channel) return;
+    try {
+      // Initiate audio call through Stream
+      // In a real implementation, this would use Stream's Video SDK
+      Alert.alert("Gọi điện thoại", `Đang gọi ${otherPerson.name}...`, [
+        { text: "Hủy" },
+      ]);
+      // TODO: Implement actual audio call using Stream Video SDK
+    } catch (error) {
+      console.warn("Error initiating audio call:", error);
+    }
+  }, [channel, otherPerson.name]);
+
+  const handleVideoCall = useCallback(async () => {
+    if (!channel) return;
+    try {
+      // Initiate video call through Stream
+      Alert.alert("Gọi video", `Đang gọi video ${otherPerson.name}...`, [
+        { text: "Hủy" },
+      ]);
+      // TODO: Implement actual video call using Stream Video SDK
+    } catch (error) {
+      console.warn("Error initiating video call:", error);
+    }
+  }, [channel, otherPerson.name]);
 
   return (
     <SafeAreaView key={refreshKey} style={styles.container} edges={["top"]}>
@@ -276,22 +364,74 @@ const MatchedRideScreen = ({ navigation, route }) => {
           </View>
 
           {/* Recent Messages */}
-          {messages.length > 0 && (
+          {loadingChat ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={COLORS.PRIMARY} />
+              <Text style={{ marginTop: 8, color: COLORS.GRAY }}>
+                Đang tải chat...
+              </Text>
+            </View>
+          ) : messages.length > 0 ? (
             <ScrollView
               style={styles.messagesContainer}
               showsVerticalScrollIndicator={false}
             >
-              {messages.map((message) => (
-                <View key={message.id} style={styles.messageRow}>
-                  <View style={styles.messageBubble}>
-                    <Text style={styles.messageText}>{message.text}</Text>
+              {messages.map((message) => {
+                const isMyMessage =
+                  message.user?.id === matchedRideData.currentUserId;
+                return (
+                  <View
+                    key={message.id}
+                    style={[
+                      styles.messageRow,
+                      isMyMessage && styles.messageRowMyMessage,
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.messageBubble,
+                        isMyMessage && styles.messageBubbleOwn,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.messageText,
+                          isMyMessage && styles.messageTextOwn,
+                        ]}
+                      >
+                        {message.text}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.messageTime,
+                          isMyMessage && styles.messageTimeOwn,
+                        ]}
+                      >
+                        {message.created_at
+                          ? new Date(message.created_at).toLocaleTimeString(
+                              [],
+                              {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              }
+                            )
+                          : ""}
+                      </Text>
+                    </View>
                   </View>
-                </View>
-              ))}
+                );
+              })}
             </ScrollView>
+          ) : (
+            <View style={styles.emptyMessagesContainer}>
+              <MaterialIcons name="chat-bubble" size={40} color={COLORS.GRAY} />
+              <Text style={styles.emptyMessagesText}>
+                Bắt đầu cuộc trò chuyện
+              </Text>
+            </View>
           )}
 
-          {/* Input Bar */}
+          {/* Input Bar with Call Buttons */}
           <View
             style={[
               styles.inputBar,
@@ -301,16 +441,32 @@ const MatchedRideScreen = ({ navigation, route }) => {
             <TextInput
               value={inputText}
               onChangeText={setInputText}
-              placeholder="Tin nhắn mới dành cho bạn"
+              placeholder="Tin nhắn..."
               style={styles.inputField}
               multiline
               placeholderTextColor={COLORS.PLACEHOLDER_COLOR}
+              editable={!loadingChat}
             />
-            <TouchableOpacity onPress={handleSend} style={styles.sendButton}>
-              <MaterialIcons name="send" size={18} color={COLORS.WHITE} />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={handleCall} style={styles.callButton}>
+            <TouchableOpacity
+              onPress={handleAudioCall}
+              style={styles.callButton}
+              disabled={loadingChat}
+            >
               <MaterialIcons name="phone" size={18} color={COLORS.WHITE} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleVideoCall}
+              style={[styles.callButton, { backgroundColor: COLORS.PRIMARY }]}
+              disabled={loadingChat}
+            >
+              <MaterialIcons name="videocam" size={18} color={COLORS.WHITE} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleSend}
+              style={styles.sendButton}
+              disabled={loadingChat}
+            >
+              <MaterialIcons name="send" size={18} color={COLORS.WHITE} />
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
@@ -537,19 +693,54 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     height: 105,
   },
+  loadingContainer: {
+    height: 105,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 16,
+  },
+  emptyMessagesContainer: {
+    height: 105,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 16,
+  },
+  emptyMessagesText: {
+    marginTop: 8,
+    fontSize: 14,
+    color: COLORS.GRAY,
+  },
   messageRow: {
     marginBottom: 8,
+    flexDirection: "row",
+    justifyContent: "flex-start",
+  },
+  messageRowMyMessage: {
+    justifyContent: "flex-end",
   },
   messageBubble: {
     backgroundColor: COLORS.BLUE_LIGHT,
     padding: 12,
     borderRadius: 12,
-    alignSelf: "flex-start",
     maxWidth: "80%",
+  },
+  messageBubbleOwn: {
+    backgroundColor: COLORS.PRIMARY,
   },
   messageText: {
     fontSize: 14,
     color: COLORS.BLACK,
+  },
+  messageTextOwn: {
+    color: COLORS.WHITE,
+  },
+  messageTime: {
+    fontSize: 11,
+    color: COLORS.GRAY,
+    marginTop: 4,
+  },
+  messageTimeOwn: {
+    color: "rgba(255,255,255,0.7)",
   },
   inputBar: {
     flexDirection: "row",
@@ -560,6 +751,7 @@ const styles = StyleSheet.create({
     minHeight: 44,
     borderTopColor: COLORS.GRAY_LIGHT,
     backgroundColor: COLORS.WHITE,
+    gap: 6,
   },
   inputField: {
     flex: 1,
@@ -570,7 +762,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     minHeight: 32,
     maxHeight: 100,
-    marginRight: 6,
     lineHeight: 20,
   },
   sendButton: {
@@ -580,7 +771,6 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.PRIMARY,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 6,
   },
   callButton: {
     width: 34,
