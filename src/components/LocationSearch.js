@@ -96,6 +96,7 @@ const LocationSearch = ({
     setSuggestions([])
     setShowSuggestionsList(false)
     setIsLoading(false)
+    setIsFocused(false) // Đảm bảo input không còn focused để đóng suggestions
   }
 
   const handleFocus = () => {
