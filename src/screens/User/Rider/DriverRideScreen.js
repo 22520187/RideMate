@@ -63,7 +63,7 @@ const DriverRideScreen = ({ navigation, route }) => {
   const checkUserPermissions = async () => {
     try {
       const profileResp = await getProfile();
-      const profile = profileResp?.data;
+      const profile = profileResp?.data?.data; // Get actual UserDto from ApiResponse
       setUserProfile(profile);
 
       if (!profile) {
@@ -76,7 +76,7 @@ const DriverRideScreen = ({ navigation, route }) => {
       // Try to get vehicle info
       try {
         const vehicleResp = await getMyVehicle();
-        const vehicle = vehicleResp?.data;
+        const vehicle = vehicleResp?.data?.data; // Get actual VehicleResponse from ApiResponse
         setVehicleStatus(vehicle?.status || null);
 
         // Check if vehicle is not approved
@@ -110,7 +110,8 @@ const DriverRideScreen = ({ navigation, route }) => {
           Alert.alert('Không thể tạo chuyến đi', message, buttons);
         }
       } catch (vehicleErr) {
-        // No vehicle found
+        // No vehicle found or error
+        console.log('Vehicle fetch error:', vehicleErr?.response?.status, vehicleErr?.message);
         Alert.alert(
           'Cần đăng ký xe',
           'Bạn cần đăng ký xe trước khi tạo chuyến đi. Vui lòng vào Quản lý tài khoản để đăng ký xe.',
@@ -172,6 +173,79 @@ const DriverRideScreen = ({ navigation, route }) => {
       });
     }
   }, [route?.params?.destination]);
+
+  // Tự động tính toán và vẽ đường đi khi cả hai điểm đã được chọn
+  useEffect(() => {
+    const calculateRoute = async () => {
+      // Chỉ tính toán nếu cả hai điểm đều có
+      if (!originCoordinate || !destinationCoordinate) {
+        console.log('⚠️ Missing coordinates:', { originCoordinate, destinationCoordinate });
+        return;
+      }
+
+      // Không tính toán nếu đang loading
+      if (isLoadingDirections) {
+        console.log('⚠️ Already loading directions');
+        return;
+      }
+
+      console.log('🗺️ Auto-calculating route...');
+      setIsLoadingDirections(true);
+      try {
+        const path = await osrmGetRoute(originCoordinate, destinationCoordinate);
+        
+        if (path && path.length > 0) {
+          console.log('✅ Route calculated:', path.length, 'points');
+          setRoutePath(path);
+
+          // Tính toán thông tin tuyến đường
+          let distanceKm = 0;
+          for (let i = 1; i < path.length; i++) {
+            const a = path[i - 1];
+            const b = path[i];
+            const dLat = ((b.latitude - a.latitude) * Math.PI) / 180;
+            const dLon = ((b.longitude - a.longitude) * Math.PI) / 180;
+            const lat1 = (a.latitude * Math.PI) / 180;
+            const lat2 = (b.latitude * Math.PI) / 180;
+            const sinDLat = Math.sin(dLat / 2);
+            const sinDLon = Math.sin(dLon / 2);
+            const h =
+              sinDLat * sinDLat +
+              Math.cos(lat1) * Math.cos(lat2) * sinDLon * sinDLon;
+            const c = 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+            distanceKm += 6371 * c;
+          }
+          const durationMinutes = Math.round(distanceKm * 2.5);
+          const price = calculatePrice(distanceKm);
+
+          setRouteInfo({
+            distance: `${distanceKm.toFixed(1)} km`,
+            duration: `${durationMinutes} phút`,
+            price: `${price.toLocaleString("vi-VN")}đ`,
+          });
+          
+          console.log('✅ Route info updated:', { distanceKm, durationMinutes, price });
+        } else {
+          console.log('⚠️ Empty route path received');
+          setRoutePath([]);
+        }
+      } catch (error) {
+        console.error("❌ Error calculating route:", error);
+        setRoutePath([]);
+        // Không hiển thị alert để tránh làm phiền người dùng
+        // Chỉ log lỗi
+      } finally {
+        setIsLoadingDirections(false);
+      }
+    };
+
+    // Debounce để tránh gọi quá nhiều lần
+    const timeoutId = setTimeout(() => {
+      calculateRoute();
+    }, 800); // Tăng lên 800ms để đợi người dùng chọn xong
+
+    return () => clearTimeout(timeoutId);
+  }, [originCoordinate, destinationCoordinate]);
 
   // Tính toán chiều rộng cho suggestions
   const screenWidth = Dimensions.get("window").width;
@@ -311,6 +385,9 @@ const DriverRideScreen = ({ navigation, route }) => {
         placeId: location.placeId,
       });
       setFromSuggestions([]);
+      // Xóa đường đi cũ khi chọn điểm xuất phát mới
+      setRoutePath([]);
+      setRouteInfo(null);
     } else {
       setToLocation(location.description);
       setDestinationCoordinate({
@@ -320,9 +397,11 @@ const DriverRideScreen = ({ navigation, route }) => {
         placeId: location.placeId,
       });
       setToSuggestions([]);
+      // Xóa đường đi cũ khi chọn điểm đến mới (useEffect sẽ tự động tính lại)
+      setRoutePath([]);
+      setRouteInfo(null);
     }
     setActiveInput(null);
-    setRoutePath([]);
   };
 
   const handleGetCurrentLocation = async (type) => {
@@ -351,6 +430,8 @@ const DriverRideScreen = ({ navigation, route }) => {
   };
 
   const handleSearchAsDriver = async () => {
+    console.log('🔍 handleSearchAsDriver called - User clicked button');
+    
     if (!fromLocation || !toLocation) {
       Alert.alert("Lỗi", "Vui lòng nhập đầy đủ điểm xuất phát và điểm đến");
       return;
@@ -363,7 +444,16 @@ const DriverRideScreen = ({ navigation, route }) => {
     setIsLoadingDirections(true);
     try {
       const path = await osrmGetRoute(originCoordinate, destinationCoordinate);
-      setRoutePath(path);
+      
+      if (path && path.length > 0) {
+        console.log('✅ Route calculated in handleSearchAsDriver:', path.length, 'points');
+        setRoutePath(path);
+      } else {
+        console.log('⚠️ Empty path in handleSearchAsDriver');
+        Alert.alert("Lỗi", "Không thể tính toán đường đi. Vui lòng thử lại.");
+        setIsLoadingDirections(false);
+        return;
+      }
 
       let distanceKm = 0;
       for (let i = 1; i < path.length; i++) {
