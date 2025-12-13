@@ -15,6 +15,9 @@ import {
   Modal,
   FlatList,
 } from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { clearTokens } from "../../utils/storage";
 import { normalizeMimeType } from "../../services/uploadService";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
@@ -24,9 +27,11 @@ import { getProfile } from "../../services/userService";
 import { getMyVehicle, registerVehicle } from "../../services/vehicleService";
 import { uploadImage } from "../../services/uploadService";
 import AsyncStorageService from "../../services/AsyncStorageService";
+import { chatClient } from "../../utils/StreamClient";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function Profile() {
+  const navigation = useNavigation();
   const [profile, setProfile] = useState({
     fullName: "",
     dob: null,
@@ -38,8 +43,8 @@ export default function Profile() {
     verificationImage: null,
     email: "",
     profilePictureUrl: "",
-    rating: 0,
-    coins: 0,
+    rating: 5.0,
+    coins: 100,
   });
 
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -600,6 +605,41 @@ export default function Profile() {
     errors[field] ? (
       <Text style={styles.errorText}>{errors[field]}</Text>
     ) : null;
+
+  const handleLogout = async () => {
+    Alert.alert("Đăng xuất", "Bạn có chắc muốn đăng xuất?", [
+      { text: "Huỷ", style: "cancel" },
+      {
+        text: "Đăng xuất",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            // Clear all stored data
+            await AsyncStorage.multiRemove([
+              "userData",
+              "userProfile",
+              "connectionId",
+              "recentSearches",
+            ]);
+            await clearTokens();
+            await chatClient.disconnectUser();
+            // Navigate to Login and reset stack
+            navigation.reset({
+              index: 0,
+              routes: [{ name: "Login" }],
+            });
+          } catch (error) {
+            console.warn("Error during logout:", error);
+            // Still navigate even if clear fails
+            navigation.reset({
+              index: 0,
+              routes: [{ name: "Login" }],
+            });
+          }
+        },
+      },
+    ]);
+  };
 
   return (
     <SafeAreaView
@@ -1238,6 +1278,11 @@ export default function Profile() {
             <Text style={styles.submitText}>Lưu</Text>
           )}
         </TouchableOpacity>
+
+        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+          <MaterialIcons name="logout" size={20} color="#fff" />
+          <Text style={styles.logoutText}>Đăng xuất</Text>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -1577,5 +1622,21 @@ const styles = StyleSheet.create({
   vehicleInfoItem: {
     flex: 1,
     marginHorizontal: 5,
+  },
+  logoutButton: {
+    backgroundColor: "#dc3545",
+    paddingVertical: 14,
+    borderRadius: 10,
+    marginTop: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  logoutText: {
+    textAlign: "center",
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 16,
+    marginLeft: 8,
   },
 });
