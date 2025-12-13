@@ -66,7 +66,6 @@ export default function Profile() {
 
       // Load saved profile from AsyncStorage
       const savedProfile = await AsyncStorageService.getProfile();
-
       if (user) {
         setProfile((p) => ({
           ...p,
@@ -86,6 +85,7 @@ export default function Profile() {
         try {
           const vehResp = await getMyVehicle();
           const vehicle = vehResp?.data?.data;
+
           if (vehicle) {
             setRegistered(true);
             setApproved(vehicle.status === "APPROVED");
@@ -437,7 +437,7 @@ export default function Profile() {
 
       // Call API using vehicleService wrapper
       const apiResp = await registerVehicle(vehicleRegisterData);
-      const vehicleResp = apiResp?.data;
+      const vehicleResp = apiResp?.data?.data; // Get actual VehicleResponse from ApiResponse
 
       Alert.alert(
         "Thành công",
