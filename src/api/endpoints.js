@@ -18,7 +18,7 @@ export default {
     register: "/vehicles/register",
     myVehicle: "/vehicles/my-vehicle",
     byId: (id) => `/vehicles/${id}`,
-    updateStatus: (id) => `/api/vehicles/${id}/status`,
+    updateStatus: (id) => `/vehicles/${id}/status`,
     listByDriver: (driverId) => `/vehicles/driver/${driverId}`,
     pending: "/vehicles/pending",
   },
@@ -38,5 +38,4 @@ export default {
   upload: {
     image: "/upload/image",
   },
-
 };

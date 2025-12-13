@@ -63,6 +63,8 @@ const Login = ({ navigation }) => {
         body: JSON.stringify({
           phoneNumber: formattedPhone,
           password,
+          currentLatitude: 10.7769,
+          currentLongitude: 106.7009,
         }),
       });
 
