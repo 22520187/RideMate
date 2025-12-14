@@ -24,6 +24,7 @@ import COLORS from "../../../constant/colors";
 import RouteMap from "../../../components/RouteMap";
 import { Modal } from "react-native";
 import { useSharedPath } from "../../../hooks/useSharedPath";
+import { acceptRide, cancelRide } from "../../../services/matchService";
 import {
   getOrCreateDirectChannel,
   sendMessage,
@@ -45,6 +46,7 @@ const MatchedRideScreen = ({ navigation, route }) => {
 
   const [rideStatus, setRideStatus] = useState("matched"); // 'matched' | 'ongoing' | 'completed'
   const { path } = useSharedPath();
+  const { matchId, isDriver, ...otherParams } = route.params;
   const [rewardPoints, setRewardPoints] = useState(0);
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [comment, setComment] = useState("");

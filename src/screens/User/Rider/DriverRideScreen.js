@@ -29,6 +29,7 @@ import {
 import { useSharedPath } from "../../../hooks/useSharedPath";
 import { getProfile } from "../../../services/userService";
 import { getMyVehicle } from "../../../services/vehicleService";
+import { getWaitingMatches } from "../../../services/matchService";
 
 const DriverRideScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
@@ -480,51 +481,37 @@ const DriverRideScreen = ({ navigation, route }) => {
         price: `${price.toLocaleString("vi-VN")}đ`,
       });
 
-      // Mock data for available passengers
-      const mockPassengers = [
-        {
-          id: 1,
-          name: "Nguyễn Văn A",
-          phone: "0901234567",
-          avatar: "https://i.pravatar.cc/150?img=12",
-          departureTime: "14:30",
-          from: "Bến Xe Giáp Bát",
-          to: toLocation,
-          rating: 4.8,
-          reviews: 23,
-        },
-        {
-          id: 2,
-          name: "Trần Thị B",
-          phone: "0901234568",
-          avatar: "https://i.pravatar.cc/150?img=13",
-          departureTime: "15:00",
-          from: "Nhà ga Hà Nội",
-          to: toLocation,
-          rating: 4.9,
-          reviews: 45,
-        },
-        {
-          id: 3,
-          name: "Lê Văn C",
-          phone: "0901234569",
-          avatar: "https://i.pravatar.cc/150?img=14",
-          departureTime: "15:30",
-          from: "Aeon Mall Long Biên",
-          to: toLocation,
-          rating: 4.7,
-          reviews: 18,
-        },
-      ];
-      setAvailablePassengers(mockPassengers);
-      setIsPassengerModalVisible(true);
-      // Alert.alert('Đã tìm thấy hành khách!', `Có ${mockPassengers.length} người đang tìm đi cùng`)
+      console.log("Đang tìm hành khách...");
+      const response = await getWaitingMatches();
+      
+      if (response.data && response.data.data) {
+        const matches = response.data.data;
+        console.log("Tìm thấy:", matches.length, "chuyến");
+        const realPassengers = matches.map((match) => ({
+          id: match.id,
+          name: match.passengerName,
+          phone: match.passengerPhone,
+          avatar: match.passengerAvatar || "https://i.pravatar.cc/150",
+          departureTime: "Ngay bây giờ", 
+          from: match.pickupAddress,
+          to: match.destinationAddress,
+          rating: 5.0, 
+          reviews: 0,
+          fare: match.fare, 
+          status: match.status
+        }));
+
+        setAvailablePassengers(realPassengers);
+        
+        if (realPassengers.length > 0) {
+          setIsPassengerModalVisible(true);
+        } else {
+          Alert.alert("Thông báo", "Hiện không có hành khách nào đang tìm xe.");
+        }
+      }
     } catch (error) {
-      console.error("Error getting directions:", error);
-      Alert.alert(
-        "Lỗi",
-        "Không thể lấy thông tin tuyến đường. Vui lòng thử lại."
-      );
+      console.error("Lỗi tìm khách:", error);
+      Alert.alert("Lỗi", "Không thể tải danh sách hành khách.");
     } finally {
       setIsLoadingDirections(false);
     }
@@ -539,11 +526,12 @@ const DriverRideScreen = ({ navigation, route }) => {
 
     navigation.navigate("MatchedRide", {
       isDriver: true,
+      matchId: passenger.id,
       passengerName: passenger.name,
       passengerPhone: passenger.phone,
       passengerAvatar: passenger.avatar,
-      from: fromLocation,
-      to: toLocation,
+      from: passenger.from, 
+      to: passenger.to, 
       departureTime: scheduledRide?.time || passenger.departureTime,
       price: routeInfo.price,
       duration: routeInfo.duration,

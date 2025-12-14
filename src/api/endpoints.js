@@ -38,4 +38,13 @@ export default {
   upload: {
     image: "/upload/image",
   },
+
+  matches: {
+    book: "/matches/book",
+    waiting: "/matches/waiting", 
+    byId: (id) => `/matches/${id}`,
+    accept: (id) => `/matches/${id}/accept`, 
+    cancel: (id) => `/matches/${id}/cancel`, 
+    updateStatus: (id) => `/matches/${id}/status`,
+  },
 };
