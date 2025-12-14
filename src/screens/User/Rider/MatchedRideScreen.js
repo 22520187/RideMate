@@ -24,7 +24,11 @@ import COLORS from "../../../constant/colors";
 import RouteMap from "../../../components/RouteMap";
 import { Modal } from "react-native";
 import { useSharedPath } from "../../../hooks/useSharedPath";
-import { acceptRide, cancelRide } from "../../../services/matchService";
+import { 
+  acceptRide, 
+  cancelRide, 
+  updateMatchStatus 
+} from "../../../services/matchService";
 import {
   getOrCreateDirectChannel,
   sendMessage,
@@ -35,18 +39,28 @@ import {
 const { width, height } = Dimensions.get("window");
 
 const MatchedRideScreen = ({ navigation, route }) => {
-  const matchedRideData = route.params || {};
   const insets = useSafeAreaInsets();
   const [refreshKey, setRefreshKey] = useState(0);
+
+  const { 
+    matchId, 
+    isDriver, 
+    passengerName, passengerPhone, passengerAvatar,
+    driverName, driverPhone, driverAvatar,
+    currentUserId, otherUserId,
+    from, to, price, distance, duration, departureTime,
+    status: initialStatus 
+  } = route.params || {};
 
   const [inputText, setInputText] = useState("");
   const [messages, setMessages] = useState([]);
   const [channel, setChannel] = useState(null);
   const [loadingChat, setLoadingChat] = useState(true);
+  const [isLoadingAction, setIsLoadingAction] = useState(false);
 
-  const [rideStatus, setRideStatus] = useState("matched"); // 'matched' | 'ongoing' | 'completed'
+  const [rideStatus, setRideStatus] = useState(initialStatus || "WAITING"); 
   const { path } = useSharedPath();
-  const { matchId, isDriver, ...otherParams } = route.params;
+  
   const [rewardPoints, setRewardPoints] = useState(0);
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [comment, setComment] = useState("");
@@ -62,41 +76,33 @@ const MatchedRideScreen = ({ navigation, route }) => {
     return reviews[rating - 1] || "";
   };
 
-  // Initialize Stream Chat channel on mount
+  // Initialize Stream Chat channel
   useEffect(() => {
     const initializeChat = async () => {
       try {
         setLoadingChat(true);
 
-        // Assuming current user info is available in matchedRideData or navigation params
-        const currentUserId = matchedRideData.currentUserId;
-        const otherUserId = matchedRideData.isDriver
-          ? matchedRideData.passengerId
-          : matchedRideData.driverId;
+        const myId = currentUserId; 
+        const partnerId = isDriver ? route.params?.passengerId : route.params?.driverId;
+        const safeMyId = myId || "user_temp";
+        const safePartnerId = partnerId || (isDriver ? "passenger_temp" : "driver_temp");
 
-        if (!currentUserId || !otherUserId) {
-          console.warn("Missing user IDs for chat initialization");
-          setLoadingChat(false);
-          return;
+        if (!myId && !partnerId) {
+           console.log("Chat info missing, using mock IDs");
         }
 
-        // Create or get direct message channel
         const chatChannel = await getOrCreateDirectChannel(
-          currentUserId,
-          otherUserId,
+          safeMyId,
+          safePartnerId,
           {
-            rideId: matchedRideData.rideId,
-            from: matchedRideData.from,
-            to: matchedRideData.to,
+            matchId: matchId,
+            from: from,
+            to: to,
           }
         );
 
-        // Watch channel for real-time updates
-        await watchChannel(chatChannel, {
-          messages: { limit: 50 },
-        });
+        await watchChannel(chatChannel, { messages: { limit: 50 } });
 
-        // Set up listener for new messages
         const handleMessage = (event) => {
           if (event.message) {
             setMessages((prev) => [...prev, event.message]);
@@ -104,13 +110,10 @@ const MatchedRideScreen = ({ navigation, route }) => {
         };
 
         chatChannel.on("message.new", handleMessage);
-
         setChannel(chatChannel);
 
-        // Load initial messages
         const initialMessages = chatChannel.state.messages || [];
         setMessages(initialMessages);
-
         setLoadingChat(false);
 
         return () => {
@@ -124,110 +127,143 @@ const MatchedRideScreen = ({ navigation, route }) => {
     };
 
     initializeChat();
-  }, [matchedRideData]);
+  }, [matchId, currentUserId, isDriver]);
 
-  // Force refresh SafeArea khi app resume từ background
+  // Force refresh SafeArea
   useEffect(() => {
     const handleAppStateChange = (nextAppState) => {
       if (nextAppState === "active") {
-        // Force component re-render để refresh SafeArea insets
         setRefreshKey((prev) => prev + 1);
       }
     };
-
-    const subscription = AppState.addEventListener(
-      "change",
-      handleAppStateChange
-    );
+    const subscription = AppState.addEventListener("change", handleAppStateChange);
     return () => subscription?.remove();
   }, []);
 
-  // Memoize objects to prevent unnecessary re-renders
-  const otherPerson = useMemo(
-    () =>
-      matchedRideData.isDriver
-        ? {
-            name: matchedRideData.passengerName || "Nguyễn Văn A",
-            phone: matchedRideData.passengerPhone || "0901234568",
-            avatar:
-              matchedRideData.passengerAvatar ||
-              "https://i.pravatar.cc/150?img=13",
+  // --- API Handlers ---
+
+  const handleAcceptRide = async () => {
+    if (isLoadingAction) return;
+    setIsLoadingAction(true);
+    try {
+      await acceptRide(matchId);
+      setRideStatus("ACCEPTED");
+      Alert.alert("Thành công", "Bạn đã nhận chuyến xe!");
+    } catch (error) {
+      Alert.alert("Lỗi", "Không thể nhận chuyến xe này.");
+      navigation.goBack();
+    } finally {
+      setIsLoadingAction(false);
+    }
+  };
+
+  const handleStartRide = async () => {
+    if (isLoadingAction) return;
+    setIsLoadingAction(true);
+    try {
+      await updateMatchStatus(matchId, "IN_PROGRESS");
+      setRideStatus("IN_PROGRESS");
+    } catch (error) {
+      Alert.alert("Lỗi", "Không thể cập nhật trạng thái.");
+    } finally {
+      setIsLoadingAction(false);
+    }
+  };
+
+  const handleCompleteRide = async () => {
+    if (isLoadingAction) return;
+    setIsLoadingAction(true);
+    try {
+      await updateMatchStatus(matchId, "COMPLETED");
+      setRideStatus("COMPLETED");
+      
+      const earned = Math.floor(Math.random() * 20) + 10;
+      setRewardPoints(earned);
+      setShowRatingModal(true);
+    } catch (error) {
+      Alert.alert("Lỗi", "Không thể hoàn thành chuyến xe.");
+    } finally {
+      setIsLoadingAction(false);
+    }
+  };
+
+  const handleCancelRide = () => {
+    Alert.alert("Xác nhận", "Bạn muốn hủy chuyến đi này?", [
+      { text: "Không", style: "cancel" },
+      {
+        text: "Hủy chuyến",
+        style: "destructive",
+        onPress: async () => {
+          setIsLoadingAction(true);
+          try {
+            await cancelRide(matchId);
+            Alert.alert("Đã hủy", "Chuyến đi đã được hủy.");
+            navigation.goBack();
+          } catch (error) {
+            Alert.alert("Lỗi", "Không thể hủy lúc này.");
+          } finally {
+            setIsLoadingAction(false);
           }
-        : {
-            name: matchedRideData.driverName || "Nguyễn Xuân Tứ",
-            phone: matchedRideData.driverPhone || "0901234569",
-            avatar:
-              matchedRideData.driverAvatar ||
-              "https://i.pravatar.cc/150?img=14",
-            rating: 4.9,
-            vehicleModel: matchedRideData.vehicleModel || "Toyota Vios",
-            licensePlate: matchedRideData.licensePlate || "30A-12345",
-          },
-    [matchedRideData]
+        },
+      },
+    ]);
+  };
+
+  // --- UI Helpers ---
+
+  const otherPerson = useMemo(() => isDriver
+      ? {
+          name: passengerName || "Nguyễn Văn A",
+          phone: passengerPhone || "0901234568",
+          avatar: passengerAvatar || "https://i.pravatar.cc/150?img=13",
+        }
+      : {
+          name: driverName || "Nguyễn Xuân Tứ",
+          phone: driverPhone || "0901234569",
+          avatar: driverAvatar || "https://i.pravatar.cc/150?img=14",
+          rating: 4.9,
+          vehicleModel: "Toyota Vios",
+          licensePlate: "30A-12345",
+        },
+    [isDriver, passengerName, driverName]
   );
 
-  const rideDetails = useMemo(
-    () => ({
-      from: matchedRideData.from || "Bến Xe Giáp Bát - Cống Đón/Trả Khách",
-      to: matchedRideData.to || "Vincom Plaza",
-      departureTime: matchedRideData.departureTime || "14:30",
-      price: matchedRideData.price || "25,000đ",
-      duration: matchedRideData.duration || "5 phút",
-      distance: matchedRideData.distance || "2 km",
-    }),
-    [matchedRideData]
-  );
+  const rideDetails = useMemo(() => ({
+      from: from || "Điểm đón",
+      to: to || "Điểm đến",
+      departureTime: departureTime || "14:30",
+      price: price || "---",
+      duration: duration || "-- phút",
+      distance: distance || "-- km",
+    }), [from, to, price, distance, duration]);
 
-  const originCoordinate = useMemo(
-    () => ({
+  const originCoordinate = useMemo(() => ({
       latitude: 21.0285,
       longitude: 105.8542,
       description: rideDetails.from,
-    }),
-    [rideDetails.from]
-  );
+    }), [rideDetails.from]);
 
-  const destinationCoordinate = useMemo(
-    () => ({
+  const destinationCoordinate = useMemo(() => ({
       latitude: 21.0152,
       longitude: 105.8415,
       description: rideDetails.to,
-    }),
-    [rideDetails.to]
-  );
+    }), [rideDetails.to]);
 
   const handleSend = async () => {
     if (!inputText.trim() || !channel) return;
-
     try {
-      // Send message via Stream Chat
       await sendMessage(channel, inputText.trim());
       setInputText("");
     } catch (error) {
       console.warn("Error sending message:", error);
-      Alert.alert("Lỗi", "Không thể gửi tin nhắn. Vui lòng thử lại.");
+      Alert.alert("Lỗi", "Không thể gửi tin nhắn.");
     }
-  };
-
-  const handleCompleteRide = () => {
-    setRideStatus("completed");
-    // Cộng điểm thưởng ngẫu nhiên
-    const earned = Math.floor(Math.random() * 20) + 10;
-    setRewardPoints(earned);
-
-    // Hiện modal đánh giá
-    setShowRatingModal(true);
   };
 
   const handleAudioCall = useCallback(async () => {
     if (!channel) return;
     try {
-      // Initiate audio call through Stream
-      // In a real implementation, this would use Stream's Video SDK
-      Alert.alert("Gọi điện thoại", `Đang gọi ${otherPerson.name}...`, [
-        { text: "Hủy" },
-      ]);
-      // TODO: Implement actual audio call using Stream Video SDK
+      Alert.alert("Gọi điện thoại", `Đang gọi ${otherPerson.name}...`);
     } catch (error) {
       console.warn("Error initiating audio call:", error);
     }
@@ -236,11 +272,7 @@ const MatchedRideScreen = ({ navigation, route }) => {
   const handleVideoCall = useCallback(async () => {
     if (!channel) return;
     try {
-      // Initiate video call through Stream
-      Alert.alert("Gọi video", `Đang gọi video ${otherPerson.name}...`, [
-        { text: "Hủy" },
-      ]);
-      // TODO: Implement actual video call using Stream Video SDK
+      Alert.alert("Gọi video", `Đang gọi video ${otherPerson.name}...`);
     } catch (error) {
       console.warn("Error initiating video call:", error);
     }
@@ -272,7 +304,7 @@ const MatchedRideScreen = ({ navigation, route }) => {
           </View>
         </View>
 
-        {/* Map Section - Takes 50% of screen */}
+        {/* Map Section */}
         <View style={styles.mapContainer}>
           <RouteMap
             origin={originCoordinate}
@@ -294,11 +326,7 @@ const MatchedRideScreen = ({ navigation, route }) => {
           {/* Route Info */}
           <View style={styles.routeInfoSection}>
             <View style={styles.locationRow}>
-              <MaterialIcons
-                name="radio-button-checked"
-                size={16}
-                color={COLORS.GREEN}
-              />
+              <MaterialIcons name="radio-button-checked" size={16} color={COLORS.GREEN} />
               <Text style={styles.locationText}>{rideDetails.from}</Text>
             </View>
             <View style={styles.locationRow}>
@@ -318,25 +346,16 @@ const MatchedRideScreen = ({ navigation, route }) => {
                 <Text style={styles.personName}>{otherPerson.name}</Text>
                 {!matchedRideData.isDriver && otherPerson.rating && (
                   <View style={styles.ratingRow}>
-                    <MaterialIcons
-                      name="star"
-                      size={16}
-                      color={COLORS.ORANGE_DARK}
-                    />
+                    <MaterialIcons name="star" size={16} color={COLORS.ORANGE_DARK} />
                     <Text style={styles.ratingText}>{otherPerson.rating}</Text>
                   </View>
                 )}
               </View>
 
-              {/* Vehicle Info (only for passenger view) - inline with avatar and name */}
               {!matchedRideData.isDriver && (
                 <View style={styles.vehicleInfo}>
-                  <Text style={styles.licensePlate}>
-                    {otherPerson.licensePlate}
-                  </Text>
-                  <Text style={styles.vehicleModel}>
-                    {otherPerson.vehicleModel}
-                  </Text>
+                  <Text style={styles.licensePlate}>{otherPerson.licensePlate}</Text>
+                  <Text style={styles.vehicleModel}>{otherPerson.vehicleModel}</Text>
                 </View>
               )}
             </View>
@@ -344,24 +363,52 @@ const MatchedRideScreen = ({ navigation, route }) => {
 
           {/* Ride Action Buttons */}
           <View style={{ paddingHorizontal: 16, marginTop: 10 }}>
-            {rideStatus === "matched" && (
-              <TouchableOpacity
-                style={[styles.actionBtn, { backgroundColor: COLORS.PRIMARY }]}
-                onPress={() => setRideStatus("ongoing")}
-              >
-                <Text style={styles.actionBtnText}>🚗 Bắt đầu chuyến đi</Text>
-              </TouchableOpacity>
-            )}
+            {isLoadingAction ? (
+               <ActivityIndicator size="large" color={COLORS.PRIMARY} style={{marginVertical: 10}}/>
+            ) : (
+                <>
+                    {isDriver && (
+                        <>
+                            {rideStatus === "WAITING" && (
+                                <TouchableOpacity
+                                    style={[styles.actionBtn, { backgroundColor: COLORS.PRIMARY }]}
+                                    onPress={handleAcceptRide}
+                                >
+                                    <Text style={styles.actionBtnText}>👍 Nhận chuyến ngay</Text>
+                                </TouchableOpacity>
+                            )}
 
-            {rideStatus === "ongoing" && (
-              <TouchableOpacity
-                style={[styles.actionBtn, { backgroundColor: COLORS.GREEN }]}
-                onPress={() => handleCompleteRide()}
-              >
-                <Text style={styles.actionBtnText}>
-                  🏁 Hoàn thành chuyến đi
-                </Text>
-              </TouchableOpacity>
+                            {rideStatus === "ACCEPTED" && (
+                                <TouchableOpacity
+                                    style={[styles.actionBtn, { backgroundColor: COLORS.BLUE }]}
+                                    onPress={handleStartRide}
+                                >
+                                    <Text style={styles.actionBtnText}>🚗 Đã đón khách - Bắt đầu</Text>
+                                </TouchableOpacity>
+                            )}
+
+                            {rideStatus === "IN_PROGRESS" && (
+                                <TouchableOpacity
+                                    style={[styles.actionBtn, { backgroundColor: COLORS.GREEN }]}
+                                    onPress={handleCompleteRide}
+                                >
+                                    <Text style={styles.actionBtnText}>🏁 Đã đến nơi - Hoàn thành</Text>
+                                </TouchableOpacity>
+                            )}
+                        </>
+                    )}
+
+                    {rideStatus !== "COMPLETED" && rideStatus !== "CANCELLED" && (
+                        <TouchableOpacity
+                            style={[styles.actionBtn, { backgroundColor: COLORS.RED_LIGHT || "#FFEBEE", marginTop: 8 }]}
+                            onPress={handleCancelRide}
+                        >
+                            <Text style={[styles.actionBtnText, {color: COLORS.RED}]}>
+                                {isDriver && rideStatus === "WAITING" ? "Bỏ qua" : "Hủy chuyến"}
+                            </Text>
+                        </TouchableOpacity>
+                    )}
+                </>
             )}
           </View>
 
@@ -379,8 +426,7 @@ const MatchedRideScreen = ({ navigation, route }) => {
               showsVerticalScrollIndicator={false}
             >
               {messages.map((message) => {
-                const isMyMessage =
-                  message.user?.id === matchedRideData.currentUserId;
+                const isMyMessage = message.user?.id === currentUserId;
                 return (
                   <View
                     key={message.id}
@@ -410,13 +456,10 @@ const MatchedRideScreen = ({ navigation, route }) => {
                         ]}
                       >
                         {message.created_at
-                          ? new Date(message.created_at).toLocaleTimeString(
-                              [],
-                              {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              }
-                            )
+                          ? new Date(message.created_at).toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
                           : ""}
                       </Text>
                     </View>
@@ -433,7 +476,7 @@ const MatchedRideScreen = ({ navigation, route }) => {
             </View>
           )}
 
-          {/* Input Bar with Call Buttons */}
+          {/* Input Bar */}
           <View
             style={[
               styles.inputBar,
@@ -546,7 +589,7 @@ const MatchedRideScreen = ({ navigation, route }) => {
                   `Cảm ơn bạn đã gửi đánh giá ${rating} sao cho bạn đồng hành này.`,
                   [{ text: "Đóng" }]
                 );
-                // TODO: Gửi rating + comment + matchedRideData lên backend
+                navigation.navigate("Home");
               }}
             >
               <Text style={styles.actionBtnText}>Gửi đánh giá</Text>
