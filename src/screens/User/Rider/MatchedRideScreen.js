@@ -76,26 +76,25 @@ const MatchedRideScreen = ({ navigation, route }) => {
     return reviews[rating - 1] || "";
   };
 
-  // Initialize Stream Chat channel
   useEffect(() => {
     const initializeChat = async () => {
       try {
         setLoadingChat(true);
-
         const myId = currentUserId; 
-        const partnerId = isDriver ? route.params?.passengerId : route.params?.driverId;
+        const params = route.params || {};
+        const partnerId = otherUserId || (isDriver ? params.passengerId : params.driverId);
         const safeMyId = myId || "user_temp";
         const safePartnerId = partnerId || (isDriver ? "passenger_temp" : "driver_temp");
 
         if (!myId && !partnerId) {
-           console.log("Chat info missing, using mock IDs");
+           console.log("⚠️ Chat info missing: IDs not found");
         }
 
         const chatChannel = await getOrCreateDirectChannel(
           safeMyId,
           safePartnerId,
           {
-            matchId: matchId,
+            matchId: matchId, 
             from: from,
             to: to,
           }
@@ -126,8 +125,10 @@ const MatchedRideScreen = ({ navigation, route }) => {
       }
     };
 
-    initializeChat();
-  }, [matchId, currentUserId, isDriver]);
+    if (matchId) {
+        initializeChat();
+    }
+  }, [matchId, currentUserId, isDriver, otherUserId]);
 
   // Force refresh SafeArea
   useEffect(() => {
@@ -213,12 +214,12 @@ const MatchedRideScreen = ({ navigation, route }) => {
 
   const otherPerson = useMemo(() => isDriver
       ? {
-          name: passengerName || "Nguyễn Văn A",
+          name: passengerName || "Hành khách",
           phone: passengerPhone || "0901234568",
           avatar: passengerAvatar || "https://i.pravatar.cc/150?img=13",
         }
       : {
-          name: driverName || "Nguyễn Xuân Tứ",
+          name: driverName || "Tài xế",
           phone: driverPhone || "0901234569",
           avatar: driverAvatar || "https://i.pravatar.cc/150?img=14",
           rating: 4.9,
@@ -295,7 +296,7 @@ const MatchedRideScreen = ({ navigation, route }) => {
             </TouchableOpacity>
             <View style={styles.headerCenter}>
               <Text style={styles.headerTitle}>
-                {matchedRideData.isDriver
+                {isDriver
                   ? "Hành khách đã tham gia"
                   : "Tài xế sắp đến"}
               </Text>
@@ -344,7 +345,7 @@ const MatchedRideScreen = ({ navigation, route }) => {
               />
               <View style={styles.personInfo}>
                 <Text style={styles.personName}>{otherPerson.name}</Text>
-                {!matchedRideData.isDriver && otherPerson.rating && (
+                {!isDriver && otherPerson.rating && (
                   <View style={styles.ratingRow}>
                     <MaterialIcons name="star" size={16} color={COLORS.ORANGE_DARK} />
                     <Text style={styles.ratingText}>{otherPerson.rating}</Text>
@@ -352,7 +353,7 @@ const MatchedRideScreen = ({ navigation, route }) => {
                 )}
               </View>
 
-              {!matchedRideData.isDriver && (
+              {!isDriver && (
                 <View style={styles.vehicleInfo}>
                   <Text style={styles.licensePlate}>{otherPerson.licensePlate}</Text>
                   <Text style={styles.vehicleModel}>{otherPerson.vehicleModel}</Text>
