@@ -1,9 +1,9 @@
-import React from 'react'
-import { View, Text, TouchableOpacity, FlatList } from 'react-native'
-import { MaterialIcons } from '@expo/vector-icons'
-import LocationSearch from '../../../components/LocationSearch'
-import RouteMap from '../../../components/RouteMap'
-import COLORS from '../../../constant/colors'
+import React from "react";
+import { View, Text, TouchableOpacity, FlatList } from "react-native";
+import { MaterialIcons } from "@expo/vector-icons";
+import LocationSearch from "../../../components/LocationSearch";
+import RouteMap from "../../../components/RouteMap";
+import COLORS from "../../../constant/colors";
 
 const PassengerRide = ({
   styles,
@@ -16,7 +16,7 @@ const PassengerRide = ({
   onLocationSelect,
   onRequestSuggestions,
   onSearch,
-  onChangeToText
+  onChangeToText,
 }) => {
   return (
     <View style={styles.content}>
@@ -26,11 +26,13 @@ const PassengerRide = ({
             <LocationSearch
               placeholder="Điểm đến"
               value={toLocation}
-            onChangeText={onChangeToText}
-              onLocationSelect={(location) => onLocationSelect(location, 'to')}
+              onChangeText={onChangeToText}
+              onLocationSelect={(location) => onLocationSelect(location, "to")}
               suggestions={toSuggestions}
               showSuggestions={toLocation.length > 2}
-              onRequestSuggestions={(query) => onRequestSuggestions(query, 'to')}
+              onRequestSuggestions={(query) =>
+                onRequestSuggestions(query, "to")
+              }
               iconName="place"
             />
           </View>
@@ -59,7 +61,11 @@ const PassengerRide = ({
               <View style={styles.driverInfo}>
                 <Text style={styles.driverName}>{item.driverName}</Text>
                 <View style={styles.driverRating}>
-                  <MaterialIcons name="star" size={16} color={COLORS.ORANGE_DARK} />
+                  <MaterialIcons
+                    name="star"
+                    size={16}
+                    color={COLORS.ORANGE_DARK}
+                  />
                   <Text style={styles.ratingText}>{item.rating}</Text>
                 </View>
               </View>
@@ -67,10 +73,16 @@ const PassengerRide = ({
             </View>
             <View style={styles.rideDetails}>
               <Text style={styles.carModel}>{item.carModel}</Text>
-              <Text style={styles.seatsInfo}>Còn {item.availableSeats} chỗ trống</Text>
+              <Text style={styles.seatsInfo}>
+                Còn {item.availableSeats} chỗ trống
+              </Text>
             </View>
             <View style={styles.routeInfo}>
-              <MaterialIcons name="radio-button-checked" size={16} color={COLORS.GREEN} />
+              <MaterialIcons
+                name="radio-button-checked"
+                size={16}
+                color={COLORS.GREEN}
+              />
               <Text style={styles.routeText}>{item.fromLocation}</Text>
             </View>
             <View style={styles.routeInfo}>
@@ -79,7 +91,9 @@ const PassengerRide = ({
             </View>
             <View style={styles.timeContainer}>
               <MaterialIcons name="access-time" size={16} color={COLORS.BLUE} />
-              <Text style={styles.timeText}>Khởi hành lúc {item.departureTime}</Text>
+              <Text style={styles.timeText}>
+                Khởi hành lúc {item.departureTime}
+              </Text>
             </View>
             <TouchableOpacity style={styles.joinBtn}>
               <Text style={styles.joinBtnText}>Tham gia chuyến đi</Text>
@@ -90,9 +104,7 @@ const PassengerRide = ({
         showsVerticalScrollIndicator={false}
       />
     </View>
-  )
-}
+  );
+};
 
-export default PassengerRide
-
-
+export default PassengerRide;

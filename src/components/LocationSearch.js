@@ -1,85 +1,84 @@
-import React, { useState, useEffect } from 'react'
-import { 
-  View, 
-  TextInput, 
-  StyleSheet,
-  TouchableOpacity
-} from 'react-native'
-import { MaterialIcons } from '@expo/vector-icons'
-import COLORS from '../constant/colors'
-import SuggestionsList from './SuggestionsList'
-import { useDebounce } from '../hooks/useDebounce'
-import { searchPlaces } from '../utils/api'
+import React, { useState, useEffect } from "react";
+import { View, TextInput, StyleSheet, TouchableOpacity } from "react-native";
+import { MaterialIcons } from "@expo/vector-icons";
+import COLORS from "../constant/colors";
+import SuggestionsList from "./SuggestionsList";
+import { useDebounce } from "../hooks/useDebounce";
+import { searchPlaces } from "../utils/api";
 
-const LocationSearch = ({ 
-  placeholder = "Tìm địa điểm", 
-  value, 
-  onChangeText, 
+const LocationSearch = ({
+  placeholder = "Tìm địa điểm",
+  value,
+  onChangeText,
   onLocationSelect = () => {},
   iconName = "place",
   showSuggestions = true,
-  containerWidth = '100%', // Thêm prop để truyền chiều rộng
-  forceHideSuggestions = false // Thêm prop để force ẩn suggestions
+  containerWidth = "100%", // Thêm prop để truyền chiều rộng
+  forceHideSuggestions = false, // Thêm prop để force ẩn suggestions
 }) => {
-  const [isFocused, setIsFocused] = useState(false)
-  const [suggestions, setSuggestions] = useState([])
-  const [isLoading, setIsLoading] = useState(false)
-  const [showSuggestionsList, setShowSuggestionsList] = useState(false)
+  const [isFocused, setIsFocused] = useState(false);
+  const [suggestions, setSuggestions] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [showSuggestionsList, setShowSuggestionsList] = useState(false);
 
   // Debounce giá trị input với delay 2 giây
-  const debouncedValue = useDebounce(value, 2000)
+  const debouncedValue = useDebounce(value, 2000);
 
   // Effect để gọi API khi debounced value thay đổi
   useEffect(() => {
     const performSearch = async () => {
-      if (!debouncedValue || debouncedValue.length < 2 || forceHideSuggestions) {
-        setSuggestions([])
-        setIsLoading(false)
-        setShowSuggestionsList(false)
-        return
+      if (
+        !debouncedValue ||
+        debouncedValue.length < 2 ||
+        forceHideSuggestions
+      ) {
+        setSuggestions([]);
+        setIsLoading(false);
+        setShowSuggestionsList(false);
+        return;
       }
 
-      setIsLoading(true)
+      setIsLoading(true);
       try {
-        console.log('🔍 Searching for:', debouncedValue)
-        const results = await searchPlaces(debouncedValue)
-        console.log('📦 Search results:', results.length, 'places found')
-        
-        setSuggestions(results)
-        setShowSuggestionsList(true)
-      } catch (error) {
-        console.error('❌ Search error:', error)
-        setSuggestions([])
-      } finally {
-        setIsLoading(false)
-      }
-    }
+        console.log("🔍 Searching for:", debouncedValue);
+        const results = await searchPlaces(debouncedValue);
+        console.log("📦 Search results:", results.length, "places found");
 
-    performSearch()
-  }, [debouncedValue, forceHideSuggestions])
+        setSuggestions(results);
+        setShowSuggestionsList(true);
+      } catch (error) {
+        console.error("❌ Search error:", error);
+        setSuggestions([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    performSearch();
+  }, [debouncedValue, forceHideSuggestions]);
 
   // Effect để ẩn suggestions khi forceHideSuggestions = true
   useEffect(() => {
     if (forceHideSuggestions) {
-      setSuggestions([])
-      setShowSuggestionsList(false)
-      setIsLoading(false)
+      setSuggestions([]);
+      setShowSuggestionsList(false);
+      setIsLoading(false);
     }
-  }, [forceHideSuggestions])
+  }, [forceHideSuggestions]);
 
   const handleTextChange = (text) => {
-    onChangeText(text)
-    
+    onChangeText(text);
+
     // Hiển thị loading ngay khi người dùng nhập (chỉ khi không force hide)
     if (text.length >= 2 && !forceHideSuggestions) {
-      setIsLoading(true)
-      setShowSuggestionsList(true)
+      setIsLoading(true);
+      setShowSuggestionsList(true);
     } else {
-      setSuggestions([])
-      setShowSuggestionsList(false)
-      setIsLoading(false)
+      setSuggestions([]);
+      setShowSuggestionsList(false);
+      setIsLoading(false);
     }
-  }
+  };
 
   const handleSuggestionSelect = (suggestion) => {
     const locationData = {
@@ -87,46 +86,48 @@ const LocationSearch = ({
       latitude: parseFloat(suggestion.lat),
       longitude: parseFloat(suggestion.lon),
       placeId: suggestion.place_id,
-    }
-    
-    onChangeText(suggestion.display_name)
-    onLocationSelect(locationData)
-    
+    };
+
+    onChangeText(suggestion.display_name);
+    onLocationSelect(locationData);
+
     // Tự động ẩn suggestions sau khi chọn
-    setSuggestions([])
-    setShowSuggestionsList(false)
-    setIsLoading(false)
-    setIsFocused(false) // Đảm bảo input không còn focused để đóng suggestions
-  }
+    setSuggestions([]);
+    setShowSuggestionsList(false);
+    setIsLoading(false);
+    setIsFocused(false); // Đảm bảo input không còn focused để đóng suggestions
+  };
 
   const handleFocus = () => {
-    setIsFocused(true)
+    setIsFocused(true);
     if (value && value.length >= 2 && suggestions.length > 0) {
-      setShowSuggestionsList(true)
+      setShowSuggestionsList(true);
     }
-  }
+  };
 
   const handleBlur = () => {
-    setIsFocused(false)
+    setIsFocused(false);
     // Delay để cho phép người dùng click vào suggestion
     setTimeout(() => {
-      setShowSuggestionsList(false)
-    }, 200)
-  }
+      setShowSuggestionsList(false);
+    }, 200);
+  };
 
   const clearSearch = () => {
-    onChangeText('')
-    setSuggestions([])
-    setShowSuggestionsList(false)
-    setIsLoading(false)
-  }
+    onChangeText("");
+    setSuggestions([]);
+    setShowSuggestionsList(false);
+    setIsLoading(false);
+  };
 
   return (
     <View style={styles.container}>
-      <View style={[
-        styles.inputContainer,
-        isFocused && styles.inputContainerFocused
-      ]}>
+      <View
+        style={[
+          styles.inputContainer,
+          isFocused && styles.inputContainerFocused,
+        ]}
+      >
         <MaterialIcons name={iconName} size={18} color={COLORS.PRIMARY} />
         <TextInput
           style={styles.input}
@@ -148,7 +149,7 @@ const LocationSearch = ({
           </View>
         )}
       </View>
-      
+
       {showSuggestions && !forceHideSuggestions && (
         <SuggestionsList
           suggestions={suggestions}
@@ -159,17 +160,17 @@ const LocationSearch = ({
         />
       )}
     </View>
-  )
-}
+  );
+};
 
 const styles = StyleSheet.create({
   container: {
-    position: 'relative',
-    zIndex: 1,
+    position: "relative",
+    zIndex: 9999,
   },
   inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: COLORS.WHITE,
     borderRadius: 10,
     paddingHorizontal: 12,
@@ -177,11 +178,11 @@ const styles = StyleSheet.create({
     marginVertical: 2,
     borderWidth: 1,
     borderColor: COLORS.GRAY_LIGHT,
-    elevation: 2,
+    elevation: 10,
     shadowColor: COLORS.BLACK,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
   },
   inputContainerFocused: {
     borderColor: COLORS.PRIMARY,
@@ -202,6 +203,6 @@ const styles = StyleSheet.create({
     padding: 4,
     marginLeft: 8,
   },
-})
+});
 
-export default LocationSearch
+export default LocationSearch;
