@@ -2,6 +2,8 @@ import { createStackNavigator } from "@react-navigation/stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useEffect, useState } from "react";
+import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
 import COLORS from "../constant/colors";
 import SCREENS from "../screens";
 import Home from "../screens/User/Home/Home";
@@ -18,6 +20,7 @@ import MemberDetail from "../screens/User/Member/MemberDetail";
 import Member from "../screens/User/Member/Member";
 import Voucher from "../screens/User/Voucher";
 import Mission from "../screens/User/Mission";
+import RideHistory from "../screens/User/RideHistory";
 import Login from "../screens/Auth/Login";
 import Onboarding from "../screens/Auth/Onboarding";
 import InitialScreen from "../screens/Auth/InitialScreen";
@@ -33,6 +36,7 @@ import ReportManagement from "../screens/Admin/ReportManagement";
 import RewardManagement from "../screens/Admin/RewardManagement";
 import AdminProfile from "../screens/Admin/AdminProfile";
 import MembershipManagement from "../screens/Admin/MembershipManagement";
+import { getUserType } from "../utils/storage";
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -51,6 +55,46 @@ const MessageStackNavigator = () => {
 
 const AdminTabNavigator = () => {
   const insets = useSafeAreaInsets();
+  const [isAuthorized, setIsAuthorized] = useState(null); // null = checking, true = authorized, false = not authorized
+
+  useEffect(() => {
+    const checkAdminAccess = async () => {
+      try {
+        const userType = await getUserType();
+        console.log("🔐 AdminTabNavigator - User type:", userType);
+        setIsAuthorized(userType === "ADMIN");
+      } catch (error) {
+        console.error("❌ Error checking admin access:", error);
+        setIsAuthorized(false);
+      }
+    };
+    checkAdminAccess();
+  }, []);
+
+  // Loading state
+  if (isAuthorized === null) {
+    return (
+      <View style={styles.centerContainer}>
+        <ActivityIndicator size="large" color={COLORS.BLUE} />
+        <Text style={styles.loadingText}>Đang kiểm tra quyền truy cập...</Text>
+      </View>
+    );
+  }
+
+  // Unauthorized
+  if (isAuthorized === false) {
+    return (
+      <View style={styles.centerContainer}>
+        <Ionicons name="lock-closed-outline" size={64} color={COLORS.RED} />
+        <Text style={styles.unauthorizedTitle}>Truy cập bị từ chối</Text>
+        <Text style={styles.unauthorizedText}>
+          Bạn không có quyền truy cập vào trang quản trị.
+        </Text>
+      </View>
+    );
+  }
+
+  // Authorized - render admin tabs
   return (
     <AdminTab.Navigator
       initialRouteName={SCREENS.ADMIN_DASHBOARD}
@@ -204,6 +248,7 @@ const MainStackNavigator = () => {
       <Stack.Screen name={SCREENS.MEMBER_DETAIL} component={MemberDetail} />
       <Stack.Screen name={SCREENS.VOUCHER} component={Voucher} />
       <Stack.Screen name={SCREENS.MISSION} component={Mission} />
+      <Stack.Screen name={SCREENS.RIDE_HISTORY} component={RideHistory} />
       <Stack.Screen
         name={SCREENS.ADMIN_MEMBERSHIP_MANAGEMENT}
         component={MembershipManagement}
@@ -212,5 +257,32 @@ const MainStackNavigator = () => {
     </Stack.Navigator>
   );
 };
+
+const styles = StyleSheet.create({
+  centerContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: COLORS.WHITE,
+    padding: 20,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: COLORS.GRAY,
+  },
+  unauthorizedTitle: {
+    marginTop: 16,
+    fontSize: 20,
+    fontWeight: "700",
+    color: COLORS.RED,
+  },
+  unauthorizedText: {
+    marginTop: 8,
+    fontSize: 14,
+    color: COLORS.GRAY,
+    textAlign: "center",
+  },
+});
 
 export { UserTabNavigator, MainStackNavigator };
