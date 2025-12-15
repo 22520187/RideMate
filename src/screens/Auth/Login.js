@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Image,
+  ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import COLORS from "../../constant/colors";
@@ -25,6 +26,9 @@ import { chatClient } from "../../utils/StreamClient";
 import { API_BASE_URL } from "@env";
 import { saveToken, saveRefreshToken } from "../../utils/storage";
 import endpoints from "../../api/endpoints";
+import axiosClient from "../../api/axiosClient";
+
+console.log("🔍 Login.js - API_BASE_URL from @env:", API_BASE_URL);
 
 const Login = ({ navigation }) => {
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -32,6 +36,10 @@ const Login = ({ navigation }) => {
   const [isLoading, setIsLoading] = useState(false);
 
   const handlePhoneLogin = async () => {
+    console.log("✅ Login button pressed");
+    console.log("📱 Phone number:", phoneNumber);
+    console.log("🔐 Password:", password);
+
     if (!phoneNumber.trim() || !password.trim()) {
       Toast.show({
         type: "error",
@@ -51,32 +59,31 @@ const Login = ({ navigation }) => {
     }
 
     const formattedPhone = phoneNumber.replace(/\s/g, "");
+    console.log("📞 Formatted phone:", formattedPhone);
 
     try {
       setIsLoading(true);
-      const loginUrl = `${API_BASE_URL}${endpoints.auth.login}`;
 
-      // Gọi API backend
-      const response = await fetch(loginUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          phoneNumber: formattedPhone,
-          password,
-          currentLatitude: 10.7769,
-          currentLongitude: 106.7009,
-        }),
+      // Log API configuration
+      console.log("🔧 API Configuration:");
+      console.log("   Base URL:", API_BASE_URL);
+      console.log("   Endpoint:", endpoints.auth.login);
+
+      const response = await axiosClient.post(endpoints.auth.login, {
+        phoneNumber: formattedPhone,
+        password,
+        currentLatitude: 10.7769,
+        currentLongitude: 106.7009,
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Login failed: ${response.status}`);
-      }
-
-      const res = await response.json();
-      const authData = res.data; // ApiResponse.data -> AuthResponse
+      console.log("📦 API Response:", response?.data);
+      const authData = response?.data?.data; // ApiResponse.data -> AuthResponse
 
       const { chatToken, user, accessToken, refreshToken } = authData;
+      console.log("👤 Auth data:", authData);
+      console.log("👤 User:", user);
+      console.log("🔑 Access token:", accessToken);
+      console.log("🔄 Refresh token:", refreshToken);
 
       // Save tokens
       if (accessToken) {
@@ -87,14 +94,20 @@ const Login = ({ navigation }) => {
       }
 
       // Kết nối user lên Stream
-      await chatClient.connectUser(
-        {
-          id: user.id.toString(),
-          name: user.fullName,
-          image: user.profilePictureUrl,
-        },
-        chatToken
-      );
+      try {
+        await chatClient.connectUser(
+          {
+            id: user.id.toString(),
+            name: user.fullName,
+            image: user.profilePictureUrl,
+          },
+          chatToken
+        );
+        console.log("💬 Stream connect successful");
+      } catch (streamError) {
+        console.log("⚠️  Stream connect failed:", streamError.message);
+        // Không throw error, tiếp tục login
+      }
 
       Toast.show({
         type: "success",
@@ -108,10 +121,16 @@ const Login = ({ navigation }) => {
         routes: [{ name: "MainTabs" }],
       });
     } catch (error) {
+      console.log("❌ Login error:", error.message);
+      console.log("🔍 Error details:", {
+        code: error.code,
+        status: error.response?.status,
+        message: error.response?.data?.message,
+      });
       Toast.show({
         type: "error",
         text1: "Lỗi",
-        text2: "Sai thông tin đăng nhập",
+        text2: error.response?.data?.message || "Sai thông tin đăng nhập",
       });
     } finally {
       setIsLoading(false);
@@ -204,152 +223,161 @@ const Login = ({ navigation }) => {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardAvoidingView}
       >
-        <View style={styles.content}>
-          {/* Logo */}
-          <View style={styles.logoContainer}>
-            <View style={styles.logoCircle}>
-              <Ionicons name="car" size={60} color={COLORS.WHITE} />
-            </View>
-            <Text style={styles.appName}>RideMate</Text>
-            <Text style={styles.subtitle}>Đăng nhập để tiếp tục</Text>
-          </View>
-
-          {/* Phone Input */}
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Số điện thoại</Text>
-            <View style={styles.phoneInputWrapper}>
-              <View style={styles.countryCode}>
-                <Text style={styles.countryCodeText}>+84</Text>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.content}>
+            {/* Logo */}
+            <View style={styles.logoContainer}>
+              <View style={styles.logoCircle}>
+                <Ionicons name="car" size={60} color={COLORS.WHITE} />
               </View>
-              <TextInput
-                style={styles.phoneInput}
-                placeholder="Nhập số điện thoại"
-                placeholderTextColor={COLORS.PLACEHOLDER_COLOR}
-                value={phoneNumber}
-                onChangeText={(text) => setPhoneNumber(formatPhoneNumber(text))}
-                keyboardType="phone-pad"
-                maxLength={15}
-              />
+              <Text style={styles.appName}>RideMate</Text>
+              <Text style={styles.subtitle}>Đăng nhập để tiếp tục</Text>
             </View>
-          </View>
 
-          {/* Password */}
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Mật khẩu</Text>
-            <View style={styles.phoneInputWrapper}>
-              <TextInput
-                style={styles.phoneInput}
-                placeholder="Nhập mật khẩu"
-                placeholderTextColor={COLORS.PLACEHOLDER_COLOR}
-                secureTextEntry={true}
-                value={password}
-                onChangeText={(password) => setPassword(password)}
-              />
+            {/* Phone Input */}
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Số điện thoại</Text>
+              <View style={styles.phoneInputWrapper}>
+                <View style={styles.countryCode}>
+                  <Text style={styles.countryCodeText}>+84</Text>
+                </View>
+                <TextInput
+                  style={styles.phoneInput}
+                  placeholder="Nhập số điện thoại"
+                  placeholderTextColor={COLORS.PLACEHOLDER_COLOR}
+                  value={phoneNumber}
+                  onChangeText={(text) =>
+                    setPhoneNumber(formatPhoneNumber(text))
+                  }
+                  keyboardType="phone-pad"
+                  maxLength={15}
+                />
+              </View>
             </View>
-          </View>
 
-          {/* Login Button */}
-          <TouchableOpacity
-            style={[
-              styles.loginButton,
-              isLoading && styles.loginButtonDisabled,
-            ]}
-            onPress={handlePhoneLogin}
-            disabled={isLoading}
-          >
-            <Text style={styles.loginButtonText}>
-              {isLoading ? "Đang xử lý..." : "Tiếp tục"}
+            {/* Password */}
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Mật khẩu</Text>
+              <View style={styles.phoneInputWrapper}>
+                <TextInput
+                  style={styles.phoneInput}
+                  placeholder="Nhập mật khẩu"
+                  placeholderTextColor={COLORS.PLACEHOLDER_COLOR}
+                  secureTextEntry={true}
+                  value={password}
+                  onChangeText={(password) => setPassword(password)}
+                />
+              </View>
+            </View>
+
+            {/* Login Button */}
+            <TouchableOpacity
+              style={[
+                styles.loginButton,
+                isLoading && styles.loginButtonDisabled,
+              ]}
+              onPress={handlePhoneLogin}
+              disabled={isLoading}
+            >
+              <Text style={styles.loginButtonText}>
+                {isLoading ? "Đang xử lý..." : "Tiếp tục"}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Divider */}
+            <View style={styles.dividerContainer}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>hoặc</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            {/* Social Login Buttons */}
+            <View style={styles.socialContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.socialButton,
+                  styles.googleButton,
+                  isLoading && styles.socialButtonDisabled,
+                ]}
+                onPress={handleGoogleLogin}
+                disabled={isLoading}
+              >
+                <Ionicons name="logo-google" size={24} color="#DB4437" />
+                <Text style={styles.socialButtonText}>Google</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.socialButton,
+                  styles.facebookButton,
+                  isLoading && styles.socialButtonDisabled,
+                ]}
+                onPress={handleFacebookLogin}
+                disabled={isLoading}
+              >
+                <Ionicons name="logo-facebook" size={24} color="#4267B2" />
+                <Text style={styles.socialButtonText}>Facebook</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Terms */}
+            <Text style={styles.termsText}>
+              Bằng cách đăng nhập, bạn đồng ý với{" "}
+              <Text style={styles.termsLink}>Điều khoản sử dụng</Text> và{" "}
+              <Text style={styles.termsLink}>Chính sách bảo mật</Text>
             </Text>
+          </View>
+
+          <TouchableOpacity
+            style={styles.adminAccess}
+            onPress={() =>
+              navigation.reset({
+                index: 0,
+                routes: [{ name: SCREENS.ADMIN_STACK }],
+              })
+            }
+          >
+            <Ionicons name="shield-checkmark" size={18} color="#004553" />
+            <Text style={styles.adminAccessText}>Dành cho quản trị viên</Text>
           </TouchableOpacity>
 
-          {/* Divider */}
-          <View style={styles.dividerContainer}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>hoặc</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          {/* Social Login Buttons */}
-          <View style={styles.socialContainer}>
-            <TouchableOpacity
-              style={[
-                styles.socialButton,
-                styles.googleButton,
-                isLoading && styles.socialButtonDisabled,
-              ]}
-              onPress={handleGoogleLogin}
-              disabled={isLoading}
-            >
-              <Ionicons name="logo-google" size={24} color="#DB4437" />
-              <Text style={styles.socialButtonText}>Google</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.socialButton,
-                styles.facebookButton,
-                isLoading && styles.socialButtonDisabled,
-              ]}
-              onPress={handleFacebookLogin}
-              disabled={isLoading}
-            >
-              <Ionicons name="logo-facebook" size={24} color="#4267B2" />
-              <Text style={styles.socialButtonText}>Facebook</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Terms */}
-          <Text style={styles.termsText}>
-            Bằng cách đăng nhập, bạn đồng ý với{" "}
-            <Text style={styles.termsLink}>Điều khoản sử dụng</Text> và{" "}
-            <Text style={styles.termsLink}>Chính sách bảo mật</Text>
-          </Text>
-        </View>
-
-        <TouchableOpacity
-          style={styles.adminAccess}
-          onPress={() =>
-            navigation.reset({
-              index: 0,
-              routes: [{ name: SCREENS.ADMIN_STACK }],
-            })
-          }
-        >
-          <Ionicons name="shield-checkmark" size={18} color={COLORS.BLUE} />
-          <Text style={styles.adminAccessText}>Dành cho quản trị viên</Text>
-        </TouchableOpacity>
-        {/* Register Button */}
-        <TouchableOpacity
-          style={styles.registerButton}
-          onPress={async () => {
-            // Validate phone number
-            if (!phoneNumber.trim()) {
-              Toast.show({
-                type: "error",
-                text1: "Lỗi",
-                text2: "Vui lòng nhập số điện thoại",
+          {/* Register Button */}
+          <TouchableOpacity
+            style={styles.registerButton}
+            onPress={async () => {
+              // Validate phone number
+              if (!phoneNumber.trim()) {
+                Toast.show({
+                  type: "error",
+                  text1: "Lỗi",
+                  text2: "Vui lòng nhập số điện thoại",
+                });
+                return;
+              }
+              if (!validatePhoneNumber(phoneNumber)) {
+                Toast.show({
+                  type: "error",
+                  text1: "Lỗi",
+                  text2: "Số điện thoại không hợp lệ",
+                });
+                return;
+              }
+              navigation.navigate(SCREENS.PHONE_VERIFICATION, {
+                phoneNumber: phoneNumber.replace(/\s/g, ""),
+                isExistingUser: false,
+                mode: "register",
               });
-              return;
-            }
-            if (!validatePhoneNumber(phoneNumber)) {
-              Toast.show({
-                type: "error",
-                text1: "Lỗi",
-                text2: "Số điện thoại không hợp lệ",
-              });
-              return;
-            }
-            navigation.navigate(SCREENS.PHONE_VERIFICATION, {
-              phoneNumber: phoneNumber.replace(/\s/g, ""),
-              isExistingUser: false,
-              mode: "register",
-            });
-          }}
-        >
-          <Text style={styles.registerButtonText}>
-            Chưa có tài khoản? Đăng ký
-          </Text>
-        </TouchableOpacity>
+            }}
+          >
+            <Text style={styles.registerButtonText}>
+              Chưa có tài khoản? Đăng ký
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -358,13 +386,16 @@ const Login = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: "#FFFFFF",
   },
   keyboardAvoidingView: {
     flex: 1,
   },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 24,
+  },
   content: {
-    flex: 1,
     paddingHorizontal: 24,
     paddingTop: 20,
   },
@@ -376,14 +407,14 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 60,
-    backgroundColor: COLORS.BLUE,
+    backgroundColor: "#004553",
     justifyContent: "center",
     alignItems: "center",
   },
   appName: {
     fontSize: 32,
     fontWeight: "bold",
-    color: COLORS.BLACK,
+    color: "#004553",
     marginBottom: 8,
   },
   subtitle: {
@@ -396,7 +427,7 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 16,
     fontWeight: "600",
-    color: COLORS.BLACK,
+    color: "#004553",
     marginBottom: 12,
   },
   phoneInputWrapper: {
@@ -426,7 +457,7 @@ const styles = StyleSheet.create({
     color: COLORS.BLACK,
   },
   loginButton: {
-    backgroundColor: COLORS.BLUE,
+    backgroundColor: "#004553",
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: "center",
@@ -491,13 +522,15 @@ const styles = StyleSheet.create({
     color: COLORS.GRAY,
     textAlign: "center",
     lineHeight: 18,
+    marginBottom: 24,
   },
   termsLink: {
-    color: COLORS.BLUE,
+    color: "#004553",
     fontWeight: "500",
   },
   adminAccess: {
-    marginTop: 24,
+    marginTop: 16,
+    marginBottom: 16,
     alignSelf: "center",
     flexDirection: "row",
     alignItems: "center",
@@ -505,26 +538,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 10,
     borderRadius: 20,
-    backgroundColor: COLORS.BLUE_LIGHT,
+    backgroundColor: "rgba(0, 69, 83, 0.1)",
   },
   adminAccessText: {
     fontSize: 14,
     fontWeight: "600",
-    color: COLORS.BLUE,
+    color: "#004553",
   },
   registerButton: {
-    marginTop: 24,
     alignSelf: "center",
     paddingHorizontal: 18,
     paddingVertical: 12,
     borderRadius: 8,
     backgroundColor: COLORS.WHITE,
     borderWidth: 1,
-    borderColor: COLORS.BLUE,
-    marginBottom: 16,
+    borderColor: "#004553",
   },
   registerButtonText: {
-    color: COLORS.BLUE,
+    color: "#004553",
     fontSize: 14,
     fontWeight: "600",
   },
