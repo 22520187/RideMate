@@ -49,6 +49,8 @@ const MatchedRideScreen = ({ navigation, route }) => {
     driverName, driverPhone, driverAvatar,
     currentUserId, otherUserId,
     from, to, price, distance, duration, departureTime,
+    // [SỬA] Nhận thêm tọa độ từ params để Map hiển thị đúng
+    pickupLat, pickupLng, destLat, destLng, 
     status: initialStatus 
   } = route.params || {};
 
@@ -76,13 +78,23 @@ const MatchedRideScreen = ({ navigation, route }) => {
     return reviews[rating - 1] || "";
   };
 
+  // Initialize Stream Chat channel on mount
   useEffect(() => {
     const initializeChat = async () => {
       try {
         setLoadingChat(true);
-        const myId = currentUserId; 
+        // [SỬA] Đảm bảo ID là chuỗi (string) để tránh lỗi kết nối Chat
+        const myId = currentUserId ? String(currentUserId) : null; 
+        
         const params = route.params || {};
-        const partnerId = otherUserId || (isDriver ? params.passengerId : params.driverId);
+        // [SỬA] Lấy ID đối phương an toàn hơn
+        let partnerId = otherUserId;
+        if (!partnerId) {
+            partnerId = isDriver ? params.passengerId : params.driverId;
+        }
+        partnerId = partnerId ? String(partnerId) : null;
+
+        // Fallback ID để không crash app nếu thiếu dữ liệu (chỉ dùng khi dev)
         const safeMyId = myId || "user_temp";
         const safePartnerId = partnerId || (isDriver ? "passenger_temp" : "driver_temp");
 
@@ -195,12 +207,19 @@ const MatchedRideScreen = ({ navigation, route }) => {
         text: "Hủy chuyến",
         style: "destructive",
         onPress: async () => {
+          // [SỬA] Kiểm tra matchId trước khi gọi API để tránh lỗi "Không thể hủy"
+          if (!matchId) {
+             Alert.alert("Lỗi", "Không tìm thấy thông tin chuyến đi.");
+             return;
+          }
+          
           setIsLoadingAction(true);
           try {
             await cancelRide(matchId);
             Alert.alert("Đã hủy", "Chuyến đi đã được hủy.");
             navigation.goBack();
           } catch (error) {
+            console.error("Cancel Error:", error);
             Alert.alert("Lỗi", "Không thể hủy lúc này.");
           } finally {
             setIsLoadingAction(false);
@@ -238,17 +257,19 @@ const MatchedRideScreen = ({ navigation, route }) => {
       distance: distance || "-- km",
     }), [from, to, price, distance, duration]);
 
+  // [SỬA] Sử dụng tọa độ thực tế từ API (pickupLat, pickupLng) thay vì hardcode
   const originCoordinate = useMemo(() => ({
-      latitude: 21.0285,
-      longitude: 105.8542,
+      latitude: pickupLat ? parseFloat(pickupLat) : 21.0285, 
+      longitude: pickupLng ? parseFloat(pickupLng) : 105.8542,
       description: rideDetails.from,
-    }), [rideDetails.from]);
+    }), [pickupLat, pickupLng, rideDetails.from]);
 
+  // [SỬA] Sử dụng tọa độ thực tế từ API (destLat, destLng) thay vì hardcode
   const destinationCoordinate = useMemo(() => ({
-      latitude: 21.0152,
-      longitude: 105.8415,
+      latitude: destLat ? parseFloat(destLat) : 21.0152,
+      longitude: destLng ? parseFloat(destLng) : 105.8415,
       description: rideDetails.to,
-    }), [rideDetails.to]);
+    }), [destLat, destLng, rideDetails.to]);
 
   const handleSend = async () => {
     if (!inputText.trim() || !channel) return;
@@ -427,7 +448,7 @@ const MatchedRideScreen = ({ navigation, route }) => {
               showsVerticalScrollIndicator={false}
             >
               {messages.map((message) => {
-                const isMyMessage = message.user?.id === currentUserId;
+                const isMyMessage = message.user?.id === String(currentUserId); // [SỬA] So sánh ID dạng string
                 return (
                   <View
                     key={message.id}
@@ -603,6 +624,7 @@ const MatchedRideScreen = ({ navigation, route }) => {
 };
 
 const styles = StyleSheet.create({
+  // ... (giữ nguyên styles)
   container: {
     flex: 1,
     backgroundColor: COLORS.BG,

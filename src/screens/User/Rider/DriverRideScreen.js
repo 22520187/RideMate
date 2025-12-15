@@ -486,7 +486,7 @@ const DriverRideScreen = ({ navigation, route }) => {
       
       if (response.data && response.data.data) {
         const matches = response.data.data;
-        console.log("Tìm thấy:", matches.length, "chuyến");
+        
         const realPassengers = matches.map((match) => ({
           id: match.id,
           name: match.passengerName,
@@ -495,10 +495,15 @@ const DriverRideScreen = ({ navigation, route }) => {
           departureTime: "Ngay bây giờ", 
           from: match.pickupAddress,
           to: match.destinationAddress,
+          pickupLat: match.pickupLatitude,
+          pickupLng: match.pickupLongitude,
+          destLat: match.destinationLatitude,
+          destLng: match.destinationLongitude,
+          
           rating: 5.0, 
           reviews: 0,
-          fare: match.fare, 
-          status: match.status
+          fare: match.coin ? match.coin : routeInfo.price, 
+          passengerId: match.passengerId 
         }));
 
         setAvailablePassengers(realPassengers);
@@ -518,27 +523,33 @@ const DriverRideScreen = ({ navigation, route }) => {
   };
 
   const handleSelectPassenger = (passenger) => {
-    const durationMinutes = Math.round(
-      parseFloat(routeInfo.distance.replace(" km", "")) * 2.5
-    );
-    const distanceKm = parseFloat(routeInfo.distance.replace(" km", ""));
-    const price = calculatePrice(distanceKm);
-
     navigation.navigate("MatchedRide", {
       isDriver: true,
       matchId: passenger.id,
+      
       passengerName: passenger.name,
       passengerPhone: passenger.phone,
       passengerAvatar: passenger.avatar,
+      
+      // ID để chat
+      currentUserId: userProfile?.id, 
+      otherUserId: passenger.passengerId, 
+      
       from: passenger.from, 
-      to: passenger.to, 
-      departureTime: scheduledRide?.time || passenger.departureTime,
-      price: routeInfo.price,
+      to: passenger.to,
+      pickupLat: passenger.pickupLat,
+      pickupLng: passenger.pickupLng,
+      destLat: passenger.destLat,
+      destLng: passenger.destLng,
+      
+      price: typeof passenger.fare === 'number' ? `${passenger.fare.toLocaleString()} xu` : passenger.fare,
       duration: routeInfo.duration,
       distance: routeInfo.distance,
     });
     setIsPassengerModalVisible(false);
   };
+
+
 
   return (
     <View style={styles.container}>
