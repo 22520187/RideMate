@@ -7,7 +7,8 @@ import {
   Alert,
   FlatList,
   AppState,
-  Dimensions
+  Dimensions,
+  TextInput
 } from 'react-native'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { MaterialIcons } from '@expo/vector-icons'
@@ -33,6 +34,7 @@ const PassengerRideScreen = ({ navigation, route }) => {
     const subscription = AppState.addEventListener('change', handleAppStateChange);
     return () => subscription?.remove();
   }, []);
+
   const [fromLocation, setFromLocation] = useState('')
   const [toLocation, setToLocation] = useState('')
   const [originCoordinate, setOriginCoordinate] = useState(null)
@@ -199,11 +201,18 @@ const PassengerRideScreen = ({ navigation, route }) => {
           licensePlate: `30A-${12345 + matchedRide.id}`,
           from: fromLocation,
           to: toLocation,
+          
+          // [UPDATE] Truyền tọa độ để vẽ Map bên kia
+          pickupLat: originCoordinate.latitude,
+          pickupLng: originCoordinate.longitude,
+          destLat: destinationCoordinate.latitude,
+          destLng: destinationCoordinate.longitude,
+
           departureTime: matchedRide.departureTime,
           price: matchedRide.price,
           duration: '30 phút',
           distance: '12 km',
-          rideId: matchedRide.id
+          matchId: matchedRide.id // Sửa rideId thành matchId
         })
       }, 1500)
       
@@ -290,12 +299,6 @@ const PassengerRideScreen = ({ navigation, route }) => {
                 <MaterialIcons name="search" size={20} color={COLORS.WHITE} />
                 <Text style={styles.searchBtnText}>Tìm chuyến đi</Text>
               </TouchableOpacity>
-
-              {/* <Text style={styles.listTitle}>
-                {(fromLocation && toLocation) 
-                  ? `Chuyến đi từ ${fromLocation} đến ${toLocation}`
-                  : 'Các chuyến đi có sẵn'}
-              </Text> */}
             </View>
 
             <FlatList
@@ -331,6 +334,10 @@ const PassengerRideScreen = ({ navigation, route }) => {
                   <TouchableOpacity 
                     style={styles.joinBtn}
                     onPress={() => {
+                      if (!originCoordinate || !destinationCoordinate) {
+                          Alert.alert("Lỗi", "Vui lòng chọn địa điểm trên bản đồ trước.");
+                          return;
+                      }
                       navigation.navigate('MatchedRide', {
                         isDriver: false,
                         driverName: item.driverName,
@@ -338,13 +345,21 @@ const PassengerRideScreen = ({ navigation, route }) => {
                         driverAvatar: `https://i.pravatar.cc/150?img=${item.id + 10}`,
                         vehicleModel: item.carModel,
                         licensePlate: `30A-${12345 + item.id}`,
+                        
                         from: fromLocation || item.fromLocation,
                         to: toLocation || item.toLocation,
+                        
+                        // [UPDATE] Truyền tọa độ
+                        pickupLat: originCoordinate.latitude,
+                        pickupLng: originCoordinate.longitude,
+                        destLat: destinationCoordinate.latitude,
+                        destLng: destinationCoordinate.longitude,
+
                         departureTime: item.departureTime,
                         price: item.price,
                         duration: '30 phút',
                         distance: '12 km',
-                        rideId: item.id
+                        matchId: item.id
                       })
                     }}
                   >
@@ -625,4 +640,3 @@ const styles = StyleSheet.create({
 })
 
 export default PassengerRideScreen
-
