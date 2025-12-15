@@ -32,6 +32,7 @@ const RouteMap = ({
   showRoute = true,
   fullScreen = false,
   rideStatus = "matched",
+  startAnimation = true, // Prop mới để kiểm soát animation
 }) => {
   // Default coordinates
   const DEFAULT_START = { latitude: 10.77254, longitude: 106.69763 };
@@ -50,6 +51,10 @@ const RouteMap = ({
       : destination && destination.latitude
       ? destination
       : DEFAULT_END;
+
+  // Định nghĩa pickupPoint và destinationPoint từ các props
+  const pickupPoint = start;
+  const destinationPoint = end;
 
   const mapRef = useRef(null);
 
@@ -197,6 +202,9 @@ const RouteMap = ({
   useEffect(() => {
     // Nếu chưa có đường thì không chạy
     if (osmRoute.length === 0) return;
+
+    // Nếu startAnimation = false thì không chạy animation
+    if (!startAnimation) return;
 
     const interval = setInterval(() => {
       const currentRoute = routeRef.current;

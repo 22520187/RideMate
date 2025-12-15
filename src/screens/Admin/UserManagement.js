@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -8,12 +8,15 @@ import {
   TextInput,
   Alert,
   Image,
+  ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import COLORS from "../../constant/colors";
 import SCREENS from "../../screens";
+import * as adminService from "../../services/adminService";
 
 const roleFilters = [
   { key: "all", label: "Tất cả" },
@@ -93,7 +96,8 @@ const initialLicenseApplications = [
     licenseNumber: "A987654321",
     expiryDate: "20/12/2027",
     submittedDate: "13/11/2024 • 10:30",
-    licenseImage: "https://via.placeholder.com/400x250/4A90E2/FFFFFF?text=Driver+License+Image", // URL to image
+    licenseImage:
+      "https://via.placeholder.com/400x250/4A90E2/FFFFFF?text=Driver+License+Image", // URL to image
     status: "pending",
   },
   {
@@ -104,7 +108,8 @@ const initialLicenseApplications = [
     licenseNumber: "B123456789",
     expiryDate: "15/08/2026",
     submittedDate: "12/11/2024 • 14:20",
-    licenseImage: "https://via.placeholder.com/400x250/4A90E2/FFFFFF?text=Driver+License+Image",
+    licenseImage:
+      "https://via.placeholder.com/400x250/4A90E2/FFFFFF?text=Driver+License+Image",
     status: "pending",
   },
   {
@@ -115,7 +120,8 @@ const initialLicenseApplications = [
     licenseNumber: "C456789012",
     expiryDate: "10/05/2028",
     submittedDate: "11/11/2024 • 09:15",
-    licenseImage: "https://via.placeholder.com/400x250/4A90E2/FFFFFF?text=Driver+License+Image",
+    licenseImage:
+      "https://via.placeholder.com/400x250/4A90E2/FFFFFF?text=Driver+License+Image",
     status: "pending",
   },
 ];
@@ -124,8 +130,38 @@ const UserManagement = () => {
   const navigation = useNavigation();
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
-  const [users, setUsers] = useState(initialUsers);
-  const [licenseApplications, setLicenseApplications] = useState(initialLicenseApplications);
+  const [users, setUsers] = useState([]);
+  const [licenseApplications, setLicenseApplications] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Fetch users and pending drivers
+  const fetchData = useCallback(async () => {
+    try {
+      const [usersRes, pendingDriversRes] = await Promise.all([
+        adminService.getUsers(),
+        adminService.getPendingDrivers(),
+      ]);
+
+      setUsers(usersRes.data || []);
+      setLicenseApplications(pendingDriversRes.data || []);
+    } catch (error) {
+      console.error("Error fetching user data:", error);
+      Alert.alert("Lỗi", "Không thể tải dữ liệu người dùng");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchData();
+  }, [fetchData]);
 
   const pendingLicenses = useMemo(() => {
     return licenseApplications.filter((app) => app.status === "pending");
@@ -138,10 +174,10 @@ const UserManagement = () => {
           if (!search.trim()) return true;
           const keyword = search.trim().toLowerCase();
           return (
-            app.userName.toLowerCase().includes(keyword) ||
-            app.phone.toLowerCase().includes(keyword) ||
-            app.userId.toLowerCase().includes(keyword) ||
-            app.licenseNumber.toLowerCase().includes(keyword)
+            (app.fullName || app.userName)?.toLowerCase().includes(keyword) ||
+            app.phoneNumber?.toLowerCase().includes(keyword) ||
+            app.id?.toString().toLowerCase().includes(keyword) ||
+            app.licenseNumber?.toLowerCase().includes(keyword)
           );
         })
         .map((app) => ({ ...app, type: "license" }));
@@ -150,17 +186,17 @@ const UserManagement = () => {
     const filteredUsers = users
       .filter((user) => {
         if (filter === "all") return true;
-        if (filter === "flagged") return user.status === "flagged";
-        if (filter === "banned") return user.status === "banned";
+        if (filter === "flagged") return !user.isActive; // Map to isActive field
+        if (filter === "banned") return !user.isActive;
         return false;
       })
       .filter((user) => {
         if (!search.trim()) return true;
         const keyword = search.trim().toLowerCase();
         return (
-          user.name.toLowerCase().includes(keyword) ||
-          user.phone.toLowerCase().includes(keyword) ||
-          user.id.toLowerCase().includes(keyword)
+          user.fullName?.toLowerCase().includes(keyword) ||
+          user.phoneNumber?.toLowerCase().includes(keyword) ||
+          user.id?.toString().toLowerCase().includes(keyword)
         );
       })
       .map((user) => ({ ...user, type: "user" }));
@@ -172,63 +208,57 @@ const UserManagement = () => {
           if (!search.trim()) return true;
           const keyword = search.trim().toLowerCase();
           return (
-            app.userName.toLowerCase().includes(keyword) ||
-            app.phone.toLowerCase().includes(keyword) ||
-            app.userId.toLowerCase().includes(keyword) ||
-            app.licenseNumber.toLowerCase().includes(keyword)
+            (app.fullName || app.userName)?.toLowerCase().includes(keyword) ||
+            app.phoneNumber?.toLowerCase().includes(keyword) ||
+            app.id?.toString().toLowerCase().includes(keyword) ||
+            app.licenseNumber?.toLowerCase().includes(keyword)
           );
         })
         .map((app) => ({ ...app, type: "license" }));
-      
+
       return [...filteredUsers, ...filteredLicenses];
     }
 
     return filteredUsers;
   }, [filter, search, users, pendingLicenses]);
 
-  const handleStatusChange = (userId, nextStatus) => {
-    setUsers((prev) =>
-      prev.map((user) =>
-        user.id === userId
-          ? {
-              ...user,
-              status: nextStatus,
-            }
-          : user
-      )
-    );
+  const handleStatusChange = async (userId, isActive) => {
+    try {
+      await adminService.toggleUserStatus(userId, { isActive });
+
+      // Update local state
+      setUsers((prev) =>
+        prev.map((user) =>
+          user.id === userId
+            ? {
+                ...user,
+                isActive,
+              }
+            : user
+        )
+      );
+
+      Alert.alert(
+        "Thành công",
+        `Đã ${isActive ? "kích hoạt" : "vô hiệu hóa"} tài khoản`
+      );
+    } catch (error) {
+      console.error("Error updating user status:", error);
+      Alert.alert("Lỗi", "Không thể cập nhật trạng thái người dùng");
+    }
   };
 
   const renderActions = (user) => {
-    if (user.status === "flagged") {
-      return (
-        <View style={styles.actionRow}>
-          <TouchableOpacity
-            style={[styles.actionButton, styles.restoreButton]}
-            onPress={() => handleStatusChange(user.id, "active")}
-          >
-            <Ionicons name="checkmark-circle-outline" size={18} color={COLORS.WHITE} />
-            <Text style={styles.actionLabel}>Gỡ cảnh báo</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.actionButton, styles.suspendButton]}
-            onPress={() => handleStatusChange(user.id, "suspended")}
-          >
-            <Ionicons name="close-circle-outline" size={18} color={COLORS.WHITE} />
-            <Text style={styles.actionLabel}>Khóa tài khoản</Text>
-          </TouchableOpacity>
-        </View>
-      );
-    }
+    const isActive = user.isActive !== false; // Default to true if undefined
 
-    if (user.status === "suspended") {
+    if (!isActive) {
       return (
         <TouchableOpacity
           style={[styles.actionButton, styles.restoreButton]}
-          onPress={() => handleStatusChange(user.id, "active")}
+          onPress={() => handleStatusChange(user.id, true)}
         >
           <Ionicons name="refresh" size={18} color={COLORS.WHITE} />
-          <Text style={styles.actionLabel}>Mở khóa</Text>
+          <Text style={styles.actionLabel}>Kích hoạt</Text>
         </TouchableOpacity>
       );
     }
@@ -236,10 +266,10 @@ const UserManagement = () => {
     return (
       <TouchableOpacity
         style={[styles.actionButton, styles.suspendButton]}
-        onPress={() => handleStatusChange(user.id, "flagged")}
+        onPress={() => handleStatusChange(user.id, false)}
       >
-        <Ionicons name="alert-circle-outline" size={18} color={COLORS.WHITE} />
-        <Text style={styles.actionLabel}>Đánh dấu cảnh báo</Text>
+        <Ionicons name="ban-outline" size={18} color={COLORS.WHITE} />
+        <Text style={styles.actionLabel}>Vô hiệu hóa</Text>
       </TouchableOpacity>
     );
   };
@@ -248,7 +278,7 @@ const UserManagement = () => {
     navigation.navigate(SCREENS.ADMIN_USER_DETAIL, { user });
   };
 
-  const handleLicenseAction = (licenseId, action) => {
+  const handleLicenseAction = async (userId, action) => {
     Alert.alert(
       action === "approve" ? "Duyệt bằng lái xe" : "Từ chối bằng lái xe",
       action === "approve"
@@ -259,15 +289,34 @@ const UserManagement = () => {
         {
           text: action === "approve" ? "Duyệt" : "Từ chối",
           style: action === "reject" ? "destructive" : "default",
-          onPress: () => {
-            setLicenseApplications((prev) =>
-              prev.map((app) =>
-                app.id === licenseId
-                  ? { ...app, status: action === "approve" ? "approved" : "rejected" }
-                  : app
-              )
-            );
-            // Trong thực tế, sẽ gọi API để cập nhật
+          onPress: async () => {
+            try {
+              if (action === "approve") {
+                await adminService.approveDriver(userId);
+              } else {
+                await adminService.rejectDriver(userId, {
+                  reason: "Không đủ điều kiện",
+                });
+              }
+
+              // Remove from pending list
+              setLicenseApplications((prev) =>
+                prev.filter((app) => app.id !== userId)
+              );
+
+              Alert.alert(
+                "Thành công",
+                action === "approve"
+                  ? "Đã duyệt đơn đăng ký tài xế"
+                  : "Đã từ chối đơn đăng ký tài xế"
+              );
+
+              // Refresh data
+              fetchData();
+            } catch (error) {
+              console.error("Error processing driver application:", error);
+              Alert.alert("Lỗi", "Không thể xử lý đơn đăng ký");
+            }
           },
         },
       ]
@@ -278,11 +327,20 @@ const UserManagement = () => {
     <View style={styles.licenseCard}>
       <View style={styles.licenseHeader}>
         <View>
-          <Text style={styles.licenseUserName}>{item.userName}</Text>
-          <Text style={styles.licenseUserId}>{item.userId}</Text>
+          <Text style={styles.licenseUserName}>
+            {item.fullName || item.userName}
+          </Text>
+          <Text style={styles.licenseUserId}>#{item.id}</Text>
         </View>
-        <View style={[styles.licenseStatusBadge, { backgroundColor: COLORS.ORANGE_LIGHT }]}>
-          <Text style={[styles.licenseStatusText, { color: COLORS.ORANGE_DARK }]}>
+        <View
+          style={[
+            styles.licenseStatusBadge,
+            { backgroundColor: COLORS.ORANGE_LIGHT },
+          ]}
+        >
+          <Text
+            style={[styles.licenseStatusText, { color: COLORS.ORANGE_DARK }]}
+          >
             Chờ duyệt
           </Text>
         </View>
@@ -290,26 +348,34 @@ const UserManagement = () => {
 
       <View style={styles.licenseInfoRow}>
         <Ionicons name="call-outline" size={16} color={COLORS.GRAY} />
-        <Text style={styles.licenseInfoText}>{item.phone}</Text>
+        <Text style={styles.licenseInfoText}>
+          {item.phoneNumber || item.phone}
+        </Text>
       </View>
       <View style={styles.licenseInfoRow}>
         <Ionicons name="card-outline" size={16} color={COLORS.GRAY} />
-        <Text style={styles.licenseInfoText}>Số bằng: {item.licenseNumber}</Text>
+        <Text style={styles.licenseInfoText}>
+          Số bằng: {item.licenseNumber}
+        </Text>
       </View>
-      <View style={styles.licenseInfoRow}>
-        <Ionicons name="calendar-outline" size={16} color={COLORS.GRAY} />
-        <Text style={styles.licenseInfoText}>Hết hạn: {item.expiryDate}</Text>
-      </View>
-      <View style={styles.licenseInfoRow}>
-        <Ionicons name="time-outline" size={16} color={COLORS.GRAY} />
-        <Text style={styles.licenseInfoText}>Gửi: {item.submittedDate}</Text>
-      </View>
+      {item.expiryDate && (
+        <View style={styles.licenseInfoRow}>
+          <Ionicons name="calendar-outline" size={16} color={COLORS.GRAY} />
+          <Text style={styles.licenseInfoText}>Hết hạn: {item.expiryDate}</Text>
+        </View>
+      )}
+      {item.submittedDate && (
+        <View style={styles.licenseInfoRow}>
+          <Ionicons name="time-outline" size={16} color={COLORS.GRAY} />
+          <Text style={styles.licenseInfoText}>Gửi: {item.submittedDate}</Text>
+        </View>
+      )}
 
-      {item.licenseImage && (
+      {item.licenseImageUrl && (
         <View style={styles.licenseImageContainer}>
           <Text style={styles.licenseImageLabel}>Ảnh bằng lái xe:</Text>
           <Image
-            source={{ uri: item.licenseImage }}
+            source={{ uri: item.licenseImageUrl }}
             style={styles.licenseImage}
             resizeMode="contain"
           />
@@ -321,14 +387,14 @@ const UserManagement = () => {
           style={[styles.licenseActionButton, styles.approveLicenseButton]}
           onPress={() => handleLicenseAction(item.id, "approve")}
         >
-          <Ionicons name="checkmark-circle" size={18} color={COLORS.WHITE} />
+          <Ionicons name="checkmark-circle" size={20} color={COLORS.WHITE} />
           <Text style={styles.licenseActionText}>Duyệt</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.licenseActionButton, styles.rejectLicenseButton]}
           onPress={() => handleLicenseAction(item.id, "reject")}
         >
-          <Ionicons name="close-circle" size={18} color={COLORS.WHITE} />
+          <Ionicons name="close-circle" size={20} color={COLORS.WHITE} />
           <Text style={styles.licenseActionText}>Từ chối</Text>
         </TouchableOpacity>
       </View>
@@ -343,7 +409,9 @@ const UserManagement = () => {
   };
 
   const renderUserItem = ({ item }) => {
-    const style = statusStyles[item.status] || statusStyles.active;
+    const isActive = item.isActive !== false;
+    const style = isActive ? statusStyles.active : statusStyles.suspended;
+
     return (
       <TouchableOpacity
         style={styles.userCard}
@@ -352,32 +420,39 @@ const UserManagement = () => {
       >
         <View style={styles.userHeader}>
           <View>
-            <Text style={styles.userName}>{item.name}</Text>
-            <Text style={styles.userId}>{item.id}</Text>
+            <Text style={styles.userName}>{item.fullName || item.name}</Text>
+            <Text style={styles.userId}>#{item.id}</Text>
           </View>
-          <View style={[styles.badge, { backgroundColor: style.background }]}
-          >
-            <Text style={[styles.badgeLabel, { color: style.color }]}>{style.label}</Text>
+          <View style={[styles.badge, { backgroundColor: style.background }]}>
+            <Text style={[styles.badgeLabel, { color: style.color }]}>
+              {style.label}
+            </Text>
           </View>
         </View>
 
         <View style={styles.userInfoRow}>
           <Ionicons name="call-outline" size={16} color={COLORS.GRAY} />
-          <Text style={styles.userInfoText}>{item.phone}</Text>
+          <Text style={styles.userInfoText}>
+            {item.phoneNumber || item.phone}
+          </Text>
         </View>
         <View style={styles.userInfoRow}>
           <Ionicons name="briefcase-outline" size={16} color={COLORS.GRAY} />
           <Text style={styles.userInfoText}>
-            Vai trò: {item.role === "driver" ? "Tài xế" : "Hành khách"}
+            Vai trò: {item.userType === "DRIVER" ? "Tài xế" : "Hành khách"}
           </Text>
         </View>
         <View style={styles.userStatsRow}>
           <View style={styles.statBox}>
-            <Text style={styles.statValue}>{item.completedTrips}</Text>
+            <Text style={styles.statValue}>{item.completedTrips || 0}</Text>
             <Text style={styles.statLabel}>Chuyến hoàn thành</Text>
           </View>
           <View style={styles.statBox}>
-            <Text style={styles.statValue}>{item.rating.toFixed(1)}</Text>
+            <Text style={styles.statValue}>
+              {item.driverRating || item.rating
+                ? (item.driverRating || item.rating).toFixed(1)
+                : "N/A"}
+            </Text>
             <Text style={styles.statLabel}>Đánh giá trung bình</Text>
           </View>
         </View>
@@ -388,76 +463,102 @@ const UserManagement = () => {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
+    <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Quản lý người dùng</Text>
         </View>
       </View>
 
-      <View style={styles.searchContainer}>
-        <Ionicons name="search-outline" size={18} color={COLORS.GRAY} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder={
-            filter === "licenses"
-              ? "Tìm kiếm theo tên, số điện thoại"
-              : "Tìm kiếm theo tên, số điện thoại"
-          }
-          placeholderTextColor={COLORS.GRAY}
-          value={search}
-          onChangeText={setSearch}
-        />
-      </View>
-
-      <View style={styles.filterRow}>
-        {roleFilters.map((item) => {
-          const active = filter === item.key;
-          return (
-            <TouchableOpacity
-              key={item.key}
-              style={[styles.filterChip, active && styles.filterChipActive]}
-              onPress={() => setFilter(item.key)}
-            >
-              <Text style={[styles.filterChipLabel, active && styles.filterChipLabelActive]}>
-                {item.label}
-              </Text>
-              {item.key === "licenses" && pendingLicenses.length > 0 && (
-                <View style={styles.filterBadge}>
-                  <Text style={styles.filterBadgeText}>{pendingLicenses.length}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-
-      <FlatList
-        data={listDescriptor}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Ionicons
-              name={filter === "licenses" ? "card-outline" : "people-outline"}
-              size={48}
-              color={COLORS.GRAY}
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.BLUE} />
+          <Text style={styles.loadingText}>Đang tải dữ liệu...</Text>
+        </View>
+      ) : (
+        <>
+          <View style={styles.searchContainer}>
+            <Ionicons name="search-outline" size={18} color={COLORS.GRAY} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder={
+                filter === "licenses"
+                  ? "Tìm kiếm theo tên, số điện thoại"
+                  : "Tìm kiếm theo tên, số điện thoại"
+              }
+              placeholderTextColor={COLORS.GRAY}
+              value={search}
+              onChangeText={setSearch}
             />
-            <Text style={styles.emptyTitle}>
-              {filter === "licenses"
-                ? "Không có đơn chờ duyệt"
-                : "Không có người dùng phù hợp"}
-            </Text>
-            <Text style={styles.emptyDescription}>
-              {filter === "licenses"
-                ? "Tất cả đơn duyệt bằng lái xe đã được xử lý."
-                : "Điều chỉnh tiêu chí lọc hoặc kiểm tra lại sau."}
-            </Text>
           </View>
-        }
-      />
+
+          <View style={styles.filterRow}>
+            {roleFilters.map((item) => {
+              const active = filter === item.key;
+              return (
+                <TouchableOpacity
+                  key={item.key}
+                  style={[styles.filterChip, active && styles.filterChipActive]}
+                  onPress={() => setFilter(item.key)}
+                >
+                  <Text
+                    style={[
+                      styles.filterChipLabel,
+                      active && styles.filterChipLabelActive,
+                    ]}
+                  >
+                    {item.label}
+                  </Text>
+                  {item.key === "licenses" && pendingLicenses.length > 0 && (
+                    <View style={styles.filterBadge}>
+                      <Text style={styles.filterBadgeText}>
+                        {pendingLicenses.length}
+                      </Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <FlatList
+            data={listDescriptor}
+            keyExtractor={(item) => item.id.toString()}
+            renderItem={renderItem}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                colors={[COLORS.BLUE]}
+                tintColor={COLORS.BLUE}
+              />
+            }
+            ListEmptyComponent={
+              <View style={styles.emptyState}>
+                <Ionicons
+                  name={
+                    filter === "licenses" ? "card-outline" : "people-outline"
+                  }
+                  size={48}
+                  color={COLORS.GRAY}
+                />
+                <Text style={styles.emptyTitle}>
+                  {filter === "licenses"
+                    ? "Không có đơn chờ duyệt"
+                    : "Không có người dùng phù hợp"}
+                </Text>
+                <Text style={styles.emptyDescription}>
+                  {filter === "licenses"
+                    ? "Tất cả đơn duyệt bằng lái xe đã được xử lý."
+                    : "Điều chỉnh tiêu chí lọc hoặc kiểm tra lại sau."}
+                </Text>
+              </View>
+            }
+          />
+        </>
+      )}
     </SafeAreaView>
   );
 };
@@ -480,6 +581,17 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "700",
     color: COLORS.WHITE,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 40,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: COLORS.GRAY,
   },
   subtitle: {
     marginTop: 4,
@@ -764,4 +876,3 @@ const styles = StyleSheet.create({
 });
 
 export default UserManagement;
-

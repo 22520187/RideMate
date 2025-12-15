@@ -15,6 +15,7 @@ const LocationSearch = ({
   showSuggestions = true,
   containerWidth = "100%", // Thêm prop để truyền chiều rộng
   forceHideSuggestions = false, // Thêm prop để force ẩn suggestions
+  showClearButton = true, // Prop mới để hiển thị/ẩn button clear
 }) => {
   const [isFocused, setIsFocused] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
@@ -138,7 +139,7 @@ const LocationSearch = ({
           onFocus={handleFocus}
           onBlur={handleBlur}
         />
-        {value.length > 0 && (
+        {value.length > 0 && showClearButton && (
           <TouchableOpacity onPress={clearSearch} style={styles.clearButton}>
             <MaterialIcons name="clear" size={18} color={COLORS.GRAY} />
           </TouchableOpacity>

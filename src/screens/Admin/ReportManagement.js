@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -9,27 +9,42 @@ import {
   ScrollView,
   TextInput,
   Alert,
+  ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import COLORS from "../../constant/colors";
+import { getReports, updateReportStatus } from "../../services/adminService";
 
 const filters = [
   { key: "all", label: "Tất cả" },
-  { key: "pending", label: "Chờ xử lý" },
-  { key: "resolved", label: "Đã giải quyết" },
+  { key: "PENDING", label: "Chờ xử lý" },
+  { key: "PROCESSING", label: "Đang xử lý" },
+  { key: "RESOLVED", label: "Đã giải quyết" },
+  { key: "REJECTED", label: "Đã từ chối" },
 ];
 
 const statusStyles = {
-  pending: {
+  PENDING: {
     label: "Chờ xử lý",
     color: COLORS.ORANGE_DARK,
     background: COLORS.ORANGE_LIGHT,
   },
-  resolved: {
+  PROCESSING: {
+    label: "Đang xử lý",
+    color: COLORS.BLUE,
+    background: COLORS.BLUE_LIGHT,
+  },
+  RESOLVED: {
     label: "Đã giải quyết",
     color: COLORS.GREEN,
     background: COLORS.GREEN_LIGHT,
+  },
+  REJECTED: {
+    label: "Đã từ chối",
+    color: COLORS.RED,
+    background: COLORS.RED_LIGHT,
   },
 };
 
@@ -41,7 +56,8 @@ const initialReports = [
     target: "Nguyễn Văn A",
     createdAt: "12/11/2024 • 09:15",
     status: "pending",
-    details: "Tài xế có thái độ không hợp tác và to tiếng trong chuyến đi RM-2024-109.",
+    details:
+      "Tài xế có thái độ không hợp tác và to tiếng trong chuyến đi RM-2024-109.",
   },
   {
     id: "REP-482",
@@ -64,34 +80,117 @@ const initialReports = [
 ];
 
 const actionTypes = [
-  { key: "warning", label: "Cảnh báo", icon: "warning-outline", color: COLORS.ORANGE_DARK },
-  { key: "suspend", label: "Khóa tài khoản", icon: "lock-closed-outline", color: COLORS.RED },
-  { key: "notify", label: "Gửi thông báo", icon: "notifications-outline", color: COLORS.BLUE },
+  {
+    key: "WARNING",
+    label: "Cảnh báo",
+    icon: "warning-outline",
+    color: COLORS.ORANGE_DARK,
+  },
+  {
+    key: "LOCK_7_DAYS",
+    label: "Khóa 7 ngày",
+    icon: "lock-closed-outline",
+    color: COLORS.RED,
+  },
+  {
+    key: "LOCK_30_DAYS",
+    label: "Khóa 30 ngày",
+    icon: "lock-closed-outline",
+    color: COLORS.RED,
+  },
+  {
+    key: "LOCK_PERMANENT",
+    label: "Khóa vĩnh viễn",
+    icon: "ban-outline",
+    color: COLORS.RED,
+  },
 ];
-
-// Function để cập nhật user status (giả lập liên kết với UserManagement)
-// Trong thực tế, đây sẽ là API call hoặc shared state/context
-const updateUserStatus = (userName, status) => {
-  // Giả lập: Trong thực tế sẽ cập nhật user trong UserManagement
-  console.log(`Updating user ${userName} to status: ${status}`);
-  // Có thể sử dụng context, event emitter, hoặc navigation params để truyền thông tin
-};
 
 const ReportManagement = () => {
   const [filter, setFilter] = useState("all");
-  const [reports, setReports] = useState(initialReports);
+  const [reports, setReports] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedReport, setSelectedReport] = useState(null);
   const [selectedAction, setSelectedAction] = useState("");
   const [adminNote, setAdminNote] = useState("");
   const [reporterResponse, setReporterResponse] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+
+  // Fetch reports from API
+  const fetchReports = useCallback(
+    async (pageNum = 0, filterStatus = filter) => {
+      try {
+        if (pageNum === 0) {
+          setLoading(true);
+        }
+
+        const params = {
+          page: pageNum,
+          size: 20,
+          sortBy: "createdAt",
+          sortDirection: "DESC",
+        };
+
+        // Add status filter if not 'all'
+        if (filterStatus !== "all") {
+          params.status = filterStatus;
+        }
+
+        const response = await getReports(params);
+
+        if (response?.data) {
+          const newReports = response.data.content || [];
+
+          if (pageNum === 0) {
+            setReports(newReports);
+          } else {
+            setReports((prev) => [...prev, ...newReports]);
+          }
+
+          setHasMore(!response.data.last);
+          setPage(pageNum);
+        }
+      } catch (error) {
+        console.error("Error fetching reports:", error);
+        Alert.alert(
+          "Lỗi",
+          "Không thể tải danh sách báo cáo. Vui lòng thử lại."
+        );
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [filter]
+  );
+
+  // Initial load
+  useEffect(() => {
+    fetchReports(0, filter);
+  }, [filter]);
+
+  // Pull to refresh
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    setPage(0);
+    setHasMore(true);
+    fetchReports(0, filter);
+  }, [filter, fetchReports]);
+
+  // Load more
+  const loadMore = useCallback(() => {
+    if (!loading && hasMore) {
+      fetchReports(page + 1, filter);
+    }
+  }, [loading, hasMore, page, filter, fetchReports]);
 
   const filteredReports = useMemo(() => {
-    if (filter === "all") {
-      return reports;
-    }
-    return reports.filter((report) => report.status === filter);
-  }, [filter, reports]);
+    return reports;
+  }, [reports]);
 
   const openActionModal = (report) => {
     setSelectedReport(report);
@@ -109,7 +208,7 @@ const ReportManagement = () => {
     setReporterResponse("");
   };
 
-  const handleSubmitAction = () => {
+  const handleSubmitAction = async () => {
     if (!selectedAction) {
       Alert.alert("Thông báo", "Vui lòng chọn một hành động xử lý");
       return;
@@ -120,45 +219,36 @@ const ReportManagement = () => {
       return;
     }
 
-    // Thực hiện hành động dựa trên loại được chọn
-    switch (selectedAction) {
-      case "warning":
-        updateUserStatus(selectedReport.target, "flagged");
-        Alert.alert("Thành công", "Đã gửi cảnh báo cho người dùng");
-        break;
-      case "suspend":
-        updateUserStatus(selectedReport.target, "suspended");
-        Alert.alert("Thành công", "Đã khóa tài khoản người dùng");
-        break;
-      case "notify":
-        Alert.alert("Thành công", "Đã gửi thông báo cho cả hai bên");
-        break;
+    try {
+      setSubmitting(true);
+
+      const updateData = {
+        status: "RESOLVED",
+        resolutionAction: selectedAction,
+        resolutionNotes: adminNote,
+      };
+
+      await updateReportStatus(selectedReport.id, updateData);
+
+      Alert.alert("Thành công", "Đã xử lý báo cáo thành công");
+
+      // Refresh reports list
+      await fetchReports(0, filter);
+
+      closeModal();
+    } catch (error) {
+      console.error("Error updating report:", error);
+      Alert.alert("Lỗi", "Không thể cập nhật báo cáo. Vui lòng thử lại.");
+    } finally {
+      setSubmitting(false);
     }
-
-    // Cập nhật trạng thái báo cáo
-    setReports((prev) =>
-      prev.map((report) =>
-        report.id === selectedReport.id
-          ? {
-              ...report,
-              status: "resolved",
-              actionTaken: selectedAction,
-              adminNote,
-              reporterResponse,
-              resolvedAt: new Date().toLocaleString("vi-VN"),
-            }
-          : report
-      )
-    );
-
-    closeModal();
   };
 
   const renderActions = (report) => {
-    if (report.status === "resolved") {
+    if (report.status === "RESOLVED" || report.status === "REJECTED") {
       return null;
     }
-    
+
     return (
       <TouchableOpacity
         style={[styles.actionButton, styles.processButton]}
@@ -169,18 +259,48 @@ const ReportManagement = () => {
       </TouchableOpacity>
     );
   };
-
   const renderReportItem = ({ item }) => {
-    const statusStyle = statusStyles[item.status];
+    const statusStyle = statusStyles[item.status] || statusStyles.PENDING;
+
+    // Format date
+    const formatDate = (dateStr) => {
+      if (!dateStr) return "-";
+      const date = new Date(dateStr);
+      return date.toLocaleString("vi-VN", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    };
+
+    // Map category to Vietnamese
+    const getCategoryLabel = (category) => {
+      const categoryMap = {
+        SAFETY: "An toàn",
+        BEHAVIOR: "Hành vi",
+        LOST_ITEM: "Mất đồ",
+        PAYMENT: "Thanh toán",
+        APP_ISSUE: "Lỗi ứng dụng",
+        OTHER: "Khác",
+      };
+      return categoryMap[category] || category;
+    };
+
     return (
       <View style={styles.card}>
         <View style={styles.headerRow}>
           <View>
-            <Text style={styles.reportId}>{item.id}</Text>
-            <Text style={styles.type}>{item.type}</Text>
+            <Text style={styles.reportId}>#{item.id}</Text>
+            <Text style={styles.type}>{getCategoryLabel(item.category)}</Text>
+            {item.title && <Text style={styles.title}>{item.title}</Text>}
           </View>
           <View
-            style={[styles.statusBadge, { backgroundColor: statusStyle.background }]}
+            style={[
+              styles.statusBadge,
+              { backgroundColor: statusStyle.background },
+            ]}
           >
             <Text style={[styles.statusLabel, { color: statusStyle.color }]}>
               {statusStyle.label}
@@ -189,20 +309,28 @@ const ReportManagement = () => {
         </View>
 
         <View style={styles.metaRow}>
-          <Ionicons name="person-circle-outline" size={16} color={COLORS.GRAY} />
-          <Text style={styles.metaText}>Người báo cáo: {item.reporter}</Text>
+          <Ionicons
+            name="person-circle-outline"
+            size={16}
+            color={COLORS.GRAY}
+          />
+          <Text style={styles.metaText}>
+            Người báo cáo: {item.reporter?.fullName || "N/A"}
+          </Text>
         </View>
         <View style={styles.metaRow}>
-          <Ionicons name="car-outline" size={16} color={COLORS.GRAY} />
-          <Text style={styles.metaText}>Người bị báo cáo: {item.target}</Text>
+          <Ionicons name="alert-circle-outline" size={16} color={COLORS.GRAY} />
+          <Text style={styles.metaText}>
+            Người bị báo cáo: {item.reportedUser?.fullName || "N/A"}
+          </Text>
         </View>
         <View style={styles.metaRow}>
           <Ionicons name="time-outline" size={16} color={COLORS.GRAY} />
-          <Text style={styles.metaText}>{item.createdAt}</Text>
+          <Text style={styles.metaText}>{formatDate(item.createdAt)}</Text>
         </View>
 
-        <Text style={styles.details}>{item.details}</Text>
-        
+        <Text style={styles.details}>{item.description}</Text>
+
         {item.resolvedAt && (
           <View style={styles.resolvedInfo}>
             <Ionicons name="checkmark-circle" size={16} color={COLORS.GREEN} />
@@ -216,7 +344,7 @@ const ReportManagement = () => {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
+    <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Xử lý báo cáo</Text>
@@ -232,7 +360,12 @@ const ReportManagement = () => {
               style={[styles.filterChip, isActive && styles.filterChipActive]}
               onPress={() => setFilter(item.key)}
             >
-              <Text style={[styles.filterLabel, isActive && styles.filterLabelActive]}>
+              <Text
+                style={[
+                  styles.filterLabel,
+                  isActive && styles.filterLabelActive,
+                ]}
+              >
                 {item.label}
               </Text>
             </TouchableOpacity>
@@ -240,22 +373,53 @@ const ReportManagement = () => {
         })}
       </View>
 
-      <FlatList
-        data={filteredReports}
-        keyExtractor={(item) => item.id}
-        renderItem={renderReportItem}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Ionicons name="document-text-outline" size={48} color={COLORS.GRAY} />
-            <Text style={styles.emptyTitle}>Không có báo cáo nào</Text>
-            <Text style={styles.emptyDescription}>
-              Tất cả báo cáo hiện đã được xử lý.
-            </Text>
-          </View>
-        }
-      />
+      {loading && page === 0 ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.PRIMARY} />
+          <Text style={styles.loadingText}>Đang tải báo cáo...</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={filteredReports}
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={renderReportItem}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[COLORS.PRIMARY]}
+              tintColor={COLORS.PRIMARY}
+            />
+          }
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={() => {
+            if (loading && page > 0) {
+              return (
+                <View style={styles.footerLoader}>
+                  <ActivityIndicator size="small" color={COLORS.PRIMARY} />
+                </View>
+              );
+            }
+            return null;
+          }}
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <Ionicons
+                name="document-text-outline"
+                size={48}
+                color={COLORS.GRAY}
+              />
+              <Text style={styles.emptyTitle}>Không có báo cáo nào</Text>
+              <Text style={styles.emptyDescription}>
+                Tất cả báo cáo hiện đã được xử lý.
+              </Text>
+            </View>
+          }
+        />
+      )}
 
       {/* Modal xử lý chi tiết */}
       <Modal
@@ -273,7 +437,7 @@ const ReportManagement = () => {
               </TouchableOpacity>
             </View>
 
-            <ScrollView 
+            <ScrollView
               style={styles.modalBody}
               showsVerticalScrollIndicator={false}
             >
@@ -281,14 +445,22 @@ const ReportManagement = () => {
                 <>
                   <View style={styles.reportInfoCard}>
                     <Text style={styles.reportInfoId}>{selectedReport.id}</Text>
-                    <Text style={styles.reportInfoType}>{selectedReport.type}</Text>
+                    <Text style={styles.reportInfoType}>
+                      {selectedReport.type}
+                    </Text>
                     <View style={styles.reportInfoRow}>
                       <Text style={styles.reportInfoLabel}>Người báo cáo:</Text>
-                      <Text style={styles.reportInfoValue}>{selectedReport.reporter}</Text>
+                      <Text style={styles.reportInfoValue}>
+                        {selectedReport.reporter}
+                      </Text>
                     </View>
                     <View style={styles.reportInfoRow}>
-                      <Text style={styles.reportInfoLabel}>Người bị báo cáo:</Text>
-                      <Text style={styles.reportInfoValue}>{selectedReport.target}</Text>
+                      <Text style={styles.reportInfoLabel}>
+                        Người bị báo cáo:
+                      </Text>
+                      <Text style={styles.reportInfoValue}>
+                        {selectedReport.target}
+                      </Text>
                     </View>
                   </View>
 
@@ -314,7 +486,10 @@ const ReportManagement = () => {
                           <Text
                             style={[
                               styles.actionTypeLabel,
-                              isSelected && { color: action.color, fontWeight: "700" },
+                              isSelected && {
+                                color: action.color,
+                                fontWeight: "700",
+                              },
                             ]}
                           >
                             {action.label}
@@ -332,7 +507,9 @@ const ReportManagement = () => {
                     })}
                   </View>
 
-                  <Text style={styles.sectionTitle}>Ghi chú xử lý (bắt buộc):</Text>
+                  <Text style={styles.sectionTitle}>
+                    Ghi chú xử lý (bắt buộc):
+                  </Text>
                   <TextInput
                     style={styles.textArea}
                     placeholder="Nhập ghi chú về cách xử lý báo cáo này..."
@@ -344,7 +521,9 @@ const ReportManagement = () => {
                     textAlignVertical="top"
                   />
 
-                  <Text style={styles.sectionTitle}>Phản hồi cho người báo cáo (tùy chọn):</Text>
+                  <Text style={styles.sectionTitle}>
+                    Phản hồi cho người báo cáo (tùy chọn):
+                  </Text>
                   <TextInput
                     style={styles.textArea}
                     placeholder="Nhập phản hồi sẽ được gửi cho người báo cáo..."
@@ -360,14 +539,26 @@ const ReportManagement = () => {
                     <TouchableOpacity
                       style={[styles.modalButton, styles.cancelButton]}
                       onPress={closeModal}
+                      disabled={submitting}
                     >
                       <Text style={styles.cancelButtonText}>Hủy</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                      style={[styles.modalButton, styles.submitButton]}
+                      style={[
+                        styles.modalButton,
+                        styles.submitButton,
+                        submitting && styles.submitButtonDisabled,
+                      ]}
                       onPress={handleSubmitAction}
+                      disabled={submitting}
                     >
-                      <Text style={styles.submitButtonText}>Xác nhận xử lý</Text>
+                      {submitting ? (
+                        <ActivityIndicator size="small" color={COLORS.WHITE} />
+                      ) : (
+                        <Text style={styles.submitButtonText}>
+                          Xác nhận xử lý
+                        </Text>
+                      )}
                     </TouchableOpacity>
                   </View>
                 </>
@@ -652,6 +843,10 @@ const styles = StyleSheet.create({
   submitButton: {
     backgroundColor: COLORS.PRIMARY,
   },
+  submitButtonDisabled: {
+    backgroundColor: COLORS.GRAY,
+    opacity: 0.6,
+  },
   submitButtonText: {
     fontSize: 16,
     fontWeight: "700",
@@ -661,6 +856,21 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: COLORS.WHITE,
     fontWeight: "600",
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 40,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: COLORS.GRAY,
+  },
+  footerLoader: {
+    paddingVertical: 20,
+    alignItems: "center",
   },
   emptyState: {
     paddingVertical: 60,
@@ -682,4 +892,3 @@ const styles = StyleSheet.create({
 });
 
 export default ReportManagement;
-

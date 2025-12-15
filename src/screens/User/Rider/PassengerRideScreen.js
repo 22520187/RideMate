@@ -49,6 +49,7 @@ const PassengerRideScreen = ({ navigation, route }) => {
   const [routePath, setRoutePath] = useState([]);
   const [activeInput, setActiveInput] = useState(null); // 'from' or 'to'
   const [isGettingLocation, setIsGettingLocation] = useState(false);
+  const [shouldAnimateRoute, setShouldAnimateRoute] = useState(false); // Kiểm soát animation
 
   // Xử lý destination từ params
   useEffect(() => {
@@ -235,6 +236,9 @@ const PassengerRideScreen = ({ navigation, route }) => {
       return;
     }
 
+    // Bật animation khi nhấn "Next"
+    setShouldAnimateRoute(true);
+
     // Auto-match với chuyến đầu tiên sau khi tìm thấy
     const matchedRide = availableRides[0]; // Lấy chuyến đầu tiên
     if (matchedRide) {
@@ -298,6 +302,7 @@ const PassengerRideScreen = ({ navigation, route }) => {
           showRoute={true}
           path={routePath}
           fullScreen={true}
+          startAnimation={shouldAnimateRoute}
         />
 
         <View style={styles.overlayContainer} pointerEvents="box-none">
@@ -321,6 +326,7 @@ const PassengerRideScreen = ({ navigation, route }) => {
                       }
                       iconName=""
                       containerWidth="100%"
+                      showClearButton={false}
                     />
                   </View>
                   {fromLocation ? (
@@ -329,6 +335,7 @@ const PassengerRideScreen = ({ navigation, route }) => {
                       onPress={() => {
                         setFromLocation("");
                         setOriginCoordinate(null);
+                        setShouldAnimateRoute(false); // Reset animation
                       }}
                     >
                       <MaterialIcons
@@ -376,6 +383,7 @@ const PassengerRideScreen = ({ navigation, route }) => {
                       }
                       iconName=""
                       containerWidth="100%"
+                      showClearButton={false}
                     />
                   </View>
                   {toLocation ? (
@@ -384,6 +392,7 @@ const PassengerRideScreen = ({ navigation, route }) => {
                       onPress={() => {
                         setToLocation("");
                         setDestinationCoordinate(null);
+                        setShouldAnimateRoute(false); // Reset animation
                       }}
                     >
                       <MaterialIcons

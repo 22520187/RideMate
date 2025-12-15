@@ -16,6 +16,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
 import COLORS from "../../constant/colors";
 import SCREENS from "../../screens";
+import { clearTokens } from "../../utils/storage";
+import { chatClient } from "../../utils/StreamClient";
 
 const initialProfile = {
   fullName: "Quản trị viên RideMate",
@@ -109,12 +111,22 @@ const AdminProfile = () => {
         style: "destructive",
         onPress: async () => {
           try {
-            // Clear AsyncStorage including onboarding flag
-            await AsyncStorage.clear();
-            // Navigate to Onboarding screen
+            // Disconnect from Stream Chat
+            try {
+              await chatClient.disconnectUser();
+              console.log("💬 Disconnected from Stream Chat");
+            } catch (streamError) {
+              console.log("⚠️  Stream disconnect failed:", streamError.message);
+            }
+
+            // Clear all authentication data
+            await clearTokens(); // Clears tokens, userType, userData
+            await AsyncStorage.clear(); // Clear onboarding flag
+
+            // Navigate to Login screen
             navigation.reset({
               index: 0,
-              routes: [{ name: SCREENS.ONBOARDING }],
+              routes: [{ name: SCREENS.LOGIN }],
             });
           } catch (error) {
             console.error("Logout error:", error);

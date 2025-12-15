@@ -24,7 +24,12 @@ import {
 import SCREENS from "..";
 import { chatClient } from "../../utils/StreamClient";
 import { API_BASE_URL } from "@env";
-import { saveToken, saveRefreshToken } from "../../utils/storage";
+import {
+  saveToken,
+  saveRefreshToken,
+  saveUserType,
+  saveUserData,
+} from "../../utils/storage";
 import endpoints from "../../api/endpoints";
 import axiosClient from "../../api/axiosClient";
 
@@ -84,6 +89,7 @@ const Login = ({ navigation }) => {
       console.log("👤 User:", user);
       console.log("🔑 Access token:", accessToken);
       console.log("🔄 Refresh token:", refreshToken);
+      console.log("🎭 User type:", user.userType);
 
       // Save tokens
       if (accessToken) {
@@ -91,6 +97,12 @@ const Login = ({ navigation }) => {
       }
       if (refreshToken) {
         await saveRefreshToken(refreshToken);
+      }
+
+      // Save user type and data
+      if (user) {
+        await saveUserType(user.userType);
+        await saveUserData(user);
       }
 
       // Kết nối user lên Stream
@@ -115,11 +127,20 @@ const Login = ({ navigation }) => {
         text2: "Đăng nhập thành công!",
       });
 
-      // Redirect sang MainTabs
-      navigation.reset({
-        index: 0,
-        routes: [{ name: "MainTabs" }],
-      });
+      // Role-based navigation
+      if (user.userType === "ADMIN") {
+        console.log("🔐 Admin user detected - navigating to AdminStack");
+        navigation.reset({
+          index: 0,
+          routes: [{ name: SCREENS.ADMIN_STACK }],
+        });
+      } else {
+        console.log("👤 Regular user detected - navigating to MainTabs");
+        navigation.reset({
+          index: 0,
+          routes: [{ name: "MainTabs" }],
+        });
+      }
     } catch (error) {
       console.log("❌ Login error:", error.message);
       console.log("🔍 Error details:", {
@@ -331,19 +352,6 @@ const Login = ({ navigation }) => {
               <Text style={styles.termsLink}>Chính sách bảo mật</Text>
             </Text>
           </View>
-
-          <TouchableOpacity
-            style={styles.adminAccess}
-            onPress={() =>
-              navigation.reset({
-                index: 0,
-                routes: [{ name: SCREENS.ADMIN_STACK }],
-              })
-            }
-          >
-            <Ionicons name="shield-checkmark" size={18} color="#004553" />
-            <Text style={styles.adminAccessText}>Dành cho quản trị viên</Text>
-          </TouchableOpacity>
 
           {/* Register Button */}
           <TouchableOpacity

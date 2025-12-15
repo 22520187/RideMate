@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -8,11 +8,15 @@ import {
   FlatList,
   Modal,
   Dimensions,
+  ActivityIndicator,
+  RefreshControl,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import COLORS from "../../constant/colors";
 import TripDetail from "./TripDetail";
+import { getTrips, getTripById } from "../../services/adminService";
 
 const tripStatuses = [
   { key: "all", label: "Tất cả" },
@@ -72,7 +76,11 @@ const initialTrips = [
       { latitude: 10.8503, longitude: 106.7717 },
     ],
     origin: { latitude: 10.7769, longitude: 106.7009, description: "Quận 1" },
-    destination: { latitude: 10.8503, longitude: 106.7717, description: "Thủ Đức" },
+    destination: {
+      latitude: 10.8503,
+      longitude: 106.7717,
+      description: "Thủ Đức",
+    },
     riderRequests: [
       { id: "R1", name: "Trần Thị B", phone: "0908 765 432", rating: 4.6 },
       { id: "R2", name: "Lê Văn C", phone: "0912 345 678", rating: 4.2 },
@@ -85,8 +93,18 @@ const initialTrips = [
     sessions: [
       {
         id: "SES-001",
-        rider: { id: "R1", name: "Trần Thị B", phone: "0908 765 432", rating: 4.6 },
-        rating: { driverRating: 5, riderRating: 4.5, driverComment: "Rất tốt", riderComment: "Tài xế thân thiện" },
+        rider: {
+          id: "R1",
+          name: "Trần Thị B",
+          phone: "0908 765 432",
+          rating: 4.6,
+        },
+        rating: {
+          driverRating: 5,
+          riderRating: 4.5,
+          driverComment: "Rất tốt",
+          riderComment: "Tài xế thân thiện",
+        },
         chatMessages: [
           { sender: "driver", message: "Xin chào", timestamp: "08:00" },
           { sender: "rider", message: "Chào bạn", timestamp: "08:01" },
@@ -95,8 +113,18 @@ const initialTrips = [
       },
       {
         id: "SES-002",
-        rider: { id: "R2", name: "Lê Văn C", phone: "0912 345 678", rating: 4.2 },
-        rating: { driverRating: 4, riderRating: 4.5, driverComment: "Ổn", riderComment: "OK" },
+        rider: {
+          id: "R2",
+          name: "Lê Văn C",
+          phone: "0912 345 678",
+          rating: 4.2,
+        },
+        rating: {
+          driverRating: 4,
+          riderRating: 4.5,
+          driverComment: "Ổn",
+          riderComment: "OK",
+        },
         chatMessages: [],
         feedback: "Bình thường",
       },
@@ -123,7 +151,11 @@ const initialTrips = [
       { latitude: 10.8014, longitude: 106.7145 },
     ],
     origin: { latitude: 10.7306, longitude: 106.7194, description: "Quận 7" },
-    destination: { latitude: 10.8014, longitude: 106.7145, description: "Bình Thạnh" },
+    destination: {
+      latitude: 10.8014,
+      longitude: 106.7145,
+      description: "Bình Thạnh",
+    },
     riderRequests: [
       { id: "R4", name: "Nguyễn Văn E", phone: "0911 222 333", rating: 4.5 },
     ],
@@ -133,7 +165,12 @@ const initialTrips = [
     sessions: [
       {
         id: "SES-003",
-        rider: { id: "R4", name: "Nguyễn Văn E", phone: "0911 222 333", rating: 4.5 },
+        rider: {
+          id: "R4",
+          name: "Nguyễn Văn E",
+          phone: "0911 222 333",
+          rating: 4.5,
+        },
         rating: null,
         chatMessages: [
           { sender: "driver", message: "Đang đến", timestamp: "10:25" },
@@ -168,8 +205,18 @@ const initialTrips = [
     sessions: [
       {
         id: "SES-004",
-        rider: { id: "R5", name: "Đỗ Thị F", phone: "0922 333 444", rating: 4.7 },
-        rating: { driverRating: 5, riderRating: 5, driverComment: "Tuyệt vời", riderComment: "Rất hài lòng" },
+        rider: {
+          id: "R5",
+          name: "Đỗ Thị F",
+          phone: "0922 333 444",
+          rating: 4.7,
+        },
+        rating: {
+          driverRating: 5,
+          riderRating: 5,
+          driverComment: "Tuyệt vời",
+          riderComment: "Rất hài lòng",
+        },
         chatMessages: [
           { sender: "driver", message: "Cảm ơn bạn", timestamp: "18:30" },
           { sender: "rider", message: "Cảm ơn tài xế", timestamp: "18:31" },
@@ -229,19 +276,88 @@ const initialTrips = [
 
 const TripManagement = () => {
   const [selectedFilter, setSelectedFilter] = useState("all");
-  const [trips, setTrips] = useState(initialTrips);
+  const [trips, setTrips] = useState([]);
   const [selectedTrip, setSelectedTrip] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showSessionsModal, setShowSessionsModal] = useState(false);
   const [showSessionDetailModal, setShowSessionDetailModal] = useState(false);
   const [selectedSession, setSelectedSession] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+
+  // Fetch trips from API
+  const fetchTrips = useCallback(
+    async (pageNum = 0, filterStatus = selectedFilter) => {
+      try {
+        if (pageNum === 0) {
+          setLoading(true);
+        }
+
+        const params = {
+          page: pageNum,
+          size: 20,
+          sortBy: "createdAt",
+          sortDirection: "DESC",
+        };
+
+        // Add status filter if not 'all'
+        if (filterStatus !== "all") {
+          params.status = filterStatus.toUpperCase();
+        }
+
+        const response = await getTrips(params);
+
+        if (response?.data) {
+          const newTrips = response.data.content || [];
+
+          if (pageNum === 0) {
+            setTrips(newTrips);
+          } else {
+            setTrips((prev) => [...prev, ...newTrips]);
+          }
+
+          setHasMore(!response.data.last);
+          setPage(pageNum);
+        }
+      } catch (error) {
+        console.error("Error fetching trips:", error);
+        Alert.alert(
+          "Lỗi",
+          "Không thể tải danh sách chuyến đi. Vui lòng thử lại."
+        );
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [selectedFilter]
+  );
+
+  // Initial load
+  useEffect(() => {
+    fetchTrips(0, selectedFilter);
+  }, [selectedFilter]);
+
+  // Pull to refresh
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    setPage(0);
+    setHasMore(true);
+    fetchTrips(0, selectedFilter);
+  }, [selectedFilter, fetchTrips]);
+
+  // Load more
+  const loadMore = useCallback(() => {
+    if (!loading && hasMore) {
+      fetchTrips(page + 1, selectedFilter);
+    }
+  }, [loading, hasMore, page, selectedFilter, fetchTrips]);
 
   const filteredTrips = useMemo(() => {
-    if (selectedFilter === "all") {
-      return trips;
-    }
-    return trips.filter((trip) => trip.status === selectedFilter);
-  }, [selectedFilter, trips]);
+    return trips;
+  }, [trips]);
 
   const handleViewDetail = (trip) => {
     setSelectedTrip(trip);
@@ -259,7 +375,22 @@ const TripManagement = () => {
   };
 
   const renderTripCard = ({ item }) => {
-    const status = statusStyles[item.status] || statusStyles.open;
+    const statusKey = item.status?.toLowerCase() || "open";
+    const status = statusStyles[statusKey] || statusStyles.open;
+
+    // Format dates
+    const formatDate = (dateStr) => {
+      if (!dateStr) return "-";
+      const date = new Date(dateStr);
+      return date.toLocaleString("vi-VN", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    };
+
     return (
       <TouchableOpacity
         style={styles.tripCard}
@@ -268,12 +399,17 @@ const TripManagement = () => {
       >
         <View style={styles.tripHeader}>
           <View style={styles.tripHeaderLeft}>
-            <Text style={styles.tripId}>{item.id}</Text>
+            <Text style={styles.tripId}>#{item.id}</Text>
             <Text style={styles.routeText}>
               {item.startLocation} → {item.endLocation}
             </Text>
           </View>
-          <View style={[styles.statusBadge, { backgroundColor: status.backgroundColor }]}>
+          <View
+            style={[
+              styles.statusBadge,
+              { backgroundColor: status.backgroundColor },
+            ]}
+          >
             <Text style={[styles.statusLabel, { color: status.color }]}>
               {status.label}
             </Text>
@@ -283,19 +419,23 @@ const TripManagement = () => {
         <View style={styles.tripInfoRow}>
           <View style={styles.tripInfoItem}>
             <Ionicons name="person-outline" size={14} color={COLORS.GRAY} />
-            <Text style={styles.tripInfoText}>{item.driver.name}</Text>
+            <Text style={styles.tripInfoText}>
+              {item.driver?.fullName || "N/A"}
+            </Text>
           </View>
           <View style={styles.tripInfoItem}>
             <Ionicons name="time-outline" size={14} color={COLORS.GRAY} />
-            <Text style={styles.tripInfoText}>{item.startTime}</Text>
+            <Text style={styles.tripInfoText}>
+              {formatDate(item.startTime)}
+            </Text>
           </View>
         </View>
 
-        {item.matchedRiders.length > 0 && (
+        {item.totalPassengers > 0 && (
           <View style={styles.matchedInfo}>
             <Ionicons name="checkmark-circle" size={14} color={COLORS.GREEN} />
             <Text style={styles.matchedText}>
-              {item.matchedRiders.length} rider đã match
+              {item.totalPassengers} hành khách
             </Text>
           </View>
         )}
@@ -304,7 +444,7 @@ const TripManagement = () => {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
+    <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Quản lý chuyến đi</Text>
@@ -326,7 +466,12 @@ const TripManagement = () => {
                 style={[styles.filterChip, isActive && styles.filterChipActive]}
                 onPress={() => setSelectedFilter(status.key)}
               >
-                <Text style={[styles.filterLabel, isActive && styles.filterLabelActive]}>
+                <Text
+                  style={[
+                    styles.filterLabel,
+                    isActive && styles.filterLabelActive,
+                  ]}
+                >
                   {status.label}
                 </Text>
               </TouchableOpacity>
@@ -335,22 +480,49 @@ const TripManagement = () => {
         </ScrollView>
       </View>
 
-      <FlatList
-        data={filteredTrips}
-        keyExtractor={(item) => item.id}
-        renderItem={renderTripCard}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Ionicons name="cloud-outline" size={48} color={COLORS.GRAY} />
-            <Text style={styles.emptyTitle}>Không có chuyến đi nào</Text>
-            <Text style={styles.emptyDescription}>
-              Thử đổi bộ lọc hoặc kiểm tra lại sau.
-            </Text>
-          </View>
-        }
-      />
+      {loading && page === 0 ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.PRIMARY} />
+          <Text style={styles.loadingText}>Đang tải chuyến đi...</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={filteredTrips}
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={renderTripCard}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[COLORS.PRIMARY]}
+              tintColor={COLORS.PRIMARY}
+            />
+          }
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={() => {
+            if (loading && page > 0) {
+              return (
+                <View style={styles.footerLoader}>
+                  <ActivityIndicator size="small" color={COLORS.PRIMARY} />
+                </View>
+              );
+            }
+            return null;
+          }}
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <Ionicons name="car-outline" size={48} color={COLORS.GRAY} />
+              <Text style={styles.emptyTitle}>Không có chuyến đi nào</Text>
+              <Text style={styles.emptyDescription}>
+                Thử đổi bộ lọc hoặc kiểm tra lại sau.
+              </Text>
+            </View>
+          }
+        />
+      )}
 
       {/* Trip Detail Modal */}
       <TripDetail
@@ -386,7 +558,11 @@ const TripManagement = () => {
                     >
                       <View style={styles.sessionHeader}>
                         <Text style={styles.sessionId}>{session.id}</Text>
-                        <Ionicons name="chevron-forward" size={20} color={COLORS.GRAY} />
+                        <Ionicons
+                          name="chevron-forward"
+                          size={20}
+                          color={COLORS.GRAY}
+                        />
                       </View>
                       <View style={styles.sessionInfo}>
                         <Text style={styles.sessionRiderName}>
@@ -394,9 +570,14 @@ const TripManagement = () => {
                         </Text>
                         {session.rating && (
                           <View style={styles.sessionRating}>
-                            <Ionicons name="star" size={14} color={COLORS.ORANGE_DARK} />
+                            <Ionicons
+                              name="star"
+                              size={14}
+                              color={COLORS.ORANGE_DARK}
+                            />
                             <Text style={styles.sessionRatingText}>
-                              Driver: {session.rating.driverRating} | Rider: {session.rating.riderRating}
+                              Driver: {session.rating.driverRating} | Rider:{" "}
+                              {session.rating.riderRating}
                             </Text>
                           </View>
                         )}
@@ -405,7 +586,11 @@ const TripManagement = () => {
                   ))
                 ) : (
                   <View style={styles.emptyState}>
-                    <Ionicons name="people-outline" size={48} color={COLORS.GRAY} />
+                    <Ionicons
+                      name="people-outline"
+                      size={48}
+                      color={COLORS.GRAY}
+                    />
                     <Text style={styles.emptyTitle}>Không có session nào</Text>
                   </View>
                 )}
@@ -426,34 +611,45 @@ const TripManagement = () => {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Chi tiết Session</Text>
-              <TouchableOpacity onPress={() => setShowSessionDetailModal(false)}>
+              <TouchableOpacity
+                onPress={() => setShowSessionDetailModal(false)}
+              >
                 <Ionicons name="close" size={24} color={COLORS.BLACK} />
               </TouchableOpacity>
             </View>
             {selectedSession && (
               <ScrollView style={styles.modalBody}>
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Session ID: {selectedSession.id}</Text>
+                  <Text style={styles.sectionTitle}>
+                    Session ID: {selectedSession.id}
+                  </Text>
                   <View style={styles.detailRow}>
                     <Text style={styles.detailLabel}>Rider:</Text>
-                    <Text style={styles.detailValue}>{selectedSession.rider.name}</Text>
+                    <Text style={styles.detailValue}>
+                      {selectedSession.rider.name}
+                    </Text>
                   </View>
                   <View style={styles.detailRow}>
                     <Text style={styles.detailLabel}>Số điện thoại:</Text>
-                    <Text style={styles.detailValue}>{selectedSession.rider.phone}</Text>
+                    <Text style={styles.detailValue}>
+                      {selectedSession.rider.phone}
+                    </Text>
                   </View>
                 </View>
 
                 {/* Chat Messages */}
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>Nội dung chat</Text>
-                  {selectedSession.chatMessages && selectedSession.chatMessages.length > 0 ? (
+                  {selectedSession.chatMessages &&
+                  selectedSession.chatMessages.length > 0 ? (
                     selectedSession.chatMessages.map((msg, index) => (
                       <View
                         key={index}
                         style={[
                           styles.chatMessage,
-                          msg.sender === "driver" ? styles.driverMessage : styles.riderMessage,
+                          msg.sender === "driver"
+                            ? styles.driverMessage
+                            : styles.riderMessage,
                         ]}
                       >
                         <Text style={styles.chatSender}>
@@ -474,10 +670,18 @@ const TripManagement = () => {
                     <Text style={styles.sectionTitle}>Đánh giá</Text>
                     <View style={styles.ratingCard}>
                       <View style={styles.ratingItem}>
-                        <Text style={styles.ratingLabel}>Tài xế đánh giá rider:</Text>
+                        <Text style={styles.ratingLabel}>
+                          Tài xế đánh giá rider:
+                        </Text>
                         <View style={styles.ratingValue}>
-                          <Ionicons name="star" size={16} color={COLORS.ORANGE_DARK} />
-                          <Text style={styles.ratingText}>{selectedSession.rating.driverRating}</Text>
+                          <Ionicons
+                            name="star"
+                            size={16}
+                            color={COLORS.ORANGE_DARK}
+                          />
+                          <Text style={styles.ratingText}>
+                            {selectedSession.rating.driverRating}
+                          </Text>
                         </View>
                       </View>
                       {selectedSession.rating.driverComment && (
@@ -486,10 +690,18 @@ const TripManagement = () => {
                         </Text>
                       )}
                       <View style={styles.ratingItem}>
-                        <Text style={styles.ratingLabel}>Rider đánh giá tài xế:</Text>
+                        <Text style={styles.ratingLabel}>
+                          Rider đánh giá tài xế:
+                        </Text>
                         <View style={styles.ratingValue}>
-                          <Ionicons name="star" size={16} color={COLORS.ORANGE_DARK} />
-                          <Text style={styles.ratingText}>{selectedSession.rating.riderRating}</Text>
+                          <Ionicons
+                            name="star"
+                            size={16}
+                            color={COLORS.ORANGE_DARK}
+                          />
+                          <Text style={styles.ratingText}>
+                            {selectedSession.rating.riderRating}
+                          </Text>
                         </View>
                       </View>
                       {selectedSession.rating.riderComment && (
@@ -506,7 +718,9 @@ const TripManagement = () => {
                   <View style={styles.section}>
                     <Text style={styles.sectionTitle}>Feedback</Text>
                     <View style={styles.feedbackCard}>
-                      <Text style={styles.feedbackText}>{selectedSession.feedback}</Text>
+                      <Text style={styles.feedbackText}>
+                        {selectedSession.feedback}
+                      </Text>
                     </View>
                   </View>
                 )}
@@ -903,7 +1117,21 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 40,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: COLORS.GRAY,
+  },
+  footerLoader: {
+    paddingVertical: 20,
+    alignItems: "center",
+  },
 });
 
 export default TripManagement;
-

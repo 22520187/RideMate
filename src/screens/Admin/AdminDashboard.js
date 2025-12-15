@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect, useCallback } from "react";
 import {
   ScrollView,
   View,
@@ -8,11 +8,14 @@ import {
   useWindowDimensions,
   Image,
   Modal,
+  ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Svg, Circle } from "react-native-svg";
 import COLORS from "../../constant/colors";
+import * as adminService from "../../services/adminService";
 
 const statsCards = [
   {
@@ -212,7 +215,9 @@ const VoucherPieChart = ({ data }) => {
               r={radius}
               stroke={segment.color}
               strokeWidth={strokeWidth}
-              strokeDasharray={`${segmentLength} ${circumference - segmentLength}`}
+              strokeDasharray={`${segmentLength} ${
+                circumference - segmentLength
+              }`}
               strokeDashoffset={-cumulative}
               strokeLinecap="round"
               fill="transparent"
@@ -261,31 +266,194 @@ const AdminDashboard = ({ navigation }) => {
   const [dropdownVisible, setDropdownVisible] = useState(false);
   const [selectedTrip, setSelectedTrip] = useState(null);
   const [tripDetailVisible, setTripDetailVisible] = useState(false);
+
+  // API data states
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [dashboardStats, setDashboardStats] = useState(null);
+  const [tripStats, setTripStats] = useState(null);
+  const [activeTripsData, setActiveTripsData] = useState([]);
+  const [topUsersData, setTopUsersData] = useState([]);
+  const [membershipData, setMembershipData] = useState(null);
+  const [revenueData, setRevenueData] = useState(null);
+  const [chartData, setChartData] = useState(null);
+
   const highestTrip = useMemo(
-    () => Math.max(...tripTrend.map((item) => item.trips)),
-    []
+    () => (chartData?.data ? Math.max(...chartData.data) : 1600),
+    [chartData]
   );
   const isLargeScreen = width >= 768;
-  const podiumTopThree = topUsers.slice(0, 3);
-  const remainingUsers = topUsers.slice(3);
+  const podiumTopThree = topUsersData.slice(0, 3);
+  const remainingUsers = topUsersData.slice(3);
 
   const handleSelectPeriod = (period) => {
     setActivePeriod(period);
     setDropdownVisible(false);
   };
 
-  const totalMemberships = membershipStats.reduce(
-    (sum, item) => sum + item.value,
-    0
-  );
+  const totalMemberships = useMemo(() => {
+    return membershipData?.totalMembers || 0;
+  }, [membershipData]);
 
   const handleViewTripDetail = (trip) => {
     setSelectedTrip(trip);
     setTripDetailVisible(true);
   };
 
+  // Fetch all dashboard data
+  const fetchDashboardData = useCallback(async () => {
+    try {
+      const [
+        statsRes,
+        tripStatsRes,
+        activeTripsRes,
+        topUsersRes,
+        membershipRes,
+        revenueRes,
+        chartRes,
+      ] = await Promise.all([
+        adminService.getDashboardStats(),
+        adminService.getTripStats(),
+        adminService.getActiveTrips(),
+        adminService.getTopUsers(10),
+        adminService.getMembershipStats(),
+        adminService.getRevenueStats(),
+        adminService.getChartData("sessions"), // or "users" based on preference
+      ]);
+
+      setDashboardStats(statsRes.data);
+      setTripStats(tripStatsRes.data);
+      setActiveTripsData(activeTripsRes.data || []);
+      setTopUsersData(topUsersRes.data || []);
+      setMembershipData(membershipRes.data);
+      setRevenueData(revenueRes.data);
+      setChartData(chartRes.data);
+    } catch (error) {
+      console.error("Error fetching dashboard data:", error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, [fetchDashboardData]);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchDashboardData();
+  }, [fetchDashboardData]);
+
+  // Transform API data to statsCards format
+  const statsCards = useMemo(() => {
+    if (!dashboardStats) return [];
+
+    return [
+      {
+        label: "Tổng người dùng",
+        value: formatNumber(dashboardStats.totalUsers),
+        icon: "people-outline",
+        iconBg: COLORS.BLUE_LIGHT,
+        iconColor: COLORS.BLUE,
+      },
+      {
+        label: "Tổng chuyến đi",
+        value: formatNumber(tripStats?.completedTrips || 0),
+        icon: "car-sport-outline",
+        iconBg: COLORS.ORANGE_LIGHT,
+        iconColor: COLORS.ORANGE,
+      },
+      {
+        label: "Báo cáo đang xử lý",
+        value: formatNumber(dashboardStats.totalReports),
+        icon: "alert-circle-outline",
+        iconBg: COLORS.RED_LIGHT,
+        iconColor: COLORS.ORANGE_DARK,
+      },
+      {
+        label: "Tổng phiên",
+        value: formatNumber(dashboardStats.totalSessions),
+        icon: "happy-outline",
+        iconBg: COLORS.GREEN_LIGHT,
+        iconColor: COLORS.GREEN,
+      },
+    ];
+  }, [dashboardStats, tripStats]);
+
+  // Transform chart data to tripTrend format
+  const tripTrend = useMemo(() => {
+    if (!chartData || !chartData.labels || !chartData.data) {
+      return [];
+    }
+
+    return chartData.labels.map((label, index) => ({
+      day: formatDateLabel(label),
+      trips: chartData.data[index] || 0,
+    }));
+  }, [chartData]);
+
+  // Transform membership data
+  const membershipStats = useMemo(() => {
+    if (!membershipData || !membershipData.tierDistribution) {
+      return [];
+    }
+
+    const colors = {
+      Bronze: COLORS.ORANGE,
+      Silver: COLORS.GRAY,
+      Gold: "#FFD700",
+      Platinum: COLORS.BLUE,
+    };
+
+    return Object.entries(membershipData.tierDistribution).map(
+      ([tier, count]) => ({
+        label: tier,
+        value: count,
+        color: colors[tier] || COLORS.PRIMARY,
+      })
+    );
+  }, [membershipData]);
+
+  // Transform revenue data to voucher stats for pie chart
+  const voucherStats = useMemo(() => {
+    if (!revenueData || !revenueData.topVouchers) {
+      return [];
+    }
+
+    const voucherColors = [
+      COLORS.SECONDARY,
+      COLORS.PRIMARY,
+      COLORS.ORANGE,
+      COLORS.PURPLE,
+      COLORS.GREEN,
+    ];
+
+    const topVouchers = Object.entries(revenueData.topVouchers).slice(0, 5); // Top 5 vouchers
+
+    const total = topVouchers.reduce((sum, [_, count]) => sum + count, 0);
+
+    return topVouchers.map(([name, count], index) => ({
+      label: name,
+      value: total > 0 ? Math.round((count / total) * 100) : 0,
+      color: voucherColors[index] || COLORS.BLUE,
+      count: count, // Keep actual count for display
+    }));
+  }, [revenueData]);
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.BLUE} />
+          <Text style={styles.loadingText}>Đang tải dữ liệu...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
+    <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Tổng quan Admin</Text>
@@ -298,6 +466,14 @@ const AdminDashboard = ({ navigation }) => {
         style={styles.scroll}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[COLORS.BLUE]}
+            tintColor={COLORS.BLUE}
+          />
+        }
       >
         <View style={styles.statsGrid}>
           {statsCards.map((item) => (
@@ -345,6 +521,9 @@ const AdminDashboard = ({ navigation }) => {
           <View style={styles.sectionHeader}>
             <View>
               <Text style={styles.sectionTitle}>Bảng xếp hạng điểm</Text>
+              <Text style={styles.sectionSubtitle}>
+                Top {topUsersData.length} người dùng xuất sắc
+              </Text>
             </View>
             <TouchableOpacity
               style={styles.combobox}
@@ -355,71 +534,101 @@ const AdminDashboard = ({ navigation }) => {
             </TouchableOpacity>
           </View>
 
-          <View style={styles.leaderboardContainer}>
-            <View style={styles.podiumWrapper}>
-              {podiumTopThree.length > 0 &&
-                [1, 0, 2]
-                  .filter((index) => podiumTopThree[index])
-                  .map((podiumIndex, orderIndex) => {
-                    const user = podiumTopThree[podiumIndex];
-                    const isChampion = podiumIndex === 0;
-                    const podiumStyles =
-                      orderIndex === 0
-                        ? styles.podiumSecond
-                        : orderIndex === 2
-                          ? styles.podiumThird
-                          : styles.podiumChampion;
-                    return (
-                      <View
-                        key={user.name}
-                        style={[
-                          styles.podiumCard,
-                          podiumStyles,
-                        ]}
-                      >
-                        <View style={styles.podiumBadge}>
-                          <Text
-                            style={[
-                              styles.podiumBadgeText,
-                              isChampion && styles.podiumBadgeTextPrimary,
-                            ]}
+          {topUsersData.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="trophy-outline" size={48} color={COLORS.GRAY} />
+              <Text style={styles.emptyStateText}>
+                Chưa có dữ liệu xếp hạng
+              </Text>
+            </View>
+          ) : (
+            <>
+              <View style={styles.leaderboardContainer}>
+                <View style={styles.podiumWrapper}>
+                  {podiumTopThree.length > 0 &&
+                    [1, 0, 2]
+                      .filter((index) => podiumTopThree[index])
+                      .map((podiumIndex, orderIndex) => {
+                        const user = podiumTopThree[podiumIndex];
+                        const isChampion = podiumIndex === 0;
+                        const podiumStyles =
+                          orderIndex === 0
+                            ? styles.podiumSecond
+                            : orderIndex === 2
+                            ? styles.podiumThird
+                            : styles.podiumChampion;
+                        return (
+                          <View
+                            key={user.userId}
+                            style={[styles.podiumCard, podiumStyles]}
                           >
-                            {podiumIndex + 1}
-                          </Text>
-                        </View>
-                        <Text
-                          style={[
-                            styles.podiumScore,
-                            isChampion && styles.podiumScorePrimary,
-                          ]}
-                        >
-                          {user.points} điểm
-                        </Text>
-                        <Text style={styles.podiumTripsLabel}>Điểm tích lũy</Text>
-                        <Image source={{ uri: user.avatar }} style={styles.podiumAvatar} />
-                        <Text style={styles.podiumName}>{user.name}</Text>
-                        <Text style={styles.podiumLevel}>{user.level}</Text>
-                      </View>
-                    );
-                  })}
-            </View>
-
-            <View style={styles.rankingList}>
-              {remainingUsers.map((user, index) => (
-                <View key={user.name} style={styles.rankRow}>
-                  <View style={styles.rankNumber}>
-                    <Text style={styles.rankNumberLabel}>{index + 4}</Text>
-                  </View>
-                  <Image source={{ uri: user.avatar }} style={styles.rankAvatar} />
-                  <View style={styles.rankInfo}>
-                    <Text style={styles.rankName}>{user.name}</Text>
-                    <Text style={styles.rankLevel}>{user.level}</Text>
-                  </View>
-                  <Text style={styles.rankPoints}>{user.points} điểm</Text>
+                            <View style={styles.podiumBadge}>
+                              <Text
+                                style={[
+                                  styles.podiumBadgeText,
+                                  isChampion && styles.podiumBadgeTextPrimary,
+                                ]}
+                              >
+                                {podiumIndex + 1}
+                              </Text>
+                            </View>
+                            <Text
+                              style={[
+                                styles.podiumScore,
+                                isChampion && styles.podiumScorePrimary,
+                              ]}
+                            >
+                              {user.coins} điểm
+                            </Text>
+                            <Text style={styles.podiumTripsLabel}>
+                              Điểm tích lũy
+                            </Text>
+                            <Image
+                              source={{
+                                uri:
+                                  user.profilePictureUrl ||
+                                  "https://via.placeholder.com/150",
+                              }}
+                              style={styles.podiumAvatar}
+                            />
+                            <Text style={styles.podiumName}>
+                              {user.fullName}
+                            </Text>
+                            <Text style={styles.podiumLevel}>
+                              {user.membershipTier}
+                            </Text>
+                          </View>
+                        );
+                      })}
                 </View>
-              ))}
-            </View>
-          </View>
+
+                <View style={styles.rankingList}>
+                  {remainingUsers.map((user, index) => (
+                    <View key={user.userId} style={styles.rankRow}>
+                      <View style={styles.rankNumber}>
+                        <Text style={styles.rankNumberLabel}>{index + 4}</Text>
+                      </View>
+                      <Image
+                        source={{
+                          uri:
+                            user.profilePictureUrl ||
+                            "https://via.placeholder.com/150",
+                        }}
+                        style={styles.rankAvatar}
+                      />
+                      <View style={styles.rankInfo}>
+                        <Text style={styles.rankName}>{user.fullName}</Text>
+                        <Text style={styles.rankLevel}>
+                          {user.membershipTier}
+                        </Text>
+                      </View>
+                      <Text style={styles.rankPoints}>{user.coins} điểm</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            </>
+          )}
         </View>
 
         <View
@@ -437,19 +646,36 @@ const AdminDashboard = ({ navigation }) => {
           >
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Tỉ lệ đổi voucher</Text>
+              <Text style={styles.sectionSubtitle}>
+                Top 5 voucher phổ biến nhất
+              </Text>
             </View>
-            <VoucherPieChart data={voucherStats} />
-            <View style={styles.legendList}>
-              {voucherStats.map((item) => (
-                <View key={item.label} style={styles.legendItem}>
-                  <View
-                    style={[styles.legendDot, { backgroundColor: item.color }]}
-                  />
-                  <Text style={styles.legendLabel}>{item.label}</Text>
-                  <Text style={styles.legendValue}>{item.value}%</Text>
+            {voucherStats.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Ionicons name="ticket-outline" size={48} color={COLORS.GRAY} />
+                <Text style={styles.emptyStateText}>
+                  Chưa có dữ liệu voucher
+                </Text>
+              </View>
+            ) : (
+              <>
+                <VoucherPieChart data={voucherStats} />
+                <View style={styles.legendList}>
+                  {voucherStats.map((item) => (
+                    <View key={item.label} style={styles.legendItem}>
+                      <View
+                        style={[
+                          styles.legendDot,
+                          { backgroundColor: item.color },
+                        ]}
+                      />
+                      <Text style={styles.legendLabel}>{item.label}</Text>
+                      <Text style={styles.legendValue}>{item.value}%</Text>
+                    </View>
+                  ))}
                 </View>
-              ))}
-            </View>
+              </>
+            )}
           </View>
 
           <View
@@ -486,9 +712,7 @@ const AdminDashboard = ({ navigation }) => {
                       { backgroundColor: item.color },
                     ]}
                   />
-                  <Text style={styles.membershipLegendLabel}>
-                    {item.label}
-                  </Text>
+                  <Text style={styles.membershipLegendLabel}>{item.label}</Text>
                   <Text style={styles.membershipLegendValue}>
                     {item.value.toLocaleString()}
                   </Text>
@@ -503,80 +727,104 @@ const AdminDashboard = ({ navigation }) => {
             <View>
               <Text style={styles.sectionTitle}>Chuyến đi đang diễn ra</Text>
               <Text style={styles.sectionSubtitle}>
-                {activeTrips.length} chuyến đi đang hoạt động
+                {activeTripsData.length} chuyến đi đang hoạt động
               </Text>
             </View>
             <TouchableOpacity>
               <Text style={styles.linkText}>Xem tất cả</Text>
             </TouchableOpacity>
           </View>
-          {activeTrips.map((trip) => (
-            <TouchableOpacity
-              key={trip.id}
-              style={styles.activeTripRow}
-              onPress={() => handleViewTripDetail(trip)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.activeTripInfo}>
-                <View style={styles.activeTripHeader}>
-                  <Text style={styles.activeTripId}>{trip.id}</Text>
-                  <View
-                    style={[
-                      styles.activeTripStatusBadge,
-                      { backgroundColor: COLORS.GREEN_LIGHT },
-                    ]}
-                  >
-                    <Text
+          {activeTripsData.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="car-outline" size={48} color={COLORS.GRAY} />
+              <Text style={styles.emptyStateText}>
+                Không có chuyến đi đang hoạt động
+              </Text>
+            </View>
+          ) : (
+            activeTripsData.map((trip) => (
+              <TouchableOpacity
+                key={trip.sessionId}
+                style={styles.activeTripRow}
+                onPress={() => handleViewTripDetail(trip)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.activeTripInfo}>
+                  <View style={styles.activeTripHeader}>
+                    <Text style={styles.activeTripId}>#{trip.sessionId}</Text>
+                    <View
                       style={[
-                        styles.activeTripStatusText,
-                        { color: COLORS.GREEN },
+                        styles.activeTripStatusBadge,
+                        {
+                          backgroundColor:
+                            trip.status === "IN_PROGRESS"
+                              ? COLORS.GREEN_LIGHT
+                              : COLORS.BLUE_LIGHT,
+                        },
                       ]}
                     >
-                      Đang diễn ra
-                    </Text>
+                      <Text
+                        style={[
+                          styles.activeTripStatusText,
+                          {
+                            color:
+                              trip.status === "IN_PROGRESS"
+                                ? COLORS.GREEN
+                                : COLORS.BLUE,
+                          },
+                        ]}
+                      >
+                        {trip.status === "IN_PROGRESS"
+                          ? "Đang diễn ra"
+                          : "Đã ghép"}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={styles.activeTripRoute}>
+                    {trip.startLocation} → {trip.endLocation}
+                  </Text>
+                  <View style={styles.activeTripDetails}>
+                    <View style={styles.activeTripDetail}>
+                      <Ionicons
+                        name="person-outline"
+                        size={14}
+                        color={COLORS.GRAY}
+                      />
+                      <Text style={styles.activeTripDetailText}>
+                        {trip.driverName}
+                      </Text>
+                    </View>
+                    <View style={styles.activeTripDetail}>
+                      <Ionicons
+                        name="car-outline"
+                        size={14}
+                        color={COLORS.GRAY}
+                      />
+                      <Text style={styles.activeTripDetailText}>
+                        {trip.vehicleInfo}
+                      </Text>
+                    </View>
+                    <View style={styles.activeTripDetail}>
+                      <Ionicons
+                        name="people-outline"
+                        size={14}
+                        color={COLORS.GRAY}
+                      />
+                      <Text style={styles.activeTripDetailText}>
+                        {trip.totalRiders}/
+                        {trip.seatsAvailable + trip.totalRiders} chỗ
+                      </Text>
+                    </View>
                   </View>
                 </View>
-                <Text style={styles.activeTripRoute}>{trip.route}</Text>
-                <View style={styles.activeTripDetails}>
-                  <View style={styles.activeTripDetail}>
-                    <Ionicons
-                      name="person-outline"
-                      size={14}
-                      color={COLORS.GRAY}
-                    />
-                    <Text style={styles.activeTripDetailText}>
-                      {trip.driver.name}
-                    </Text>
-                  </View>
-                  <View style={styles.activeTripDetail}>
-                    <Ionicons
-                      name="star-outline"
-                      size={14}
-                      color={COLORS.GRAY}
-                    />
-                    <Text style={styles.activeTripDetailText}>
-                      {trip.points} điểm
-                    </Text>
-                  </View>
-                  <View style={styles.activeTripDetail}>
-                    <Ionicons
-                      name="time-outline"
-                      size={14}
-                      color={COLORS.GRAY}
-                    />
-                    <Text style={styles.activeTripDetailText}>
-                      {trip.departureTime}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-              <Ionicons
-                name="chevron-forward"
-                size={20}
-                color={COLORS.GRAY}
-              />
-            </TouchableOpacity>
-          ))}
+                <Ionicons
+                  name="chevron-forward"
+                  size={20}
+                  color={COLORS.GRAY}
+                />
+              </TouchableOpacity>
+            ))
+          )}
         </View>
       </ScrollView>
 
@@ -630,9 +878,7 @@ const AdminDashboard = ({ navigation }) => {
               <>
                 <View style={styles.tripDetailHeader}>
                   <Text style={styles.tripDetailTitle}>Chi tiết chuyến đi</Text>
-                  <TouchableOpacity
-                    onPress={() => setTripDetailVisible(false)}
-                  >
+                  <TouchableOpacity onPress={() => setTripDetailVisible(false)}>
                     <Ionicons name="close" size={24} color={COLORS.BLACK} />
                   </TouchableOpacity>
                 </View>
@@ -657,17 +903,14 @@ const AdminDashboard = ({ navigation }) => {
                     <View style={styles.tripDetailInfoRow}>
                       <Text style={styles.tripDetailLabel}>Thời gian:</Text>
                       <Text style={styles.tripDetailValue}>
-                        {selectedTrip.departureTime} - {selectedTrip.departureDate}
+                        {selectedTrip.departureTime} -{" "}
+                        {selectedTrip.departureDate}
                       </Text>
                     </View>
                     <View style={styles.tripDetailInfoRow}>
                       <Text style={styles.tripDetailLabel}>Điểm thưởng:</Text>
                       <View style={styles.pointsContainer}>
-                        <Ionicons
-                          name="star"
-                          size={16}
-                          color={COLORS.YELLOW}
-                        />
+                        <Ionicons name="star" size={16} color={COLORS.YELLOW} />
                         <Text style={styles.tripDetailValue}>
                           {selectedTrip.points} điểm
                         </Text>
@@ -694,9 +937,7 @@ const AdminDashboard = ({ navigation }) => {
                   </View>
 
                   <View style={styles.tripDetailSection}>
-                    <Text style={styles.tripDetailSectionTitle}>
-                      Địa điểm
-                    </Text>
+                    <Text style={styles.tripDetailSectionTitle}>Địa điểm</Text>
                     <View style={styles.locationRow}>
                       <View style={styles.locationDot} />
                       <View style={styles.locationInfo}>
@@ -708,7 +949,10 @@ const AdminDashboard = ({ navigation }) => {
                     </View>
                     <View style={styles.locationRow}>
                       <View
-                        style={[styles.locationDot, styles.locationDotDestination]}
+                        style={[
+                          styles.locationDot,
+                          styles.locationDotDestination,
+                        ]}
                       />
                       <View style={styles.locationInfo}>
                         <Text style={styles.locationLabel}>Điểm đến:</Text>
@@ -761,7 +1005,8 @@ const AdminDashboard = ({ navigation }) => {
                           color={COLORS.GRAY}
                         />
                         <Text style={styles.driverVehicleText}>
-                          {selectedTrip.driver.vehicle} - {selectedTrip.driver.licensePlate}
+                          {selectedTrip.driver.vehicle} -{" "}
+                          {selectedTrip.driver.licensePlate}
                         </Text>
                       </View>
                     </View>
@@ -1544,6 +1789,47 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: COLORS.BG,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: COLORS.GRAY,
+  },
+  emptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 40,
+  },
+  emptyStateText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: COLORS.GRAY,
+  },
 });
+
+// Helper functions
+const formatNumber = (num) => {
+  if (num >= 1000000) {
+    return (num / 1000000).toFixed(1) + "M";
+  }
+  if (num >= 1000) {
+    return (num / 1000).toFixed(1) + "K";
+  }
+  return num.toString();
+};
+
+const formatDateLabel = (dateStr) => {
+  // Convert "2025-12-15" to "15/12"
+  const parts = dateStr.split("-");
+  if (parts.length === 3) {
+    return `${parts[2]}/${parts[1]}`;
+  }
+  return dateStr;
+};
 
 export default AdminDashboard;
