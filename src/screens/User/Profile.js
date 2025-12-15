@@ -614,26 +614,27 @@ export default function Profile() {
         style: "destructive",
         onPress: async () => {
           try {
-            // Clear all stored data
+            // Clear all stored data including onboarding flag
             await AsyncStorage.multiRemove([
               "userData",
               "userProfile",
               "connectionId",
               "recentSearches",
+              "@onboarding_completed",
             ]);
             await clearTokens();
             await chatClient.disconnectUser();
-            // Navigate to Login and reset stack
+            // Navigate to Onboarding and reset stack
             navigation.reset({
               index: 0,
-              routes: [{ name: "Login" }],
+              routes: [{ name: "Onboarding" }],
             });
           } catch (error) {
             console.warn("Error during logout:", error);
             // Still navigate even if clear fails
             navigation.reset({
               index: 0,
-              routes: [{ name: "Login" }],
+              routes: [{ name: "Onboarding" }],
             });
           }
         },
@@ -643,20 +644,26 @@ export default function Profile() {
 
   return (
     <SafeAreaView
-      style={{ flex: 1, backgroundColor: "#fdfdfd" }}
+      style={{ flex: 1, backgroundColor: COLORS.WHITE }}
       behavior="padding"
     >
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={styles.headerContent}>
+          <Text style={styles.headerTitle}>Tài khoản</Text>
+          <Text style={styles.headerSubtitle}>Quản lý thông tin cá nhân</Text>
+        </View>
+      </View>
+
       <ScrollView
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.title}>QUẢN LÝ TÀI KHOẢN</Text>
-
         {/* Thông tin cá nhân */}
-        <View style={[styles.section, { marginTop: 80 }]}>
+        <View style={[styles.section, { marginTop: 24 }]}>
           <View style={styles.sectionHeader}>
-            <MaterialIcons name="person" size={20} color={COLORS.PRIMARY} />
+            <MaterialIcons name="person" size={20} color="#004553" />
             <Text style={styles.sectionTitle}>Thông tin cá nhân</Text>
           </View>
 
@@ -749,7 +756,7 @@ export default function Profile() {
         {/* Xe & xác thực */}
         <View style={styles.section}>
           <TouchableOpacity style={styles.sectionHeader} activeOpacity={0.8}>
-            <FontAwesome5 name="car" size={18} color={COLORS.PRIMARY} />
+            <FontAwesome5 name="car" size={18} color="#004553" />
             <Text style={styles.sectionTitle}>Xe & Xác thực</Text>
           </TouchableOpacity>
           <View style={{ marginTop: 10 }}>
@@ -1244,7 +1251,7 @@ export default function Profile() {
         {/* Ngân hàng */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <FontAwesome5 name="university" size={18} color={COLORS.PRIMARY} />
+            <FontAwesome5 name="university" size={18} color="#004553" />
             <Text style={styles.sectionTitle}>Ngân hàng</Text>
           </View>
 
@@ -1289,7 +1296,29 @@ export default function Profile() {
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 16, backgroundColor: COLORS.BG },
+  container: { padding: 16, backgroundColor: COLORS.WHITE },
+  // Header styles
+  header: {
+    backgroundColor: "#004553",
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 24,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+  },
+  headerContent: {
+    alignItems: "center",
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#fff",
+    marginBottom: 6,
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.85)",
+  },
   title: {
     fontSize: 22,
     fontWeight: "700",
@@ -1370,10 +1399,15 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   submitButton: {
-    backgroundColor: COLORS.PRIMARY,
-    paddingVertical: 14,
-    borderRadius: 10,
+    backgroundColor: "#004553",
+    paddingVertical: 16,
+    borderRadius: 16,
     marginTop: 10,
+    shadowColor: "#004553",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
   submitText: {
     textAlign: "center",
@@ -1624,13 +1658,19 @@ const styles = StyleSheet.create({
     marginHorizontal: 5,
   },
   logoutButton: {
-    backgroundColor: "#dc3545",
-    paddingVertical: 14,
-    borderRadius: 10,
+    backgroundColor: "#EF4444",
+    paddingVertical: 16,
+    borderRadius: 16,
     marginTop: 10,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    gap: 8,
+    shadowColor: "#EF4444",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
   logoutText: {
     textAlign: "center",

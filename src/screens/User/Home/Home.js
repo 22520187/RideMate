@@ -12,6 +12,7 @@ import {
   AppState,
   Modal,
   Alert,
+  ImageBackground,
 } from "react-native";
 import {
   SafeAreaView,
@@ -33,11 +34,15 @@ import {
   Package,
   Ticket,
   AlertCircle,
+  Heart,
+  Sparkles,
+  Navigation,
 } from "lucide-react-native";
 import COLORS from "../../../constant/colors";
 import SCREENS from "../../../screens";
 import { getProfile } from "../../../services/userService";
 import { getMyVehicle } from "../../../services/vehicleService";
+import { LinearGradient } from "expo-linear-gradient";
 
 const { width } = Dimensions.get("window");
 
@@ -56,8 +61,8 @@ const Home = ({ navigation }) => {
 
   useEffect(() => {
     const handleAppStateChange = (nextAppState) => {
-      if (nextAppState === 'active') {
-        setRefreshKey(prev => prev + 1);
+      if (nextAppState === "active") {
+        setRefreshKey((prev) => prev + 1);
         loadUserData();
       }
     };
@@ -82,7 +87,10 @@ const Home = ({ navigation }) => {
       const profile = profileResp?.data;
       setUserProfile(profile);
 
-      if (profile && (profile.userType === 'DRIVER' || profile.userType === 'PASSENGER')) {
+      if (
+        profile &&
+        (profile.userType === "DRIVER" || profile.userType === "PASSENGER")
+      ) {
         try {
           const vehicleResp = await getMyVehicle();
           const vehicle = vehicleResp?.data;
@@ -102,11 +110,11 @@ const Home = ({ navigation }) => {
       return false;
     }
 
-    if (userProfile.userType === 'PASSENGER' && !vehicleStatus) {
+    if (userProfile.userType === "PASSENGER" && !vehicleStatus) {
       setShowVehicleRequiredModal(true);
       return false;
     }
-    if (vehicleStatus === 'PENDING') {
+    if (vehicleStatus === "PENDING") {
       Alert.alert(
         "Xe đang chờ duyệt",
         "Thông tin xe của bạn đang được admin xem xét. Vui lòng chờ phê duyệt để có thể tạo chuyến đi.",
@@ -115,7 +123,7 @@ const Home = ({ navigation }) => {
       return false;
     }
 
-    if (vehicleStatus === 'REJECTED') {
+    if (vehicleStatus === "REJECTED") {
       Alert.alert(
         "Xe bị từ chối",
         "Thông tin xe của bạn không được phê duyệt. Vui lòng cập nhật lại thông tin trong mục Quản lý tài khoản.",
@@ -135,21 +143,21 @@ const Home = ({ navigation }) => {
 
   const handleCreateRide = () => {
     if (checkCanCreateRide() == false) {
-      navigation.navigate('DriverRide');
+      navigation.navigate("DriverRide");
     } else {
-      navigation.navigate('DriverRide');
+      navigation.navigate("DriverRide");
     }
   };
 
   const currentRide = {
     hasActiveRide: false,
-    type: 'driver',
-    destination: 'Trường Đại học Công nghệ',
-    time: '15 phút',
-    passengers: []
-  }
+    type: "driver",
+    destination: "Trường Đại học Công nghệ",
+    time: "15 phút",
+    passengers: [],
+  };
 
-  const userPoints = 1250
+  const userPoints = 1250;
 
   const mainFunctions = [
     {
@@ -330,76 +338,200 @@ const Home = ({ navigation }) => {
     <SafeAreaView key={refreshKey} style={styles.container} edges={["top"]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: insets.bottom }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 30 }}
       >
         {/* Header */}
         <View style={styles.header}>
-          <View style={styles.headerContent}>
+          <View style={styles.headerTop}>
+            <View style={styles.headerLeft}>
+              <TouchableOpacity
+                style={styles.avatarButton}
+                onPress={() => navigation.navigate(SCREENS.PROFILE)}
+              >
+                <Image
+                  source={{
+                    uri:
+                      userProfile?.profilePictureUrl ||
+                      "https://api.dicebear.com/7.x/avataaars/png?seed=cute",
+                  }}
+                  style={styles.avatarImage}
+                />
+              </TouchableOpacity>
+              <View>
+                <Text style={styles.greetingText}>Xin chào,</Text>
+                <Text style={styles.userName}>
+                  {userProfile?.fullName || "Rider"}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.headerActions}>
+              <TouchableOpacity
+                style={styles.iconButton}
+                onPress={() => navigation.navigate("Notification")}
+              >
+                <Bell size={22} color="#004553" />
+                <View style={styles.notificationDot} />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Search Bar */}
+          <TouchableOpacity
+            style={styles.searchContainer}
+            onPress={() => navigation.navigate(SCREENS.HOME_SEARCH)}
+            activeOpacity={0.9}
+          >
+            <View style={styles.searchLeft}>
+              <Search size={20} color="#004553" />
+              <Text style={styles.searchPlaceholder}>Bạn muốn đi đâu?</Text>
+            </View>
+            <View style={styles.searchIconRight}>
+              <Navigation size={18} color="#fff" />
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        {/* Hero Banner */}
+        <View style={styles.heroBanner}>
+          <View style={styles.heroGradient}>
+            <View style={styles.heroContent}>
+              <View style={styles.heroTextContainer}>
+                <Text style={styles.heroTitle}>
+                  Đi cùng nhau, vui hơn gấp bội!
+                </Text>
+                <Text style={styles.heroSubtitle}>
+                  Tiết kiệm chi phí, kết bạn mới
+                </Text>
+                <TouchableOpacity style={styles.heroButton}>
+                  <Text style={styles.heroButtonText}>Khám phá ngay</Text>
+                  <ChevronRight size={16} color="#fff" />
+                </TouchableOpacity>
+              </View>
+              <Image
+                source={{
+                  uri: "https://cdn-icons-png.flaticon.com/512/3448/3448650.png",
+                }}
+                style={styles.heroImage}
+              />
+            </View>
+          </View>
+        </View>
+
+        {/* Quick Actions */}
+        <View style={styles.quickActionsSection}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Bắt đầu nào!</Text>
+          </View>
+
+          <View style={styles.quickActionsRow}>
             <TouchableOpacity
-              style={styles.searchContainer}
-              onPress={() => navigation.navigate(SCREENS.HOME_SEARCH)}
+              style={styles.quickActionCard}
+              onPress={handleCreateRide}
+              activeOpacity={0.85}
             >
-              <Search size={20} color={COLORS.GRAY} style={styles.searchIcon} />
-              <Text style={styles.searchPlaceholder}>Tìm địa điểm</Text>
+              <View style={styles.quickActionGradient}>
+                <View style={styles.quickActionEmoji}>
+                  <Text style={styles.emojiText}>🚙</Text>
+                </View>
+                <Text style={styles.quickActionTitle}>Tạo chuyến</Text>
+                <Text style={styles.quickActionSubtitle}>
+                  Lái xe & kiếm tiền
+                </Text>
+              </View>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.profileButton}
-              onPress={() => navigation.navigate(SCREENS.PROFILE)}
+              style={styles.quickActionCard}
+              onPress={() => navigation.navigate("PassengerRide")}
+              activeOpacity={0.85}
             >
-              <User size={20} color={COLORS.WHITE} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.notificationButton}
-              onPress={() => navigation.navigate("Notification")}
-            >
-              <Bell size={24} color={COLORS.WHITE} />
-              {/* Badge cho thông báo chưa đọc */}
-              <View style={styles.notificationBadge}>
-                <Text style={styles.notificationBadgeText}>3</Text>
+              <View style={styles.quickActionGradient}>
+                <View style={styles.quickActionEmoji}>
+                  <Text style={styles.emojiText}>🧑‍🤝‍🧑</Text>
+                </View>
+                <Text style={styles.quickActionTitle}>Tìm chuyến</Text>
+                <Text style={styles.quickActionSubtitle}>Đi cùng bạn bè</Text>
               </View>
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Main Functions Grid */}
-        <View style={styles.functionsSection}>
-          <View style={styles.functionsGrid}>
-            {mainFunctions.map((item) => {
-              const IconComponent = item.icon;
-              return (
-                <TouchableOpacity
-                  key={item.id}
-                  style={styles.functionCard}
-                  onPress={item.onPress}
-                >
-                  <View
-                    style={[
-                      styles.iconContainer,
-                      { backgroundColor: item.color + "20" },
-                    ]}
-                  >
-                    <IconComponent size={20} color={item.color} />
-                  </View>
-                  <Text style={styles.functionTitle}>{item.title}</Text>
-                  <Text style={styles.functionSubtitle}>{item.subtitle}</Text>
-                </TouchableOpacity>
-              );
-            })}
+        {/* Services */}
+        <View style={styles.servicesSection}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Dịch vụ</Text>
+          </View>
+
+          <View style={styles.servicesGrid}>
+            <TouchableOpacity
+              style={styles.serviceItem}
+              onPress={() => navigation.navigate("Mission")}
+            >
+              <View style={styles.serviceIcon}>
+                <Text style={styles.serviceEmoji}>🎁</Text>
+              </View>
+              <Text style={styles.serviceLabel}>Nhiệm vụ</Text>
+              <View style={styles.pointsBadge}>
+                <Star size={10} color="#004553" />
+                <Text style={styles.pointsText}>{userPoints}</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.serviceItem}
+              onPress={() => navigation.navigate("RideHistory")}
+            >
+              <View style={styles.serviceIcon}>
+                <Text style={styles.serviceEmoji}>📋</Text>
+              </View>
+              <Text style={styles.serviceLabel}>Lịch sử</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.serviceItem}
+              onPress={() => navigation.navigate("Member")}
+            >
+              <View style={styles.serviceIcon}>
+                <Text style={styles.serviceEmoji}>👑</Text>
+              </View>
+              <Text style={styles.serviceLabel}>Hội viên</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.serviceItem}
+              onPress={() => navigation.navigate("Report")}
+            >
+              <View style={styles.serviceIcon}>
+                <Text style={styles.serviceEmoji}>💬</Text>
+              </View>
+              <Text style={styles.serviceLabel}>Hỗ trợ</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
-        {/* Promotions Carousel */}
-        <View style={styles.promotionSection}>
-          <View style={styles.promotionHeader}>
-            <View style={styles.packageHeaderLeft}>
-              <Ticket size={24} color={COLORS.PRIMARY} />
-              <Text style={styles.packageSectionTitle}>Khuyến mãi</Text>
+        {/* Tips Card */}
+        <View style={styles.tipsSection}>
+          <View style={styles.tipsCard}>
+            <View style={styles.tipsContent}>
+              <Text style={styles.tipsEmoji}>💡</Text>
+              <View style={styles.tipsTextContainer}>
+                <Text style={styles.tipsTitle}>Mẹo hay cho bạn!</Text>
+                <Text style={styles.tipsText}>
+                  Đặt chuyến sớm để có giá tốt nhất nhé~
+                </Text>
+              </View>
             </View>
+            <Heart size={24} color="rgba(255,255,255,0.5)" />
+          </View>
+        </View>
+
+        {/* Promotions */}
+        <View style={styles.promotionSection}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Ưu đãi hot</Text>
             <TouchableOpacity style={styles.seeAllButton}>
               <Text style={styles.seeAllText}>Xem tất cả</Text>
-              <ChevronRight size={16} color={COLORS.PRIMARY} />
+              <ChevronRight size={16} color="#004553" />
             </TouchableOpacity>
           </View>
           <FlatList
@@ -412,22 +544,17 @@ const Home = ({ navigation }) => {
           />
         </View>
 
-        {/* Packages Section */}
+        {/* Membership Cards */}
         <View style={styles.packagesSection}>
-          <View style={styles.packageHeader}>
-            <View style={styles.packageHeaderLeft}>
-              <Package size={24} color={COLORS.PRIMARY} />
-              <Text style={styles.packageSectionTitle}>
-                Gói Hội Viên RideMate
-              </Text>
-            </View>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Gói hội viên</Text>
             <TouchableOpacity style={styles.seeAllButton}>
               <Text style={styles.seeAllText}>Xem tất cả</Text>
-              <ChevronRight size={16} color={COLORS.PRIMARY} />
+              <ChevronRight size={16} color="#004553" />
             </TouchableOpacity>
           </View>
-          <Text style={styles.packageSectionSubtitle}>
-            Trải nghiệm đặc quyền - Tiết kiệm mọi chuyến đi
+          <Text style={styles.sectionSubtitle}>
+            Nâng cấp để nhận nhiều ưu đãi hơn
           </Text>
           <FlatList
             data={packages}
@@ -440,7 +567,7 @@ const Home = ({ navigation }) => {
         </View>
       </ScrollView>
 
-      {/* Modal hướng dẫn đăng ký xe */}
+      {/* Modal */}
       <Modal
         visible={showVehicleRequiredModal}
         transparent={true}
@@ -449,38 +576,35 @@ const Home = ({ navigation }) => {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <View style={styles.modalIconContainer}>
-              <AlertCircle size={60} color={COLORS.ORANGE} />
-            </View>
-
-            <Text style={styles.modalTitle}>Cần đăng ký xe</Text>
-
+            <Text style={styles.modalEmoji}>🚗</Text>
+            <Text style={styles.modalTitle}>Đăng ký xe nào!</Text>
             <Text style={styles.modalMessage}>
-              Để có thể tạo chuyến đi, bạn cần đăng ký thông tin xe trước.
+              Bạn cần đăng ký thông tin xe trước khi tạo chuyến đi nhé!
               {"\n\n"}
-              Vui lòng vào{" "}
-              <Text style={styles.modalHighlight}>Quản lý tài khoản</Text> để
-              đăng ký xe của bạn.{"\n\n"}
-              Sau khi đăng ký, admin sẽ xem xét và phê duyệt. Khi xe được duyệt,
-              bạn sẽ có thể tạo chuyến đi.
+              Vào <Text style={styles.modalHighlight}>
+                Quản lý tài khoản
+              </Text>{" "}
+              để đăng ký xe của bạn nha~
             </Text>
 
             <View style={styles.modalButtons}>
               <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonSecondary]}
+                style={styles.modalButtonSecondary}
                 onPress={() => setShowVehicleRequiredModal(false)}
               >
                 <Text style={styles.modalButtonTextSecondary}>Để sau</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonPrimary]}
+                style={styles.modalButtonPrimary}
                 onPress={() => {
                   setShowVehicleRequiredModal(false);
                   navigation.navigate(SCREENS.PROFILE);
                 }}
               >
-                <Text style={styles.modalButtonTextPrimary}>Đăng ký ngay</Text>
+                <Text style={styles.modalButtonTextPrimary}>
+                  Đăng ký ngay ✨
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -493,144 +617,319 @@ const Home = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BG,
+    backgroundColor: "#FFFFFF",
   },
-  safeArea: {
-    flex: 1,
-  },
+
+  // Header Styles
   header: {
-    backgroundColor: COLORS.PRIMARY,
-    paddingHorizontal: 16,
-    paddingTop: 20,
-    paddingBottom: 20,
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
+    backgroundColor: "#004553",
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 24,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
   },
-  headerContent: {
+  headerTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  headerLeft: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    gap: 12,
   },
+  greetingEmoji: {
+    fontSize: 32,
+  },
+  greetingText: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.8)",
+    fontWeight: "400",
+  },
+  userName: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#fff",
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  iconButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#fff",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  notificationDot: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#FF6B6B",
+    borderWidth: 2,
+    borderColor: "#fff",
+  },
+  avatarButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 2,
+    borderColor: "#fff",
+    overflow: "hidden",
+  },
+  avatarImage: {
+    width: "100%",
+    height: "100%",
+  },
+
+  // Search Bar
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: COLORS.WHITE,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    justifyContent: "space-between",
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    paddingLeft: 16,
+    paddingRight: 6,
+    paddingVertical: 6,
+    shadowColor: "#004553",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  searchLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
     flex: 1,
-    marginRight: 12,
-    minHeight: 40,
   },
   searchPlaceholder: {
-    flex: 1,
     fontSize: 14,
-    color: COLORS.PLACEHOLDER_COLOR,
-    marginLeft: 8,
+    color: "#9CA3AF",
+    flex: 1,
   },
-  notificationButton: {
-    padding: 8,
-    marginLeft: 8,
-    position: "relative",
-  },
-  notificationBadge: {
-    position: "absolute",
-    top: 4,
-    right: 4,
-    backgroundColor: COLORS.RED,
-    borderRadius: 10,
-    minWidth: 18,
-    height: 18,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 4,
-    borderWidth: 2,
-    borderColor: COLORS.PRIMARY,
-  },
-  notificationBadgeText: {
-    color: COLORS.WHITE,
-    fontSize: 10,
-    fontWeight: "700",
-  },
-  profileButton: {
+  searchIconRight: {
     width: 40,
     height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.BLUE,
-    borderWidth: 1,
-    borderColor: COLORS.WHITE,
+    borderRadius: 16,
+    backgroundColor: "#004553",
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
   },
-  searchIcon: {
-    marginRight: 8,
+
+  // Hero Banner
+  heroBanner: {
+    paddingHorizontal: 20,
+    marginTop: 20,
   },
-  functionsSection: {
-    paddingHorizontal: 16,
-    paddingTop: 24,
+  heroGradient: {
+    backgroundColor: "rgba(0, 69, 83, 0.05)",
+    borderRadius: 24,
+    padding: 20,
+    overflow: "hidden",
   },
-  functionsGrid: {
+  heroContent: {
     flexDirection: "row",
-    flexWrap: "wrap",
     justifyContent: "space-between",
-  },
-  functionCard: {
-    width: (width - 64) / 3,
-    backgroundColor: COLORS.WHITE,
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
     alignItems: "center",
-    shadowColor: COLORS.BLUE,
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: COLORS.BLUE + "30",
   },
-  iconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  heroTextContainer: {
+    flex: 1,
+  },
+  heroTitle: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#004553",
+    marginBottom: 8,
+    lineHeight: 28,
+  },
+  heroSubtitle: {
+    fontSize: 14,
+    color: "#004553",
+    marginBottom: 16,
+    opacity: 0.7,
+  },
+  heroButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#004553",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 14,
+    alignSelf: "flex-start",
+    gap: 6,
+  },
+  heroButtonText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  heroImage: {
+    width: 100,
+    height: 100,
+    resizeMode: "contain",
+  },
+
+  // Quick Actions
+  quickActionsSection: {
+    paddingHorizontal: 20,
+    marginTop: 24,
+  },
+  sectionHeader: {
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#004553",
+  },
+  quickActionsRow: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  quickActionCard: {
+    flex: 1,
+    borderRadius: 24,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  quickActionGradient: {
+    backgroundColor: "#004553",
+    padding: 20,
+    alignItems: "center",
+    minHeight: 150,
+  },
+  quickActionEmoji: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "rgba(255,255,255,0.3)",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 6,
+    marginBottom: 12,
   },
-  functionTitle: {
+  emojiText: {
+    fontSize: 28,
+  },
+  quickActionTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#fff",
+    marginBottom: 4,
+    textAlign: "center",
+  },
+  quickActionSubtitle: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.85)",
+    textAlign: "center",
+  },
+
+  // Services Grid
+  servicesSection: {
+    paddingHorizontal: 20,
+    marginTop: 28,
+  },
+  servicesGrid: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 16,
+  },
+  serviceItem: {
+    alignItems: "center",
+    width: (width - 80) / 4,
+  },
+  serviceIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 20,
+    backgroundColor: "rgba(0, 69, 83, 0.08)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  serviceEmoji: {
+    fontSize: 28,
+  },
+  serviceLabel: {
     fontSize: 12,
     fontWeight: "600",
-    color: COLORS.BLACK,
+    color: "#004553",
     textAlign: "center",
+  },
+  pointsBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 69, 83, 0.1)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    marginTop: 4,
+    gap: 3,
+  },
+  pointsText: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "#004553",
+  },
+
+  // Tips Card
+  tipsSection: {
+    paddingHorizontal: 20,
+    marginTop: 24,
+  },
+  tipsCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#004553",
+    padding: 16,
+    borderRadius: 20,
+  },
+  tipsContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    flex: 1,
+  },
+  tipsEmoji: {
+    fontSize: 32,
+  },
+  tipsTextContainer: {
+    flex: 1,
+  },
+  tipsTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#fff",
     marginBottom: 2,
   },
-  functionSubtitle: {
-    fontSize: 10,
-    color: COLORS.GRAY,
-    textAlign: "center",
+  tipsText: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.9)",
   },
+
+  // Promotions Section
   promotionSection: {
-    paddingHorizontal: 16,
-    paddingTop: 24,
-    paddingBottom: 32,
+    marginTop: 28,
   },
-  promotionHeader: {
+  sectionHeaderRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    paddingHorizontal: 20,
     marginBottom: 16,
   },
   seeAllButton: {
@@ -639,24 +938,24 @@ const styles = StyleSheet.create({
   },
   seeAllText: {
     fontSize: 14,
-    color: COLORS.PRIMARY,
-    fontWeight: "500",
+    color: "#004553",
+    fontWeight: "600",
     marginRight: 4,
   },
   promotionList: {
-    paddingRight: 16,
+    paddingHorizontal: 20,
   },
   promotionCard: {
-    width: width * 0.8,
+    width: width * 0.72,
     height: 160,
-    borderRadius: 12,
-    marginRight: 12,
+    borderRadius: 24,
+    marginRight: 16,
     overflow: "hidden",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 6,
   },
   promotionImage: {
     width: "100%",
@@ -669,7 +968,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.3)",
+    backgroundColor: "rgba(0,0,0,0.4)",
     justifyContent: "flex-end",
     padding: 16,
   },
@@ -683,72 +982,57 @@ const styles = StyleSheet.create({
   },
   promotionTitle: {
     fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.WHITE,
+    fontWeight: "700",
+    color: "#fff",
     marginBottom: 4,
   },
   promotionSubtitle: {
-    fontSize: 14,
-    color: COLORS.WHITE,
-    marginBottom: 8,
+    fontSize: 13,
+    color: "#fff",
+    marginBottom: 10,
     opacity: 0.9,
   },
   promotionBadge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: COLORS.YELLOW + "90",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
+    backgroundColor: "#fff",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
     alignSelf: "flex-start",
+    gap: 4,
   },
   badgeText: {
-    fontSize: 12,
-    color: COLORS.ORANGE_DARK,
-    marginLeft: 4,
-    fontWeight: "500",
+    fontSize: 11,
+    color: "#004553",
+    fontWeight: "600",
   },
-  // Packages Section Styles
+
+  // Packages Section
   packagesSection: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 32,
+    marginTop: 28,
+    paddingBottom: 20,
   },
-  packageHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  packageHeaderLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  packageSectionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: COLORS.BLACK,
-  },
-  packageSectionSubtitle: {
+  sectionSubtitle: {
     fontSize: 13,
-    color: COLORS.GRAY_DARK,
+    color: "#6B7280",
+    paddingHorizontal: 20,
     marginBottom: 16,
   },
   packagesList: {
-    paddingRight: 16,
+    paddingHorizontal: 20,
   },
   packageCard: {
     width: width * 0.7,
     height: 200,
-    borderRadius: 16,
-    marginRight: 12,
+    borderRadius: 24,
+    marginRight: 16,
     overflow: "hidden",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 6,
   },
   packageImage: {
     width: "100%",
@@ -761,20 +1045,20 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.35)",
+    backgroundColor: "rgba(0,0,0,0.45)",
     justifyContent: "space-between",
     padding: 16,
   },
   packageBadge: {
     alignSelf: "flex-start",
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     paddingVertical: 6,
-    borderRadius: 20,
+    borderRadius: 16,
   },
   packageBadgeText: {
     fontSize: 11,
     fontWeight: "700",
-    color: COLORS.WHITE,
+    color: "#fff",
   },
   packageContent: {
     justifyContent: "flex-end",
@@ -782,85 +1066,94 @@ const styles = StyleSheet.create({
   packageTitle: {
     fontSize: 18,
     fontWeight: "800",
-    color: COLORS.WHITE,
+    color: "#fff",
     marginBottom: 6,
   },
   packageDescription: {
     fontSize: 13,
-    color: COLORS.WHITE,
-    opacity: 0.95,
+    color: "#fff",
+    opacity: 0.9,
     lineHeight: 18,
   },
-  // Modal styles
+
+  // Modal Styles
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.5)",
     justifyContent: "center",
     alignItems: "center",
-    padding: 20,
+    padding: 24,
   },
   modalContent: {
-    backgroundColor: COLORS.WHITE,
-    borderRadius: 20,
-    padding: 24,
+    backgroundColor: "#fff",
+    borderRadius: 32,
+    padding: 28,
     width: "100%",
-    maxWidth: 400,
+    maxWidth: 360,
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
+    shadowColor: "#004553",
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    shadowRadius: 24,
+    elevation: 12,
   },
-  modalIconContainer: {
+  modalEmoji: {
+    fontSize: 64,
     marginBottom: 16,
   },
   modalTitle: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: "700",
-    color: COLORS.BLACK,
-    marginBottom: 16,
+    color: "#004553",
+    marginBottom: 12,
     textAlign: "center",
   },
   modalMessage: {
     fontSize: 15,
-    color: COLORS.GRAY_DARK,
+    color: "#6B7280",
     textAlign: "center",
-    lineHeight: 22,
+    lineHeight: 24,
     marginBottom: 24,
   },
   modalHighlight: {
     fontWeight: "700",
-    color: COLORS.PRIMARY,
+    color: "#004553",
   },
   modalButtons: {
     flexDirection: "row",
     width: "100%",
     gap: 12,
   },
-  modalButton: {
+  modalButtonSecondary: {
     flex: 1,
     paddingVertical: 14,
-    borderRadius: 12,
+    borderRadius: 16,
+    backgroundColor: "#F3F4F6",
     alignItems: "center",
     justifyContent: "center",
   },
-  modalButtonSecondary: {
-    backgroundColor: COLORS.GRAY_LIGHT,
-  },
   modalButtonPrimary: {
-    backgroundColor: COLORS.PRIMARY,
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 16,
+    backgroundColor: "#004553",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalButtonGradient: {
+    paddingVertical: 14,
+    alignItems: "center",
+    justifyContent: "center",
   },
   modalButtonTextSecondary: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "600",
-    color: COLORS.GRAY_DARK,
+    color: "#6B7280",
   },
   modalButtonTextPrimary: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "700",
-    color: COLORS.WHITE,
+    color: "#fff",
   },
 });
-
 export default Home;

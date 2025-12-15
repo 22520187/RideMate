@@ -1,9 +1,34 @@
 import axiosClient from "../api/axiosClient";
 import endpoints from "../api/endpoints";
 
-// Note: axiosClient interceptor already returns response.data
-// So these functions return the data directly from the interceptor
-export const getProfile = () => axiosClient.get(endpoints.user.profile);
+/**
+ * Get user profile
+ * Note: axiosClient interceptor already returns response.data
+ */
+export const getProfile = () => {
+  console.log("📋 Calling getProfile API...");
+  return axiosClient
+    .get(endpoints.user.profile)
+    .then((response) => {
+      console.log("✅ getProfile success:", response?.data);
+      return response;
+    })
+    .catch((error) => {
+      console.error("❌ getProfile failed:", error.message);
+      throw error;
+    });
+};
 
-export const updateProfile = (data) =>
-  axiosClient.put(endpoints.user.update, data);
+export const updateProfile = (data) => {
+  console.log("✏️  Calling updateProfile API...", endpoints.user.update);
+  return axiosClient
+    .put(endpoints.user.update, data)
+    .then((response) => {
+      console.log("✅ updateProfile success");
+      return response;
+    })
+    .catch((error) => {
+      console.error("❌ updateProfile failed:", error.message);
+      throw error;
+    });
+};

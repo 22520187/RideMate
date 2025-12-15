@@ -19,6 +19,8 @@ import Member from "../screens/User/Member/Member";
 import Voucher from "../screens/User/Voucher";
 import Mission from "../screens/User/Mission";
 import Login from "../screens/Auth/Login";
+import Onboarding from "../screens/Auth/Onboarding";
+import InitialScreen from "../screens/Auth/InitialScreen";
 import PhoneVerification from "../screens/Auth/PhoneVerification";
 import RegisterComplete from "../screens/Auth/RegisterComplete";
 import MessageListScreen from "../screens/User/Message/MessageListScreen";
@@ -172,7 +174,12 @@ const UserTabNavigator = () => {
 
 const MainStackNavigator = () => {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator
+      screenOptions={{ headerShown: false }}
+      initialRouteName="InitialScreen"
+    >
+      <Stack.Screen name="InitialScreen" component={InitialScreen} />
+      <Stack.Screen name={SCREENS.ONBOARDING} component={Onboarding} />
       <Stack.Screen name={SCREENS.LOGIN} component={Login} />
       <Stack.Screen
         name={SCREENS.PHONE_VERIFICATION}

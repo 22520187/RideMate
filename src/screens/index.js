@@ -1,4 +1,5 @@
 const SCREENS = {
+  ONBOARDING: "Onboarding",
   LOGIN: "Login",
   PHONE_VERIFICATION: "PhoneVerification",
   REGISTER_COMPLETE: "RegisterComplete",
