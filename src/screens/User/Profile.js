@@ -15,6 +15,9 @@ import {
   Modal,
   FlatList,
 } from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { clearTokens } from "../../utils/storage";
 import { normalizeMimeType } from "../../services/uploadService";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
@@ -23,9 +26,12 @@ import COLORS from "../../constant/colors";
 import { getProfile } from "../../services/userService";
 import { getMyVehicle, registerVehicle } from "../../services/vehicleService";
 import { uploadImage } from "../../services/uploadService";
+import AsyncStorageService from "../../services/AsyncStorageService";
+import { chatClient } from "../../utils/StreamClient";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function Profile() {
+  const navigation = useNavigation();
   const [profile, setProfile] = useState({
     fullName: "",
     dob: null,
@@ -35,11 +41,16 @@ export default function Profile() {
     bankAccountNumber: "",
     bankName: "",
     verificationImage: null,
+    email: "",
+    profilePictureUrl: "",
+    rating: 5.0,
+    coins: 100,
   });
 
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+  const DEFAULT_AVATAR = "https://randomuser.me/api/portraits/lego/1.jpg";
 
   const update = (key, value) => {
     setProfile((p) => ({ ...p, [key]: value }));
@@ -55,20 +66,31 @@ export default function Profile() {
   const fetchUserAndVehicle = async () => {
     try {
       setLoading(true);
-      const apiResp = await getProfile(); // axios response with ApiResponse wrapper
-      const user = apiResp?.data?.data; // Get actual UserDto from ApiResponse
+      const apiResp = await getProfile();
+      const user = apiResp?.data?.data;
+
+      // Load saved profile from AsyncStorage
+      const savedProfile = await AsyncStorageService.getProfile();
       if (user) {
         setProfile((p) => ({
           ...p,
-          fullName: user.fullName || "",
-          phone: user.phoneNumber || "",
-          email: user.email || "",
+          fullName: user.fullName || savedProfile?.fullName || "",
+          phone: user.phoneNumber || savedProfile?.phone || "",
+          email: user.email || savedProfile?.email || "",
+          profilePictureUrl: user.profilePictureUrl || "",
+          rating: user.rating || 0,
+          coins: user.coins || 0,
+          dob: savedProfile?.dob ? new Date(savedProfile.dob) : p.dob,
+          address: savedProfile?.address || "",
+          bankAccountNumber: savedProfile?.bankAccountNumber || "",
+          bankName: savedProfile?.bankName || "",
         }));
 
-        // Try to fetch vehicle info - removed userType check since backend handles it
+        // Try to fetch vehicle info
         try {
           const vehResp = await getMyVehicle();
-          const vehicle = vehResp?.data?.data; // Get actual VehicleResponse from ApiResponse
+          const vehicle = vehResp?.data?.data;
+
           if (vehicle) {
             setRegistered(true);
             setApproved(vehicle.status === "APPROVED");
@@ -85,11 +107,11 @@ export default function Profile() {
               registrationDocumentUrl: vehicle.registrationDocumentUrl || "",
             });
           } else {
+            console.log("No vehicle found");
             setRegistered(false);
           }
         } catch (e) {
-          // no vehicle found or error
-          console.log("Vehicle fetch error:", e?.response?.status, e?.message);
+          console.warn("Failed to fetch vehicle:", e);
           setRegistered(false);
         }
       }
@@ -120,18 +142,18 @@ export default function Profile() {
   // Helper function to format license plate
   const formatLicensePlate = (text) => {
     // Remove all spaces and convert to uppercase
-    let formatted = text.replace(/\s/g, '').toUpperCase();
-    
+    let formatted = text.replace(/\s/g, "").toUpperCase();
+
     // Remove any non-alphanumeric except dash
-    formatted = formatted.replace(/[^0-9A-Z-]/g, '');
-    
+    formatted = formatted.replace(/[^0-9A-Z-]/g, "");
+
     // Auto-format: XX-YZZZZ or XX-YY-ZZZZ
     // Pattern: 2 digits, 1-2 letters, dash, 4-5 digits
     // Limit to max 10 characters (e.g., "51AB-12345")
     if (formatted.length > 10) {
       formatted = formatted.substring(0, 10);
     }
-    
+
     return formatted;
   };
 
@@ -140,18 +162,19 @@ export default function Profile() {
     if (!plate || !plate.trim()) {
       return { valid: false, message: "Biển số xe không được để trống" };
     }
-    
+
     const trimmed = plate.trim().toUpperCase();
     // Backend regex: ^[0-9]{2}[A-Z]{1,2}-[0-9]{4,5}$
     const regex = /^[0-9]{2}[A-Z]{1,2}-[0-9]{4,5}$/;
-    
+
     if (!regex.test(trimmed)) {
       return {
         valid: false,
-        message: "Biển số phải có định dạng: XX-YZZZZ hoặc XX-YY-ZZZZ\nVí dụ: 30A-12345 hoặc 51AB-12345"
+        message:
+          "Biển số phải có định dạng: XX-YZZZZ hoặc XX-YY-ZZZZ\nVí dụ: 30A-12345 hoặc 51AB-12345",
       };
     }
-    
+
     return { valid: true, message: null };
   };
 
@@ -187,7 +210,8 @@ export default function Profile() {
         if (assetType && assetType.startsWith("image/")) {
           return assetType;
         }
-        const ext = (fileName && fileName.split(".").pop()?.toLowerCase()) || "jpg";
+        const ext =
+          (fileName && fileName.split(".").pop()?.toLowerCase()) || "jpg";
         const mimeMap = {
           jpg: "image/jpeg",
           jpeg: "image/jpeg",
@@ -197,7 +221,7 @@ export default function Profile() {
         };
         return mimeMap[ext] || "image/jpeg";
       };
-      
+
       const type = getMimeType(asset.type, name);
 
       if (editing) {
@@ -295,7 +319,10 @@ export default function Profile() {
   const submitRegistration = async () => {
     // Validate required fields
     if (!vehicleData.licensePlate?.trim()) {
-      setErrors((e) => ({ ...e, licensePlate: "Biển số xe không được để trống" }));
+      setErrors((e) => ({
+        ...e,
+        licensePlate: "Biển số xe không được để trống",
+      }));
       Alert.alert("Thiếu thông tin", "Vui lòng nhập biển số xe.");
       return;
     }
@@ -351,7 +378,10 @@ export default function Profile() {
 
           let imageUri = firstImage.uri;
           if (Platform.OS === "android") {
-            if (!imageUri.startsWith("file://") && !imageUri.startsWith("http")) {
+            if (
+              !imageUri.startsWith("file://") &&
+              !imageUri.startsWith("http")
+            ) {
               imageUri = `file://${imageUri}`;
             }
           } else {
@@ -397,7 +427,9 @@ export default function Profile() {
           registrationDocumentUrl = firstImage.uri;
         }
       }
-      const formattedLicensePlate = vehicleData.licensePlate.trim().toUpperCase();
+      const formattedLicensePlate = vehicleData.licensePlate
+        .trim()
+        .toUpperCase();
       const vehicleRegisterData = {
         licensePlate: formattedLicensePlate,
         make: vehicleData.make.trim(),
@@ -414,8 +446,9 @@ export default function Profile() {
 
       Alert.alert(
         "Thành công",
-        apiResp?.data?.message ||
-        "Đã gửi thông tin xe. Đang chờ admin duyệt.\n\nSau khi xe được duyệt, bạn sẽ có thể tạo chuyến đi."
+        vehicleResp?.message ||
+          apiResp?.message ||
+          "Đã gửi thông tin xe. Đang chờ admin duyệt.\n\nSau khi xe được duyệt, bạn sẽ có thể tạo chuyến đi."
       );
 
       setRegistered(true);
@@ -451,7 +484,8 @@ export default function Profile() {
         errorMessage = err.response.data.message;
       } else if (err?.message) {
         if (err.message.includes("Network Error")) {
-          errorMessage = "Lỗi kết nối. Vui lòng kiểm tra kết nối mạng và thử lại.";
+          errorMessage =
+            "Lỗi kết nối. Vui lòng kiểm tra kết nối mạng và thử lại.";
         } else {
           errorMessage = err.message;
         }
@@ -541,12 +575,27 @@ export default function Profile() {
         });
       }
 
+      // Save to AsyncStorage
+      await AsyncStorageService.saveProfile({
+        fullName: profile.fullName.trim(),
+        dob: profile.dob.toISOString(),
+        phone: profile.phone.trim(),
+        address: profile.address.trim(),
+        licensePlate: profile.licensePlate.trim(),
+        bankAccountNumber: profile.bankAccountNumber.trim(),
+        bankName: profile.bankName.trim(),
+        email: profile.email,
+        profilePictureUrl: profile.profilePictureUrl,
+        rating: profile.rating,
+        coins: profile.coins,
+      });
+
       console.log("Gửi form:", formData);
-      Alert.alert("Thành công", "Thông tin đã được gửi!");
-      onSuccess(formData);
+      Alert.alert("Thành công", "Thông tin đã được lưu!");
+      // onSuccess(formData); // commented out since no API call
     } catch (err) {
       console.error(err);
-      Alert.alert("Lỗi", "Không thể gửi thông tin, thử lại sau!");
+      Alert.alert("Lỗi", "Không thể lưu thông tin, thử lại sau!");
     } finally {
       setLoading(false);
     }
@@ -556,6 +605,41 @@ export default function Profile() {
     errors[field] ? (
       <Text style={styles.errorText}>{errors[field]}</Text>
     ) : null;
+
+  const handleLogout = async () => {
+    Alert.alert("Đăng xuất", "Bạn có chắc muốn đăng xuất?", [
+      { text: "Huỷ", style: "cancel" },
+      {
+        text: "Đăng xuất",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            // Clear all stored data
+            await AsyncStorage.multiRemove([
+              "userData",
+              "userProfile",
+              "connectionId",
+              "recentSearches",
+            ]);
+            await clearTokens();
+            await chatClient.disconnectUser();
+            // Navigate to Login and reset stack
+            navigation.reset({
+              index: 0,
+              routes: [{ name: "Login" }],
+            });
+          } catch (error) {
+            console.warn("Error during logout:", error);
+            // Still navigate even if clear fails
+            navigation.reset({
+              index: 0,
+              routes: [{ name: "Login" }],
+            });
+          }
+        },
+      },
+    ]);
+  };
 
   return (
     <SafeAreaView
@@ -576,6 +660,29 @@ export default function Profile() {
             <Text style={styles.sectionTitle}>Thông tin cá nhân</Text>
           </View>
 
+          {/* Ảnh đại diện */}
+          <View style={styles.avatarContainer}>
+            <Image
+              source={{
+                uri: DEFAULT_AVATAR,
+                // uri: profile.profilePictureUrl || DEFAULT_AVATAR,
+              }}
+              style={styles.avatar}
+            />
+            <View style={styles.ratingCoinsContainer}>
+              <View style={styles.ratingContainer}>
+                <MaterialIcons name="star" size={16} color="#FFD700" />
+                <Text style={styles.ratingText}>
+                  {profile.rating?.toFixed(1) || "0.0"}
+                </Text>
+              </View>
+              <View style={styles.coinsContainer}>
+                <FontAwesome5 name="coins" size={14} color="#FFD700" />
+                <Text style={styles.coinsText}>{profile.coins || 0}</Text>
+              </View>
+            </View>
+          </View>
+
           <Text style={styles.label}>Họ và tên</Text>
           <TextInput
             style={styles.input}
@@ -584,6 +691,23 @@ export default function Profile() {
             onChangeText={(t) => update("fullName", t)}
           />
           <FieldError field="fullName" />
+
+          <Text style={[styles.label, { marginTop: 12 }]}>Email</Text>
+          <TextInput
+            style={[styles.input, { backgroundColor: "#f5f5f5" }]}
+            placeholder="VD: user@example.com"
+            value={profile.email}
+            editable={false}
+          />
+
+          <Text style={[styles.label, { marginTop: 12 }]}>Số điện thoại</Text>
+          <TextInput
+            style={[styles.input, { backgroundColor: "#f5f5f5" }]}
+            placeholder="VD: 0987654321"
+            keyboardType="phone-pad"
+            value={profile.phone}
+            editable={false}
+          />
 
           <Text style={[styles.label, { marginTop: 12 }]}>Ngày sinh</Text>
           <TouchableOpacity
@@ -668,12 +792,56 @@ export default function Profile() {
                       </View>
                     </View>
 
-                    <Text style={[styles.label, { marginTop: 10 }]}>
-                      Biển số xe
-                    </Text>
-                    <Text style={styles.valueText}>
-                      {vehicleData.licensePlate || "-"}
-                    </Text>
+                    <View style={styles.vehicleInfoContainer}>
+                      <View style={styles.vehicleInfoRow}>
+                        <View style={styles.vehicleInfoItem}>
+                          <Text style={styles.label}>Biển số xe</Text>
+                          <Text style={styles.valueText}>
+                            {vehicleData.licensePlate || "-"}
+                          </Text>
+                        </View>
+                        <View style={styles.vehicleInfoItem}>
+                          <Text style={styles.label}>Hãng xe</Text>
+                          <Text style={styles.valueText}>
+                            {vehicleData.make || "-"}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View style={styles.vehicleInfoRow}>
+                        <View style={styles.vehicleInfoItem}>
+                          <Text style={styles.label}>Dòng xe</Text>
+                          <Text style={styles.valueText}>
+                            {vehicleData.model || "-"}
+                          </Text>
+                        </View>
+                        <View style={styles.vehicleInfoItem}>
+                          <Text style={styles.label}>Màu sắc</Text>
+                          <Text style={styles.valueText}>
+                            {vehicleData.color || "-"}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View style={styles.vehicleInfoRow}>
+                        <View style={styles.vehicleInfoItem}>
+                          <Text style={styles.label}>Sức chứa</Text>
+                          <Text style={styles.valueText}>
+                            {vehicleData.capacity || "-"} người
+                          </Text>
+                        </View>
+                        <View style={styles.vehicleInfoItem}>
+                          <Text style={styles.label}>Loại xe</Text>
+                          <Text style={styles.valueText}>
+                            {vehicleTypes.find(
+                              (v) => v.value === vehicleData.vehicleType
+                            )?.label ||
+                              vehicleData.vehicleType ||
+                              "-"}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
 
                     <Text style={[styles.label, { marginTop: 10 }]}>
                       Ảnh xác thực
@@ -720,7 +888,9 @@ export default function Profile() {
                         ]}
                         onPress={() => {
                           setRefreshing(true);
-                          fetchUserAndVehicle().finally(() => setRefreshing(false));
+                          fetchUserAndVehicle().finally(() =>
+                            setRefreshing(false)
+                          );
                         }}
                       >
                         <Text style={styles.actionBtnText}>
@@ -768,7 +938,10 @@ export default function Profile() {
                           value={vehicleData.licensePlate}
                           onChangeText={(t) => {
                             const formatted = formatLicensePlate(t);
-                            setVehicleData((p) => ({ ...p, licensePlate: formatted }));
+                            setVehicleData((p) => ({
+                              ...p,
+                              licensePlate: formatted,
+                            }));
                             // Clear error when user types
                             if (errors.licensePlate) {
                               setErrors((e) => ({ ...e, licensePlate: null }));
@@ -778,7 +951,9 @@ export default function Profile() {
                           maxLength={10}
                         />
                         {errors.licensePlate && (
-                          <Text style={styles.errorText}>{errors.licensePlate}</Text>
+                          <Text style={styles.errorText}>
+                            {errors.licensePlate}
+                          </Text>
                         )}
 
                         <Text style={[styles.label, { marginTop: 12 }]}>
@@ -1066,23 +1241,6 @@ export default function Profile() {
           </View>
         </View>
 
-        {/* Liên hệ */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <FontAwesome5 name="phone" size={18} color={COLORS.PRIMARY} />
-            <Text style={styles.sectionTitle}>Liên hệ</Text>
-          </View>
-          <Text style={styles.label}>Số điện thoại</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="VD: 0987654321"
-            keyboardType="phone-pad"
-            value={profile.phone}
-            onChangeText={(t) => update("phone", t)}
-          />
-          <FieldError field="phone" />
-        </View>
-
         {/* Ngân hàng */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -1119,6 +1277,11 @@ export default function Profile() {
           ) : (
             <Text style={styles.submitText}>Lưu</Text>
           )}
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+          <MaterialIcons name="logout" size={20} color="#fff" />
+          <Text style={styles.logoutText}>Đăng xuất</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -1279,6 +1442,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   statusBadge: {
+    marginLeft: 10,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 16,
@@ -1402,5 +1566,77 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 11,
     fontWeight: "600",
+  },
+  avatarContainer: {
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  avatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 2,
+    borderColor: COLORS.PRIMARY,
+  },
+  ratingCoinsContainer: {
+    flexDirection: "row",
+    marginTop: 10,
+  },
+  ratingContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFF8DC",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginRight: 10,
+  },
+  ratingText: {
+    marginLeft: 4,
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#333",
+  },
+  coinsContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFF8DC",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  coinsText: {
+    marginLeft: 4,
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#333",
+  },
+  vehicleInfoContainer: {
+    marginTop: 10,
+  },
+  vehicleInfoRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  },
+  vehicleInfoItem: {
+    flex: 1,
+    marginHorizontal: 5,
+  },
+  logoutButton: {
+    backgroundColor: "#dc3545",
+    paddingVertical: 14,
+    borderRadius: 10,
+    marginTop: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  logoutText: {
+    textAlign: "center",
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 16,
+    marginLeft: 8,
   },
 });
