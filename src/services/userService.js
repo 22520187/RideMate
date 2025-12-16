@@ -7,3 +7,5 @@ export const getProfile = () => axiosClient.get(endpoints.user.profile);
 
 export const updateProfile = (data) =>
   axiosClient.put(endpoints.user.update, data);
+
+export const getUserById = (id) => axiosClient.get(endpoints.user.byId(id));

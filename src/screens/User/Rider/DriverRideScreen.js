@@ -29,6 +29,12 @@ import {
 import { useSharedPath } from "../../../hooks/useSharedPath";
 import { getProfile } from "../../../services/userService";
 import { getMyVehicle } from "../../../services/vehicleService";
+import {
+  broadcastAsDriver,
+  findMatches,
+  acceptMatch,
+  cancelMatch,
+} from "../../../services/matchService";
 
 const DriverRideScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
@@ -67,8 +73,8 @@ const DriverRideScreen = ({ navigation, route }) => {
       setUserProfile(profile);
 
       if (!profile) {
-        Alert.alert('Lỗi', 'Không thể tải thông tin người dùng', [
-          { text: 'OK', onPress: () => navigation.goBack() }
+        Alert.alert("Lỗi", "Không thể tải thông tin người dùng", [
+          { text: "OK", onPress: () => navigation.goBack() },
         ]);
         return;
       }
@@ -80,54 +86,82 @@ const DriverRideScreen = ({ navigation, route }) => {
         setVehicleStatus(vehicle?.status || null);
 
         // Check if vehicle is not approved
-        if (!vehicle || vehicle.status !== 'APPROVED') {
-          let message = '';
+        if (!vehicle || vehicle.status !== "APPROVED") {
+          let message = "";
           let buttons = [];
 
           if (!vehicle) {
-            message = 'Bạn cần đăng ký xe trước khi tạo chuyến đi. Vui lòng vào Quản lý tài khoản để đăng ký xe.';
+            message =
+              "Bạn cần đăng ký xe trước khi tạo chuyến đi. Vui lòng vào Quản lý tài khoản để đăng ký xe.";
             buttons = [
-              { text: 'Hủy', style: 'cancel', onPress: () => navigation.goBack() },
-              { text: 'Đi tới Profile', onPress: () => {
-                navigation.goBack();
-                navigation.navigate('Profile');
-              }}
+              {
+                text: "Hủy",
+                style: "cancel",
+                onPress: () => navigation.goBack(),
+              },
+              {
+                text: "Đi tới Profile",
+                onPress: () => {
+                  navigation.goBack();
+                  navigation.navigate("Profile");
+                },
+              },
             ];
-          } else if (vehicle.status === 'PENDING') {
-            message = 'Thông tin xe của bạn đang được admin xem xét. Vui lòng chờ phê duyệt để có thể tạo chuyến đi.';
-            buttons = [{ text: 'Đã hiểu', onPress: () => navigation.goBack() }];
-          } else if (vehicle.status === 'REJECTED') {
-            message = 'Thông tin xe của bạn không được phê duyệt. Vui lòng cập nhật lại thông tin trong mục Quản lý tài khoản.';
+          } else if (vehicle.status === "PENDING") {
+            message =
+              "Thông tin xe của bạn đang được admin xem xét. Vui lòng chờ phê duyệt để có thể tạo chuyến đi.";
+            buttons = [{ text: "Đã hiểu", onPress: () => navigation.goBack() }];
+          } else if (vehicle.status === "REJECTED") {
+            message =
+              "Thông tin xe của bạn không được phê duyệt. Vui lòng cập nhật lại thông tin trong mục Quản lý tài khoản.";
             buttons = [
-              { text: 'Hủy', style: 'cancel', onPress: () => navigation.goBack() },
-              { text: 'Đi tới Profile', onPress: () => {
-                navigation.goBack();
-                navigation.navigate('Profile');
-              }}
+              {
+                text: "Hủy",
+                style: "cancel",
+                onPress: () => navigation.goBack(),
+              },
+              {
+                text: "Đi tới Profile",
+                onPress: () => {
+                  navigation.goBack();
+                  navigation.navigate("Profile");
+                },
+              },
             ];
           }
 
-          Alert.alert('Không thể tạo chuyến đi', message, buttons);
+          Alert.alert("Không thể tạo chuyến đi", message, buttons);
         }
       } catch (vehicleErr) {
         // No vehicle found or error
-        console.log('Vehicle fetch error:', vehicleErr?.response?.status, vehicleErr?.message);
+        console.log(
+          "Vehicle fetch error:",
+          vehicleErr?.response?.status,
+          vehicleErr?.message
+        );
         Alert.alert(
-          'Cần đăng ký xe',
-          'Bạn cần đăng ký xe trước khi tạo chuyến đi. Vui lòng vào Quản lý tài khoản để đăng ký xe.',
+          "Cần đăng ký xe",
+          "Bạn cần đăng ký xe trước khi tạo chuyến đi. Vui lòng vào Quản lý tài khoản để đăng ký xe.",
           [
-            { text: 'Hủy', style: 'cancel', onPress: () => navigation.goBack() },
-            { text: 'Đi tới Profile', onPress: () => {
-              navigation.goBack();
-              navigation.navigate('Profile');
-            }}
+            {
+              text: "Hủy",
+              style: "cancel",
+              onPress: () => navigation.goBack(),
+            },
+            {
+              text: "Đi tới Profile",
+              onPress: () => {
+                navigation.goBack();
+                navigation.navigate("Profile");
+              },
+            },
           ]
         );
       }
     } catch (err) {
-      console.warn('Failed to check user permissions:', err);
-      Alert.alert('Lỗi', 'Không thể kiểm tra quyền truy cập', [
-        { text: 'OK', onPress: () => navigation.goBack() }
+      console.warn("Failed to check user permissions:", err);
+      Alert.alert("Lỗi", "Không thể kiểm tra quyền truy cập", [
+        { text: "OK", onPress: () => navigation.goBack() },
       ]);
     }
   };
@@ -154,6 +188,12 @@ const DriverRideScreen = ({ navigation, route }) => {
   const [activeInput, setActiveInput] = useState(null); // 'from' or 'to'
   const [isPassengerModalVisible, setIsPassengerModalVisible] = useState(false);
   const [availablePassengers, setAvailablePassengers] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchTimeLeft, setSearchTimeLeft] = useState(60);
+  const [searchInterval, setSearchInterval] = useState(null);
+  const [isConfirmationModalVisible, setIsConfirmationModalVisible] =
+    useState(false);
+  const [selectedPassenger, setSelectedPassenger] = useState(null);
 
   // Update path để MatchedRideScreen dùng chung thông qua hook useSharedPath để lưu trữ
   useEffect(() => {
@@ -179,23 +219,29 @@ const DriverRideScreen = ({ navigation, route }) => {
     const calculateRoute = async () => {
       // Chỉ tính toán nếu cả hai điểm đều có
       if (!originCoordinate || !destinationCoordinate) {
-        console.log('⚠️ Missing coordinates:', { originCoordinate, destinationCoordinate });
+        console.log("⚠️ Missing coordinates:", {
+          originCoordinate,
+          destinationCoordinate,
+        });
         return;
       }
 
       // Không tính toán nếu đang loading
       if (isLoadingDirections) {
-        console.log('⚠️ Already loading directions');
+        console.log("⚠️ Already loading directions");
         return;
       }
 
-      console.log('🗺️ Auto-calculating route...');
+      console.log("🗺️ Auto-calculating route...");
       setIsLoadingDirections(true);
       try {
-        const path = await osrmGetRoute(originCoordinate, destinationCoordinate);
-        
+        const path = await osrmGetRoute(
+          originCoordinate,
+          destinationCoordinate
+        );
+
         if (path && path.length > 0) {
-          console.log('✅ Route calculated:', path.length, 'points');
+          console.log("✅ Route calculated:", path.length, "points");
           setRoutePath(path);
 
           // Tính toán thông tin tuyến đường
@@ -223,10 +269,14 @@ const DriverRideScreen = ({ navigation, route }) => {
             duration: `${durationMinutes} phút`,
             price: `${price.toLocaleString("vi-VN")}đ`,
           });
-          
-          console.log('✅ Route info updated:', { distanceKm, durationMinutes, price });
+
+          console.log("✅ Route info updated:", {
+            distanceKm,
+            durationMinutes,
+            price,
+          });
         } else {
-          console.log('⚠️ Empty route path received');
+          console.log("⚠️ Empty route path received");
           setRoutePath([]);
         }
       } catch (error) {
@@ -430,8 +480,8 @@ const DriverRideScreen = ({ navigation, route }) => {
   };
 
   const handleSearchAsDriver = async () => {
-    console.log('🔍 handleSearchAsDriver called - User clicked button');
-    
+    console.log("🔍 handleSearchAsDriver called - User clicked button");
+
     if (!fromLocation || !toLocation) {
       Alert.alert("Lỗi", "Vui lòng nhập đầy đủ điểm xuất phát và điểm đến");
       return;
@@ -444,12 +494,16 @@ const DriverRideScreen = ({ navigation, route }) => {
     setIsLoadingDirections(true);
     try {
       const path = await osrmGetRoute(originCoordinate, destinationCoordinate);
-      
+
       if (path && path.length > 0) {
-        console.log('✅ Route calculated in handleSearchAsDriver:', path.length, 'points');
+        console.log(
+          "✅ Route calculated in handleSearchAsDriver:",
+          path.length,
+          "points"
+        );
         setRoutePath(path);
       } else {
-        console.log('⚠️ Empty path in handleSearchAsDriver');
+        console.log("⚠️ Empty path in handleSearchAsDriver");
         Alert.alert("Lỗi", "Không thể tính toán đường đi. Vui lòng thử lại.");
         setIsLoadingDirections(false);
         return;
@@ -480,44 +534,83 @@ const DriverRideScreen = ({ navigation, route }) => {
         price: `${price.toLocaleString("vi-VN")}đ`,
       });
 
-      // Mock data for available passengers
-      const mockPassengers = [
-        {
-          id: 1,
-          name: "Nguyễn Văn A",
-          phone: "0901234567",
-          avatar: "https://i.pravatar.cc/150?img=12",
-          departureTime: "14:30",
-          from: "Bến Xe Giáp Bát",
-          to: toLocation,
-          rating: 4.8,
-          reviews: 23,
-        },
-        {
-          id: 2,
-          name: "Trần Thị B",
-          phone: "0901234568",
-          avatar: "https://i.pravatar.cc/150?img=13",
-          departureTime: "15:00",
-          from: "Nhà ga Hà Nội",
-          to: toLocation,
-          rating: 4.9,
-          reviews: 45,
-        },
-        {
-          id: 3,
-          name: "Lê Văn C",
-          phone: "0901234569",
-          avatar: "https://i.pravatar.cc/150?img=14",
-          departureTime: "15:30",
-          from: "Aeon Mall Long Biên",
-          to: toLocation,
-          rating: 4.7,
-          reviews: 18,
-        },
-      ];
-      setAvailablePassengers(mockPassengers);
+      // Broadcast as driver looking for passengers
+      try {
+        await broadcastAsDriver({
+          pickupAddress: fromLocation,
+          destinationAddress: toLocation,
+          pickupLatitude: originCoordinate.latitude,
+          pickupLongitude: originCoordinate.longitude,
+          destinationLatitude: destinationCoordinate.latitude,
+          destinationLongitude: destinationCoordinate.longitude,
+          estimatedPrice: price,
+        });
+      } catch (error) {
+        console.error("Broadcast error:", error);
+        Alert.alert("Lỗi", "Không thể broadcast tìm kiếm hành khách");
+        setIsLoadingDirections(false);
+        return;
+      }
+
+      // Start searching for passengers
+      setIsSearching(true);
+      setSearchTimeLeft(60);
       setIsPassengerModalVisible(true);
+
+      // Start polling for matches
+      const interval = setInterval(async () => {
+        setSearchTimeLeft((prev) => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            setIsSearching(false);
+            setIsPassengerModalVisible(false);
+            Alert.alert(
+              "Thông báo",
+              "Không tìm thấy hành khách nào trong thời gian quy định"
+            );
+            return 0;
+          }
+          return prev - 1;
+        });
+
+        try {
+          const response = await findMatches({
+            type: "driver",
+            pickupLatitude: originCoordinate.latitude,
+            pickupLongitude: originCoordinate.longitude,
+            destinationLatitude: destinationCoordinate.latitude,
+            destinationLongitude: destinationCoordinate.longitude,
+          });
+
+          const matches = response?.data?.data || [];
+          if (matches.length > 0) {
+            clearInterval(interval);
+            setIsSearching(false);
+            setAvailablePassengers(
+              matches.map((match) => ({
+                id: match.id,
+                name: match.passengerName,
+                phone: match.passengerPhone,
+                avatar:
+                  `https://randomuser.me/api/portraits/lego/1.jpg` ||
+                  match.passengerAvatar,
+                departureTime: new Date().toLocaleTimeString("vi-VN", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                }),
+                from: match.pickupAddress,
+                to: match.destinationAddress,
+                rating: match.passengerRating || 4.5,
+                reviews: match.passengerReviews || 10,
+              }))
+            );
+          }
+        } catch (error) {
+          console.error("Find matches error:", error);
+        }
+      }, 2000); // Poll every 2 seconds
+
+      setSearchInterval(interval);
       // Alert.alert('Đã tìm thấy hành khách!', `Có ${mockPassengers.length} người đang tìm đi cùng`)
     } catch (error) {
       console.error("Error getting directions:", error);
@@ -531,25 +624,53 @@ const DriverRideScreen = ({ navigation, route }) => {
   };
 
   const handleSelectPassenger = (passenger) => {
-    const durationMinutes = Math.round(
-      parseFloat(routeInfo.distance.replace(" km", "")) * 2.5
-    );
-    const distanceKm = parseFloat(routeInfo.distance.replace(" km", ""));
-    const price = calculatePrice(distanceKm);
-
-    navigation.navigate("MatchedRide", {
-      isDriver: true,
-      passengerName: passenger.name,
-      passengerPhone: passenger.phone,
-      passengerAvatar: passenger.avatar,
-      from: fromLocation,
-      to: toLocation,
-      departureTime: scheduledRide?.time || passenger.departureTime,
-      price: routeInfo.price,
-      duration: routeInfo.duration,
-      distance: routeInfo.distance,
-    });
+    setSelectedPassenger(passenger);
     setIsPassengerModalVisible(false);
+    setIsConfirmationModalVisible(true);
+  };
+
+  const handleConfirmPassengerSelection = async () => {
+    if (!selectedPassenger) return;
+
+    try {
+      const response = await acceptMatch(selectedPassenger.id);
+      const matchData = response?.data?.data; // Get the match response data
+
+      // Clear search interval
+      if (searchInterval) {
+        clearInterval(searchInterval);
+        setSearchInterval(null);
+      }
+
+      setIsConfirmationModalVisible(false);
+      setIsSearching(false);
+
+      const durationMinutes = Math.round(
+        parseFloat(routeInfo.distance.replace(" km", "")) * 2.5
+      );
+      const distanceKm = parseFloat(routeInfo.distance.replace(" km", ""));
+      const price = calculatePrice(distanceKm);
+
+      navigation.navigate("MatchedRide", {
+        isDriver: true,
+        passengerId: selectedPassenger.id, // Keep passenger ID for chat
+        passengerName: selectedPassenger.name,
+        passengerPhone: selectedPassenger.phone,
+        passengerAvatar: selectedPassenger.avatar,
+        rideId: matchData?.id || selectedPassenger.id, // Use real match ID if available
+        from: fromLocation,
+        to: toLocation,
+        departureTime: scheduledRide?.time || selectedPassenger.departureTime,
+        price: routeInfo.price,
+        duration: routeInfo.duration,
+        distance: routeInfo.distance,
+      });
+      setIsConfirmationModalVisible(false);
+    } catch (error) {
+      console.error("Accept match error:", error);
+      Alert.alert("Lỗi", "Không thể chấp nhận chuyến đi. Vui lòng thử lại.");
+      setIsConfirmationModalVisible(false);
+    }
   };
 
   return (
@@ -873,6 +994,89 @@ const DriverRideScreen = ({ navigation, route }) => {
           </View>
         </View>
       </Modal>
+
+      {/* Confirmation Modal */}
+      <Modal
+        visible={isConfirmationModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setIsConfirmationModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View
+            style={[styles.confirmationModal, { paddingBottom: insets.bottom }]}
+          >
+            <View style={styles.confirmationHeader}>
+              <Text style={styles.confirmationTitle}>Xác nhận ghép chuyến</Text>
+              <TouchableOpacity
+                onPress={() => setIsConfirmationModalVisible(false)}
+                style={styles.closeBtn}
+              >
+                <MaterialIcons name="close" size={24} color={COLORS.GRAY} />
+              </TouchableOpacity>
+            </View>
+
+            {selectedPassenger && (
+              <View style={styles.confirmationContent}>
+                <View style={styles.confirmationPassengerCard}>
+                  <Image
+                    source={{ uri: selectedPassenger.avatar }}
+                    style={styles.confirmationAvatar}
+                  />
+                  <View style={styles.confirmationPassengerInfo}>
+                    <Text style={styles.confirmationPassengerName}>
+                      {selectedPassenger.name}
+                    </Text>
+                    <View style={styles.confirmationPassengerDetails}>
+                      <MaterialIcons
+                        name="phone"
+                        size={16}
+                        color={COLORS.GRAY}
+                      />
+                      <Text style={styles.confirmationPassengerPhone}>
+                        {selectedPassenger.phone}
+                      </Text>
+                    </View>
+                    <View style={styles.confirmationPassengerDetails}>
+                      <MaterialIcons
+                        name="location-on"
+                        size={16}
+                        color={COLORS.GRAY}
+                      />
+                      <Text style={styles.confirmationRoute}>
+                        {fromLocation} → {toLocation}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                <View style={styles.confirmationWarning}>
+                  <MaterialIcons name="info" size={20} color={COLORS.ORANGE} />
+                  <Text style={styles.confirmationWarningText}>
+                    Sau khi xác nhận, bạn sẽ bắt đầu chuyến đi với hành khách
+                    này. Vui lòng đảm bảo vị trí và thời gian phù hợp.
+                  </Text>
+                </View>
+
+                <View style={styles.confirmationActions}>
+                  <TouchableOpacity
+                    style={[styles.confirmationBtn, styles.cancelBtn]}
+                    onPress={() => setIsConfirmationModalVisible(false)}
+                  >
+                    <Text style={styles.cancelBtnText}>Hủy</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.confirmationBtn, styles.confirmBtn]}
+                    onPress={handleConfirmPassengerSelection}
+                  >
+                    <Text style={styles.confirmBtnText}>Ghép chuyến</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -1175,6 +1379,8 @@ const styles = StyleSheet.create({
     height: 50,
     borderRadius: 25,
     backgroundColor: COLORS.GRAY_LIGHT,
+    borderColor: COLORS.BLUE,
+    borderWidth: 2,
   },
   passengerInfo: {
     flex: 1,
@@ -1220,6 +1426,121 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.GREEN + "20",
     borderRadius: 20,
     padding: 4,
+  },
+  // Confirmation Modal Styles
+  confirmationModal: {
+    backgroundColor: COLORS.WHITE,
+    margin: 20,
+    borderRadius: 16,
+    // maxHeight: "80%",
+    shadowColor: COLORS.BLACK,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  confirmationHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.GRAY_LIGHT,
+  },
+  confirmationTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: COLORS.BLACK,
+  },
+  closeBtn: {
+    padding: 4,
+  },
+  confirmationContent: {
+    padding: 20,
+  },
+  confirmationPassengerCard: {
+    flexDirection: "row",
+    backgroundColor: COLORS.GRAY_LIGHT + "30",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+  },
+  confirmationAvatar: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: COLORS.GRAY_LIGHT,
+    borderColor: COLORS.BLUE,
+    borderWidth: 2,
+  },
+  confirmationPassengerInfo: {
+    flex: 1,
+    marginLeft: 16,
+  },
+  confirmationPassengerName: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: COLORS.BLACK,
+    marginBottom: 8,
+  },
+  confirmationPassengerDetails: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  confirmationPassengerPhone: {
+    fontSize: 14,
+    color: COLORS.GRAY,
+    marginLeft: 6,
+  },
+  confirmationRoute: {
+    fontSize: 14,
+    color: COLORS.GRAY,
+    marginLeft: 6,
+    flex: 1,
+  },
+  confirmationWarning: {
+    flexDirection: "row",
+    backgroundColor: COLORS.ORANGE + "10",
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 20,
+    borderLeftWidth: 4,
+    borderLeftColor: COLORS.ORANGE,
+  },
+  confirmationWarningText: {
+    fontSize: 14,
+    color: COLORS.BLACK,
+    marginLeft: 8,
+    flex: 1,
+    lineHeight: 20,
+  },
+  confirmationActions: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  confirmationBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cancelBtn: {
+    backgroundColor: COLORS.GRAY_LIGHT,
+  },
+  cancelBtnText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: COLORS.GRAY,
+  },
+  confirmBtn: {
+    backgroundColor: COLORS.GREEN,
+  },
+  confirmBtnText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: COLORS.WHITE,
   },
 });
 
