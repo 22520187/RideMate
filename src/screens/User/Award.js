@@ -195,16 +195,18 @@ const Award = () => {
       
       const response = await redeemVoucher(selectedPromo.id)
       
-      // Check if redeem was successful (statusCode 200 or has data)
-      if (response?.statusCode === 200 || response?.data) {
-        Alert.alert('Thành công', response?.message || 'Đổi voucher thành công!')
-        // Reload data
+      console.log('🎁 Redeem Response:', JSON.stringify(response, null, 2))
+      
+      // Check if redeem was successful - response.data.data (nested structure)
+      if (response?.data?.statusCode === 200 || response?.data?.data) {
+        Alert.alert('Thành công', response?.data?.message || 'Đổi voucher thành công!')
+        // Reload data to update points and vouchers list
         await loadData()
       } else {
-        Alert.alert('Lỗi', response?.message || 'Không thể đổi voucher.')
+        Alert.alert('Lỗi', response?.data?.message || 'Không thể đổi voucher.')
       }
     } catch (error) {
-      console.error('Redeem error:', error)
+      console.error('❌ Redeem error:', error)
       Alert.alert(
         'Lỗi',
         error.response?.data?.message || error.message || 'Không thể đổi voucher. Vui lòng thử lại.'
