@@ -82,30 +82,30 @@ const Award = () => {
       console.log('📦 My Vouchers Response:', JSON.stringify(myVouchersResponse, null, 2))
       console.log('📦 Profile Response:', JSON.stringify(profileResponse, null, 2))
 
-      // All APIs now return {statusCode, message, data}
-      if (vouchersResponse?.data && Array.isArray(vouchersResponse.data)) {
-        console.log('✅ Setting promos:', vouchersResponse.data.length, 'vouchers')
-        setPromos(vouchersResponse.data)
+      // API responses are nested: response.data.data (Axios wraps in .data, backend wraps in {statusCode, message, data})
+      if (vouchersResponse?.data?.data && Array.isArray(vouchersResponse.data.data)) {
+        console.log('✅ Setting promos:', vouchersResponse.data.data.length, 'vouchers')
+        setPromos(vouchersResponse.data.data)
       } else {
         console.log('❌ Vouchers response has no data array')
+        setPromos([])
       }
 
-      if (myVouchersResponse?.data && Array.isArray(myVouchersResponse.data)) {
-        console.log('✅ Setting my vouchers:', myVouchersResponse.data.length, 'vouchers')
-        setMyVouchers(myVouchersResponse.data)
+      if (myVouchersResponse?.data?.data && Array.isArray(myVouchersResponse.data.data)) {
+        console.log('✅ Setting my vouchers:', myVouchersResponse.data.data.length, 'vouchers')
+        setMyVouchers(myVouchersResponse.data.data)
       } else {
         console.log('❌ My vouchers response has no data array')
         // Empty array is still valid
-        if (myVouchersResponse?.data) {
-          setMyVouchers([])
-        }
+        setMyVouchers([])
       }
 
-      if (profileResponse?.data) {
-        console.log('✅ Setting points:', profileResponse.data.coins)
-        setPoints(profileResponse.data.coins || 0)
+      if (profileResponse?.data?.data) {
+        console.log('✅ Setting points:', profileResponse.data.data.coins)
+        setPoints(profileResponse.data.data.coins || 0)
       } else {
         console.log('❌ Profile response has no data field')
+        setPoints(0)
       }
     } catch (error) {
       console.error('❌ Error loading data:', error)
@@ -195,16 +195,18 @@ const Award = () => {
       
       const response = await redeemVoucher(selectedPromo.id)
       
-      // Check if redeem was successful (statusCode 200 or has data)
-      if (response?.statusCode === 200 || response?.data) {
-        Alert.alert('Thành công', response?.message || 'Đổi voucher thành công!')
-        // Reload data
+      console.log('🎁 Redeem Response:', JSON.stringify(response, null, 2))
+      
+      // Check if redeem was successful - response.data.data (nested structure)
+      if (response?.data?.statusCode === 200 || response?.data?.data) {
+        Alert.alert('Thành công', response?.data?.message || 'Đổi voucher thành công!')
+        // Reload data to update points and vouchers list
         await loadData()
       } else {
-        Alert.alert('Lỗi', response?.message || 'Không thể đổi voucher.')
+        Alert.alert('Lỗi', response?.data?.message || 'Không thể đổi voucher.')
       }
     } catch (error) {
-      console.error('Redeem error:', error)
+      console.error('❌ Redeem error:', error)
       Alert.alert(
         'Lỗi',
         error.response?.data?.message || error.message || 'Không thể đổi voucher. Vui lòng thử lại.'

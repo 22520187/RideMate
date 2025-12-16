@@ -35,6 +35,14 @@ export default {
     create: "/vouchers",
   },
 
+  missions: {
+    available: "/missions/available",
+    myMissions: "/missions/my-missions",
+    accept: (id) => `/missions/${id}/accept`,
+    claim: (id) => `/missions/${id}/claim`,
+    stats: "/missions/stats",
+  },
+
   upload: {
     image: "/upload/image",
   },
