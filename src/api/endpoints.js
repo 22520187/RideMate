@@ -12,6 +12,7 @@ export default {
   user: {
     profile: "/users/me",
     update: "/users",
+    byId: (id) => `/users/${id}`,
   },
 
   vehicles: {
@@ -45,5 +46,18 @@ export default {
 
   upload: {
     image: "/upload/image",
+  },
+
+  matches: {
+    book: "/matches/book",
+    accept: (id) => `/matches/${id}/accept`,
+    cancel: (id) => `/matches/${id}/cancel`,
+    status: (id) => `/matches/${id}/status`,
+    detail: (id) => `/matches/${id}`,
+    history: "/matches/history",
+    waiting: "/matches/waiting",
+    broadcastDriver: "/matches/broadcast/driver",
+    broadcastPassenger: "/matches/broadcast/passenger",
+    findMatches: "/matches/find",
   },
 };
