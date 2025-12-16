@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { 
   View, 
   Text, 
@@ -7,7 +7,10 @@ import {
   TouchableOpacity, 
   Image,
   Dimensions,
-  FlatList
+  FlatList,
+  ActivityIndicator,
+  Alert,
+  RefreshControl
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { 
@@ -25,116 +28,146 @@ import {
   Calendar
 } from 'lucide-react-native'
 import COLORS from '../../constant/colors'
+import { getMyMissions, claimMissionReward, getMissionStats } from '../../services/missionService'
+import { getProfile } from '../../services/userService'
 
 const { width } = Dimensions.get('window')
 
 const Mission = ({ navigation }) => {
-  const [userPoints, setUserPoints] = useState(1250)
-  const [completedMissions, setCompletedMissions] = useState([1, 3]) // IDs of completed missions
+  const [userPoints, setUserPoints] = useState(0)
+  const [missions, setMissions] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [stats, setStats] = useState(null)
 
-  // Mock data for daily missions
-  const dailyMissions = [
-    {
-      id: 1,
-      title: 'Tham gia chuyến đi',
-      description: 'Hoàn thành 1 chuyến đi trong ngày',
-      points: 10,
-      icon: Car,
-      color: COLORS.BLUE,
-      progress: 1,
-      maxProgress: 1,
-      completed: true,
-      type: 'daily'
-    },
-    {
-      id: 2,
-      title: 'Đánh giá chuyến đi',
-      description: 'Đánh giá 1 chuyến đi đã tham gia',
-      points: 10,
-      icon: Star,
-      color: COLORS.YELLOW,
-      progress: 0,
-      maxProgress: 1,
-      completed: false,
-      type: 'daily'
-    },
-    {
-      id: 3,
-      title: 'Chia sẻ với bạn bè',
-      description: 'Chia sẻ ứng dụng với 2 người bạn',
-      points: 20,
-      icon: Users,
-      color: COLORS.GREEN,
-      progress: 2,
-      maxProgress: 2,
-      completed: true,
-      type: 'daily'
-    },
-    {
-      id: 4,
-      title: 'Sử dụng dịch vụ 3 lần',
-      description: 'Hoàn thành 3 chuyến đi trong tuần',
-      points: 50,
-      icon: Target,
-      color: COLORS.PURPLE,
-      progress: 2,
-      maxProgress: 3,
-      completed: false,
-      type: 'weekly'
-    },
-    {
-      id: 5,
-      title: 'Đánh giá 5 sao',
-      description: 'Nhận đánh giá 5 sao từ hành khách',
-      points: 30,
-      icon: Award,
-      color: COLORS.ORANGE,
-      progress: 0,
-      maxProgress: 1,
-      completed: false,
-      type: 'daily'
-    },
-    {
-      id: 6,
-      title: 'Tích điểm tuần',
-      description: 'Tích được 100 điểm trong tuần',
-      points: 25,
-      icon: TrendingUp,
-      color: COLORS.RED,
-      progress: 75,
-      maxProgress: 100,
-      completed: false,
-      type: 'weekly'
-    }
-  ]
+  // Load data from API
+  const loadData = async () => {
+    try {
+      const [missionsResponse, profileResponse] = await Promise.all([
+        getMyMissions(),
+        getProfile()
+      ])
 
-  const handleCompleteMission = (missionId) => {
-    if (!completedMissions.includes(missionId)) {
-      const mission = dailyMissions.find(m => m.id === missionId)
-      if (mission) {
-        setCompletedMissions([...completedMissions, missionId])
-        setUserPoints(userPoints + mission.points)
+      // Handle nested response structure: response.data.data
+      if (missionsResponse?.data?.data && Array.isArray(missionsResponse.data.data)) {
+        setMissions(missionsResponse.data.data)
+      } else if (missionsResponse?.data && Array.isArray(missionsResponse.data)) {
+        // Handle case where data is not nested
+        setMissions(missionsResponse.data)
+      } else {
+        console.log('Missions response has no data array')
+        setMissions([])
       }
+
+      if (profileResponse?.data?.data) {
+        setUserPoints(profileResponse.data.data.coins || 0)
+      } else {
+        console.log('Profile response has no data field')
+        setUserPoints(0)
+      }
+    } catch (error) {
+      console.error('Error loading data:', error)
+      console.error('Error details:', error.response?.data)
+      Alert.alert('Lỗi', 'Không thể tải dữ liệu. Vui lòng thử lại.')
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
+  }
+
+  // Initial load
+  useEffect(() => {
+    loadData()
+  }, [])
+
+  // Refresh handler
+  const handleRefresh = () => {
+    setRefreshing(true)
+    loadData()
+  }
+
+  // Get icon for mission based on target type
+  const getMissionIcon = (targetType) => {
+    switch (targetType) {
+      case 'COMPLETE_RIDES':
+        return Car
+      case 'RATE_RIDES':
+        return Star
+      case 'SHARE_APP':
+        return Users
+      case 'EARN_POINTS':
+        return TrendingUp
+      case 'GET_FIVE_STAR':
+        return Award
+      default:
+        return Target
+    }
+  }
+
+  // Get color for mission based on type
+  const getMissionColor = (missionType) => {
+    switch (missionType) {
+      case 'DAILY':
+        return COLORS.BLUE
+      case 'WEEKLY':
+        return COLORS.PURPLE
+      case 'MONTHLY':
+        return COLORS.ORANGE
+      default:
+        return COLORS.GREEN
+    }
+  }
+
+  // Handle claim mission reward
+  const handleClaimReward = async (userMissionId) => {
+    try {
+      setLoading(true)
+      const response = await claimMissionReward(userMissionId)
+      
+      if (response?.data?.statusCode === 200 || response?.data) {
+        Alert.alert('Thành công', 'Đã nhận thưởng thành công!')
+        // Reload data to update points and missions
+        await loadData()
+      } else {
+        Alert.alert('Lỗi', response?.data?.message || 'Không thể nhận thưởng.')
+      }
+    } catch (error) {
+      console.error('Claim reward error:', error)
+      Alert.alert(
+        'Lỗi',
+        error.response?.data?.message || error.message || 'Không thể nhận thưởng. Vui lòng thử lại.'
+      )
+    } finally {
+      setLoading(false)
     }
   }
 
   const renderMissionCard = ({ item }) => {
-    const IconComponent = item.icon
-    const isCompleted = completedMissions.includes(item.id)
-    const progressPercentage = (item.progress / item.maxProgress) * 100
+    const mission = item.mission
+    const IconComponent = getMissionIcon(mission.targetType)
+    const color = getMissionColor(mission.missionType)
+    const isCompleted = item.isCompleted
+    const canClaim = item.canClaim
+    const rewardClaimed = item.rewardClaimed
+    const progressPercentage = item.progressPercentage || 0
+
+    // Mission type label
+    let typeLabel = 'Hằng ngày'
+    if (mission.missionType === 'WEEKLY') typeLabel = 'Hằng tuần'
+    if (mission.missionType === 'MONTHLY') typeLabel = 'Hằng tháng'
 
     return (
       <View style={styles.missionCard}>
         <View style={styles.missionHeader}>
-          <View style={[styles.iconContainer, { backgroundColor: item.color + '20' }]}>
-            <IconComponent size={20} color={item.color} />
+          <View style={[styles.iconContainer, { backgroundColor: color + '20' }]}>
+            <IconComponent size={20} color={color} />
           </View>
           <View style={styles.missionInfo}>
-            <Text style={styles.missionTitle}>{item.title}</Text>
-            <Text style={styles.missionDescription}>{item.description}</Text>
+            <Text style={styles.missionTitle}>{mission.title}</Text>
+            <Text style={styles.missionDescription}>{mission.description}</Text>
           </View>
           <View style={styles.pointsContainer}>
-            <Text style={styles.pointsText}>+{item.points}</Text>
+            <Text style={styles.pointsText}>+{mission.rewardPoints}</Text>
             <Star size={16} color={COLORS.YELLOW} />
           </View>
         </View>
@@ -146,44 +179,47 @@ const Mission = ({ navigation }) => {
                 styles.progressFill, 
                 { 
                   width: `${progressPercentage}%`,
-                  backgroundColor: isCompleted ? COLORS.GREEN : item.color
+                  backgroundColor: rewardClaimed ? COLORS.GREEN : color
                 }
               ]} 
             />
           </View>
           <Text style={styles.progressText}>
-            {item.progress}/{item.maxProgress}
+            {item.progress}/{mission.targetValue}
           </Text>
         </View>
 
         <View style={styles.missionFooter}>
           <View style={styles.typeBadge}>
             <Calendar size={12} color={COLORS.GRAY} />
-            <Text style={styles.typeText}>
-              {item.type === 'daily' ? 'Hằng ngày' : 'Hằng tuần'}
-            </Text>
+            <Text style={styles.typeText}>{typeLabel}</Text>
           </View>
           
           <TouchableOpacity 
             style={[
               styles.completeButton,
               { 
-                backgroundColor: isCompleted ? COLORS.GREEN : item.color,
-                opacity: isCompleted ? 0.7 : 1
+                backgroundColor: rewardClaimed ? COLORS.GREEN : canClaim ? color : COLORS.GRAY,
+                opacity: rewardClaimed || !canClaim ? 0.7 : 1
               }
             ]}
-            onPress={() => handleCompleteMission(item.id)}
-            disabled={isCompleted}
+            onPress={() => handleClaimReward(item.id)}
+            disabled={rewardClaimed || !canClaim}
           >
-            {isCompleted ? (
+            {rewardClaimed ? (
               <>
                 <CheckCircle size={16} color={COLORS.WHITE} />
-                <Text style={styles.completeButtonText}>Hoàn thành</Text>
+                <Text style={styles.completeButtonText}>Đã nhận</Text>
               </>
-            ) : (
+            ) : canClaim ? (
               <>
                 <Gift size={16} color={COLORS.WHITE} />
                 <Text style={styles.completeButtonText}>Nhận điểm</Text>
+              </>
+            ) : (
+              <>
+                <Clock size={16} color={COLORS.WHITE} />
+                <Text style={styles.completeButtonText}>Chưa hoàn thành</Text>
               </>
             )}
           </TouchableOpacity>
@@ -192,9 +228,21 @@ const Mission = ({ navigation }) => {
     )
   }
 
-  const completedCount = completedMissions.length
-  const totalMissions = dailyMissions.length
-  const completionRate = (completedCount / totalMissions) * 100
+  const completedCount = missions.filter(m => m.isCompleted).length
+  const claimedCount = missions.filter(m => m.rewardClaimed).length
+  const totalMissions = missions.length
+  const completionRate = totalMissions > 0 ? (completedCount / totalMissions) * 100 : 0
+
+  if (loading && !refreshing) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.PRIMARY} />
+          <Text style={styles.loadingText}>Đang tải...</Text>
+        </View>
+      </SafeAreaView>
+    )
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -220,7 +268,17 @@ const Mission = ({ navigation }) => {
         </View>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={[COLORS.PRIMARY]}
+            tintColor={COLORS.PRIMARY}
+          />
+        }
+      >
         {/* Stats Overview */}
         <View style={styles.statsContainer}>
           <View style={styles.statCard}>
@@ -265,19 +323,26 @@ const Mission = ({ navigation }) => {
         {/* Missions List */}
         <View style={styles.missionsSection}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Nhiệm vụ hằng ngày</Text>
+            <Text style={styles.sectionTitle}>Nhiệm vụ</Text>
             <Text style={styles.sectionSubtitle}>
               Hoàn thành để tích điểm và nhận phần thưởng
             </Text>
           </View>
           
-          <FlatList
-            data={dailyMissions}
-            renderItem={renderMissionCard}
-            keyExtractor={(item) => item.id.toString()}
-            scrollEnabled={false}
-            contentContainerStyle={styles.missionsList}
-          />
+          {missions.length > 0 ? (
+            <FlatList
+              data={missions}
+              renderItem={renderMissionCard}
+              keyExtractor={(item) => item.id.toString()}
+              scrollEnabled={false}
+              contentContainerStyle={styles.missionsList}
+            />
+          ) : (
+            <View style={styles.emptyContainer}>
+              <Target size={64} color={COLORS.GRAY_LIGHT} />
+              <Text style={styles.emptyText}>Chưa có nhiệm vụ nào</Text>
+            </View>
+          )}
         </View>
 
         {/* Rewards Section */}
@@ -652,6 +717,26 @@ const styles = StyleSheet.create({
   rewardPointsLabel: {
     fontSize: 12,
     color: COLORS.GRAY,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: COLORS.GRAY,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: COLORS.GRAY,
+    marginTop: 16,
   },
 })
 
