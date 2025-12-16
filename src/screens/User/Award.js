@@ -17,11 +17,9 @@ const Award = () => {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
 
-  // Force refresh SafeArea khi app resume từ background
   useEffect(() => {
     const handleAppStateChange = (nextAppState) => {
       if (nextAppState === 'active') {
-        // Force component re-render để refresh SafeArea insets
         setRefreshKey(prev => prev + 1);
       }
     };
@@ -82,7 +80,6 @@ const Award = () => {
       console.log('📦 My Vouchers Response:', JSON.stringify(myVouchersResponse, null, 2))
       console.log('📦 Profile Response:', JSON.stringify(profileResponse, null, 2))
 
-      // API responses are nested: response.data.data (Axios wraps in .data, backend wraps in {statusCode, message, data})
       if (vouchersResponse?.data?.data && Array.isArray(vouchersResponse.data.data)) {
         console.log('✅ Setting promos:', vouchersResponse.data.data.length, 'vouchers')
         setPromos(vouchersResponse.data.data)
@@ -92,23 +89,19 @@ const Award = () => {
       }
 
       if (myVouchersResponse?.data?.data && Array.isArray(myVouchersResponse.data.data)) {
-        console.log('✅ Setting my vouchers:', myVouchersResponse.data.data.length, 'vouchers')
         setMyVouchers(myVouchersResponse.data.data)
       } else {
-        console.log('❌ My vouchers response has no data array')
-        // Empty array is still valid
+        console.log('My vouchers response has no data array')
         setMyVouchers([])
       }
 
       if (profileResponse?.data?.data) {
-        console.log('✅ Setting points:', profileResponse.data.data.coins)
         setPoints(profileResponse.data.data.coins || 0)
       } else {
-        console.log('❌ Profile response has no data field')
         setPoints(0)
       }
     } catch (error) {
-      console.error('❌ Error loading data:', error)
+      console.error('Error loading data:', error)
       console.error('Error details:', error.response?.data)
       Alert.alert('Lỗi', 'Không thể tải dữ liệu. Vui lòng thử lại.')
     } finally {
@@ -195,18 +188,14 @@ const Award = () => {
       
       const response = await redeemVoucher(selectedPromo.id)
       
-      console.log('🎁 Redeem Response:', JSON.stringify(response, null, 2))
-      
-      // Check if redeem was successful - response.data.data (nested structure)
       if (response?.data?.statusCode === 200 || response?.data?.data) {
         Alert.alert('Thành công', response?.data?.message || 'Đổi voucher thành công!')
-        // Reload data to update points and vouchers list
         await loadData()
       } else {
         Alert.alert('Lỗi', response?.data?.message || 'Không thể đổi voucher.')
       }
     } catch (error) {
-      console.error('❌ Redeem error:', error)
+      console.error('Redeem error:', error)
       Alert.alert(
         'Lỗi',
         error.response?.data?.message || error.message || 'Không thể đổi voucher. Vui lòng thử lại.'
@@ -327,13 +316,17 @@ const Award = () => {
 
   const renderItem = ({ item }) => {
     const disabled = !canRedeem(item)
-    const alreadyHas = myVouchers.some(v => v.voucher?.id === item.id)
+    const userVoucherData = myVouchers.find(v => v.voucher?.id === item.id)
+    const alreadyHas = !!userVoucherData
     const typeInfo = getVoucherTypeInfo(item.voucherType)
     
     return (
       <TouchableOpacity 
         style={styles.promoCard}
-        onPress={() => navigation.navigate('Voucher', { voucher: item })}
+        onPress={() => navigation.navigate('Voucher', { 
+          voucher: item,
+          userVoucher: userVoucherData 
+        })}
       >
         <View style={styles.promoImageContainer}>
           <MaterialIcons name={typeInfo.icon} size={48} color={COLORS.PRIMARY} />
