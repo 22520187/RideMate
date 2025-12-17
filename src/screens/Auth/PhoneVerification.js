@@ -510,14 +510,14 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
     paddingTop: 20,
   },
   backButton: {
     width: 40,
     height: 40,
     justifyContent: "center",
-    alignItems: "center",
+    alignItems: "start",
     marginBottom: 20,
   },
   titleContainer: {
@@ -543,8 +543,8 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   codeInput: {
-    width: 60,
-    height: 60,
+    width: 52,
+    height: 52,
     borderWidth: 2,
     borderColor: COLORS.GRAY_LIGHT,
     borderRadius: 12,
