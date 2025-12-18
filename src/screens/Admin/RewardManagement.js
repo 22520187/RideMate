@@ -71,12 +71,12 @@ const branchList = [
 ];
 
 const RewardManagement = () => {
-  const [rewards, setRewards] = useState([]);
+  const [rewards, setRewards] = useState([]); // Initialize as empty array
   const [selectedReward, setSelectedReward] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [branchDropdownVisible, setBranchDropdownVisible] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // Start with loading true
   const [refreshing, setRefreshing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [formState, setFormState] = useState({
@@ -95,10 +95,19 @@ const RewardManagement = () => {
       const response = await getVouchers();
 
       if (response?.data) {
-        setRewards(response.data);
+        // Ensure response.data is an array
+        const vouchersData = Array.isArray(response.data)
+          ? response.data
+          : Array.isArray(response.data.content)
+          ? response.data.content
+          : [];
+        setRewards(vouchersData);
+      } else {
+        setRewards([]);
       }
     } catch (error) {
       console.error("Error fetching vouchers:", error);
+      setRewards([]); // Set empty array on error
       Alert.alert("Lỗi", "Không thể tải danh sách voucher. Vui lòng thử lại.");
     } finally {
       setLoading(false);
@@ -118,7 +127,10 @@ const RewardManagement = () => {
   }, [fetchVouchers]);
 
   const activeCount = useMemo(
-    () => rewards.filter((reward) => reward.isActive).length,
+    () =>
+      Array.isArray(rewards)
+        ? rewards.filter((reward) => reward.isActive).length
+        : 0,
     [rewards]
   );
 

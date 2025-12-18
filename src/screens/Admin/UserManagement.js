@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -10,407 +10,218 @@ import {
   Image,
   ActivityIndicator,
   RefreshControl,
+  Dimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import COLORS from "../../constant/colors";
-import SCREENS from "../../screens";
 import * as adminService from "../../services/adminService";
 
-const roleFilters = [
-  { key: "all", label: "Tất cả" },
-  { key: "flagged", label: "Bị cảnh báo" },
-  { key: "banned", label: "Bị cấm" },
-  { key: "licenses", label: "Duyệt đơn" },
-];
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
-const statusStyles = {
-  active: {
-    label: "Hoạt động",
-    color: COLORS.GREEN,
-    background: COLORS.GREEN_LIGHT,
-  },
-  suspended: {
-    label: "Tạm khóa",
-    color: COLORS.ORANGE_DARK,
-    background: COLORS.ORANGE_LIGHT,
-  },
-  flagged: {
-    label: "Bị cảnh báo",
-    color: COLORS.RED,
-    background: COLORS.RED_LIGHT,
-  },
-  banned: {
-    label: "Bị cấm",
-    color: COLORS.RED,
-    background: COLORS.RED_LIGHT,
-  },
-};
-
-const initialUsers = [
-  {
-    id: "USR-1001",
-    name: "Nguyễn Văn A",
-    phone: "0901 234 567",
-    role: "driver",
-    status: "pending",
-    completedTrips: 42,
-    rating: 4.8,
-  },
-  {
-    id: "USR-1002",
-    name: "Trần Thị B",
-    phone: "0908 765 432",
-    role: "passenger",
-    status: "active",
-    completedTrips: 18,
-    rating: 4.6,
-  },
-  {
-    id: "USR-1003",
-    name: "Lê Văn C",
-    phone: "0912 345 678",
-    role: "driver",
-    status: "flagged",
-    completedTrips: 5,
-    rating: 3.4,
-  },
-  {
-    id: "USR-1004",
-    name: "Phạm Thị D",
-    phone: "0933 456 789",
-    role: "passenger",
-    status: "active",
-    completedTrips: 27,
-    rating: 4.9,
-  },
-];
-
-const initialLicenseApplications = [
-  {
-    id: "LIC-001",
-    userId: "USR-1005",
-    userName: "Nguyễn Văn E",
-    phone: "0911 222 333",
-    licenseNumber: "A987654321",
-    expiryDate: "20/12/2027",
-    submittedDate: "13/11/2024 • 10:30",
-    licenseImage:
-      "https://via.placeholder.com/400x250/4A90E2/FFFFFF?text=Driver+License+Image", // URL to image
-    status: "pending",
-  },
-  {
-    id: "LIC-002",
-    userId: "USR-1006",
-    userName: "Trần Văn F",
-    phone: "0922 333 444",
-    licenseNumber: "B123456789",
-    expiryDate: "15/08/2026",
-    submittedDate: "12/11/2024 • 14:20",
-    licenseImage:
-      "https://via.placeholder.com/400x250/4A90E2/FFFFFF?text=Driver+License+Image",
-    status: "pending",
-  },
-  {
-    id: "LIC-003",
-    userId: "USR-1007",
-    userName: "Lê Thị G",
-    phone: "0933 444 555",
-    licenseNumber: "C456789012",
-    expiryDate: "10/05/2028",
-    submittedDate: "11/11/2024 • 09:15",
-    licenseImage:
-      "https://via.placeholder.com/400x250/4A90E2/FFFFFF?text=Driver+License+Image",
-    status: "pending",
-  },
+const filterTabs = [
+  { key: "all", label: "Tất cả", icon: "people-outline" },
+  { key: "DRIVER", label: "Tài xế", icon: "car-outline" },
+  { key: "PASSENGER", label: "Hành khách", icon: "person-outline" },
+  { key: "PENDING", label: "Chờ duyệt", icon: "time-outline" },
 ];
 
 const UserManagement = () => {
   const navigation = useNavigation();
-  const [filter, setFilter] = useState("all");
-  const [search, setSearch] = useState("");
-  const [users, setUsers] = useState([]);
-  const [licenseApplications, setLicenseApplications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedTab, setSelectedTab] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [users, setUsers] = useState([]);
+  const [statistics, setStatistics] = useState(null);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
 
-  // Fetch users and pending drivers
-  const fetchData = useCallback(async () => {
+  const fetchUsers = useCallback(async (pageNum = 0, refresh = false) => {
     try {
-      const [usersRes, pendingDriversRes] = await Promise.all([
-        adminService.getUsers(),
-        adminService.getPendingDrivers(),
-      ]);
+      if (refresh) {
+        setRefreshing(true);
+      } else if (pageNum === 0) {
+        setLoading(true);
+      }
 
-      setUsers(usersRes.data || []);
-      setLicenseApplications(pendingDriversRes.data || []);
+      const userType = selectedTab === "all" ? null : selectedTab;
+      const response = await adminService.getAllUsers({
+        userType,
+        searchTerm: searchQuery,
+        page: pageNum,
+        size: 20,
+      });
+
+      if (refresh || pageNum === 0) {
+        setUsers(response.users);
+      } else {
+        setUsers((prev) => [...prev, ...response.users]);
+      }
+
+      setHasMore(pageNum < response.totalPages - 1);
+      setPage(pageNum);
     } catch (error) {
-      console.error("Error fetching user data:", error);
-      Alert.alert("Lỗi", "Không thể tải dữ liệu người dùng");
+      console.error("Error fetching users:", error);
+      Alert.alert("Lỗi", "Không thể tải danh sách người dùng");
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
+  }, [selectedTab, searchQuery]);
+
+  const fetchStatistics = useCallback(async () => {
+    try {
+      const stats = await adminService.getUserStatistics();
+      setStatistics(stats);
+    } catch (error) {
+      console.error("Error fetching statistics:", error);
+    }
   }, []);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    fetchUsers(0);
+    fetchStatistics();
+  }, [selectedTab, searchQuery]);
 
   const onRefresh = useCallback(() => {
-    setRefreshing(true);
-    fetchData();
-  }, [fetchData]);
+    fetchUsers(0, true);
+    fetchStatistics();
+  }, [fetchUsers, fetchStatistics]);
 
-  const pendingLicenses = useMemo(() => {
-    return licenseApplications.filter((app) => app.status === "pending");
-  }, [licenseApplications]);
-
-  const listDescriptor = useMemo(() => {
-    if (filter === "licenses") {
-      return pendingLicenses
-        .filter((app) => {
-          if (!search.trim()) return true;
-          const keyword = search.trim().toLowerCase();
-          return (
-            (app.fullName || app.userName)?.toLowerCase().includes(keyword) ||
-            app.phoneNumber?.toLowerCase().includes(keyword) ||
-            app.id?.toString().toLowerCase().includes(keyword) ||
-            app.licenseNumber?.toLowerCase().includes(keyword)
-          );
-        })
-        .map((app) => ({ ...app, type: "license" }));
+  const loadMore = useCallback(() => {
+    if (!loading && hasMore) {
+      fetchUsers(page + 1);
     }
-
-    const filteredUsers = users
-      .filter((user) => {
-        if (filter === "all") return true;
-        if (filter === "flagged") return !user.isActive; // Map to isActive field
-        if (filter === "banned") return !user.isActive;
-        return false;
-      })
-      .filter((user) => {
-        if (!search.trim()) return true;
-        const keyword = search.trim().toLowerCase();
-        return (
-          user.fullName?.toLowerCase().includes(keyword) ||
-          user.phoneNumber?.toLowerCase().includes(keyword) ||
-          user.id?.toString().toLowerCase().includes(keyword)
-        );
-      })
-      .map((user) => ({ ...user, type: "user" }));
-
-    // Khi filter là "all", thêm cả đơn bằng lái xe vào danh sách
-    if (filter === "all") {
-      const filteredLicenses = pendingLicenses
-        .filter((app) => {
-          if (!search.trim()) return true;
-          const keyword = search.trim().toLowerCase();
-          return (
-            (app.fullName || app.userName)?.toLowerCase().includes(keyword) ||
-            app.phoneNumber?.toLowerCase().includes(keyword) ||
-            app.id?.toString().toLowerCase().includes(keyword) ||
-            app.licenseNumber?.toLowerCase().includes(keyword)
-          );
-        })
-        .map((app) => ({ ...app, type: "license" }));
-
-      return [...filteredUsers, ...filteredLicenses];
-    }
-
-    return filteredUsers;
-  }, [filter, search, users, pendingLicenses]);
-
-  const handleStatusChange = async (userId, isActive) => {
-    try {
-      await adminService.toggleUserStatus(userId, { isActive });
-
-      // Update local state
-      setUsers((prev) =>
-        prev.map((user) =>
-          user.id === userId
-            ? {
-                ...user,
-                isActive,
-              }
-            : user
-        )
-      );
-
-      Alert.alert(
-        "Thành công",
-        `Đã ${isActive ? "kích hoạt" : "vô hiệu hóa"} tài khoản`
-      );
-    } catch (error) {
-      console.error("Error updating user status:", error);
-      Alert.alert("Lỗi", "Không thể cập nhật trạng thái người dùng");
-    }
-  };
-
-  const renderActions = (user) => {
-    const isActive = user.isActive !== false; // Default to true if undefined
-
-    if (!isActive) {
-      return (
-        <TouchableOpacity
-          style={[styles.actionButton, styles.restoreButton]}
-          onPress={() => handleStatusChange(user.id, true)}
-        >
-          <Ionicons name="refresh" size={18} color={COLORS.WHITE} />
-          <Text style={styles.actionLabel}>Kích hoạt</Text>
-        </TouchableOpacity>
-      );
-    }
-
-    return (
-      <TouchableOpacity
-        style={[styles.actionButton, styles.suspendButton]}
-        onPress={() => handleStatusChange(user.id, false)}
-      >
-        <Ionicons name="ban-outline" size={18} color={COLORS.WHITE} />
-        <Text style={styles.actionLabel}>Vô hiệu hóa</Text>
-      </TouchableOpacity>
-    );
-  };
+  }, [loading, hasMore, page, fetchUsers]);
 
   const handleUserPress = (user) => {
-    navigation.navigate(SCREENS.ADMIN_USER_DETAIL, { user });
+    navigation.navigate("UserDetail", { userId: user.id });
   };
 
-  const handleLicenseAction = async (userId, action) => {
-    Alert.alert(
-      action === "approve" ? "Duyệt bằng lái xe" : "Từ chối bằng lái xe",
-      action === "approve"
-        ? "Bạn có chắc chắn muốn duyệt đơn này?"
-        : "Bạn có chắc chắn muốn từ chối đơn này?",
-      [
-        { text: "Hủy", style: "cancel" },
-        {
-          text: action === "approve" ? "Duyệt" : "Từ chối",
-          style: action === "reject" ? "destructive" : "default",
-          onPress: async () => {
-            try {
-              if (action === "approve") {
-                await adminService.approveDriver(userId);
-              } else {
-                await adminService.rejectDriver(userId, {
-                  reason: "Không đủ điều kiện",
-                });
-              }
-
-              // Remove from pending list
-              setLicenseApplications((prev) =>
-                prev.filter((app) => app.id !== userId)
-              );
-
-              Alert.alert(
-                "Thành công",
-                action === "approve"
-                  ? "Đã duyệt đơn đăng ký tài xế"
-                  : "Đã từ chối đơn đăng ký tài xế"
-              );
-
-              // Refresh data
-              fetchData();
-            } catch (error) {
-              console.error("Error processing driver application:", error);
-              Alert.alert("Lỗi", "Không thể xử lý đơn đăng ký");
-            }
-          },
-        },
-      ]
-    );
+  const getStatusStyle = (isActive, driverApprovalStatus) => {
+    if (!isActive) {
+      return {
+        label: "Bị khóa",
+        color: "#F44336",
+        bg: "#FFEBEE",
+      };
+    }
+    if (driverApprovalStatus === "PENDING") {
+      return {
+        label: "Chờ duyệt",
+        color: "#FF9800",
+        bg: "#FFF3E0",
+      };
+    }
+    return {
+      label: "Hoạt động",
+      color: "#4CAF50",
+      bg: "#E8F5E9",
+    };
   };
 
-  const renderLicenseItem = ({ item }) => (
-    <View style={styles.licenseCard}>
-      <View style={styles.licenseHeader}>
-        <View>
-          <Text style={styles.licenseUserName}>
-            {item.fullName || item.userName}
-          </Text>
-          <Text style={styles.licenseUserId}>#{item.id}</Text>
-        </View>
-        <View
-          style={[
-            styles.licenseStatusBadge,
-            { backgroundColor: COLORS.ORANGE_LIGHT },
-          ]}
-        >
-          <Text
-            style={[styles.licenseStatusText, { color: COLORS.ORANGE_DARK }]}
-          >
-            Chờ duyệt
-          </Text>
-        </View>
+  const renderStatCard = (icon, label, value, color) => (
+    <View style={[styles.statCard, { borderLeftColor: color }]}>
+      <View style={[styles.statIconContainer, { backgroundColor: color + "15" }]}>
+        <Ionicons name={icon} size={24} color={color} />
       </View>
-
-      <View style={styles.licenseInfoRow}>
-        <Ionicons name="call-outline" size={16} color={COLORS.GRAY} />
-        <Text style={styles.licenseInfoText}>
-          {item.phoneNumber || item.phone}
-        </Text>
-      </View>
-      <View style={styles.licenseInfoRow}>
-        <Ionicons name="card-outline" size={16} color={COLORS.GRAY} />
-        <Text style={styles.licenseInfoText}>
-          Số bằng: {item.licenseNumber}
-        </Text>
-      </View>
-      {item.expiryDate && (
-        <View style={styles.licenseInfoRow}>
-          <Ionicons name="calendar-outline" size={16} color={COLORS.GRAY} />
-          <Text style={styles.licenseInfoText}>Hết hạn: {item.expiryDate}</Text>
-        </View>
-      )}
-      {item.submittedDate && (
-        <View style={styles.licenseInfoRow}>
-          <Ionicons name="time-outline" size={16} color={COLORS.GRAY} />
-          <Text style={styles.licenseInfoText}>Gửi: {item.submittedDate}</Text>
-        </View>
-      )}
-
-      {item.licenseImageUrl && (
-        <View style={styles.licenseImageContainer}>
-          <Text style={styles.licenseImageLabel}>Ảnh bằng lái xe:</Text>
-          <Image
-            source={{ uri: item.licenseImageUrl }}
-            style={styles.licenseImage}
-            resizeMode="contain"
-          />
-        </View>
-      )}
-
-      <View style={styles.licenseActions}>
-        <TouchableOpacity
-          style={[styles.licenseActionButton, styles.approveLicenseButton]}
-          onPress={() => handleLicenseAction(item.id, "approve")}
-        >
-          <Ionicons name="checkmark-circle" size={20} color={COLORS.WHITE} />
-          <Text style={styles.licenseActionText}>Duyệt</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.licenseActionButton, styles.rejectLicenseButton]}
-          onPress={() => handleLicenseAction(item.id, "reject")}
-        >
-          <Ionicons name="close-circle" size={20} color={COLORS.WHITE} />
-          <Text style={styles.licenseActionText}>Từ chối</Text>
-        </TouchableOpacity>
+      <View style={styles.statInfo}>
+        <Text style={styles.statValue}>{value}</Text>
+        <Text style={styles.statLabel}>{label}</Text>
       </View>
     </View>
   );
 
-  const renderItem = ({ item }) => {
-    if (item.type === "license") {
-      return renderLicenseItem({ item });
-    }
-    return renderUserItem({ item });
-  };
+  const renderHeader = () => (
+    <View style={styles.header}>
+      <View style={styles.headerTop}>
+        <View>
+          <Text style={styles.headerTitle}>Quản lý người dùng</Text>
+          <Text style={styles.headerSubtitle}>
+            {statistics?.totalUsers || 0} người dùng
+          </Text>
+        </View>
+      </View>
 
-  const renderUserItem = ({ item }) => {
-    const isActive = item.isActive !== false;
-    const style = isActive ? statusStyles.active : statusStyles.suspended;
+      {/* Statistics Cards */}
+      <View style={styles.statsContainer}>
+        {renderStatCard(
+          "people",
+          "Tổng người dùng",
+          statistics?.totalUsers || 0,
+          COLORS.PRIMARY
+        )}
+        {renderStatCard(
+          "car",
+          "Tài xế",
+          statistics?.totalDrivers || 0,
+          "#4CAF50"
+        )}
+        {renderStatCard(
+          "person",
+          "Hành khách",
+          statistics?.totalPassengers || 0,
+          "#FF9800"
+        )}
+        {renderStatCard(
+          "time",
+          "Chờ duyệt",
+          statistics?.pendingDriverApprovals || 0,
+          "#F44336"
+        )}
+      </View>
+
+      {/* Search Bar */}
+      <View style={styles.searchContainer}>
+        <Ionicons name="search" size={20} color={COLORS.GRAY} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Tìm kiếm theo tên, số điện thoại..."
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          placeholderTextColor={COLORS.GRAY}
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity onPress={() => setSearchQuery("")}>
+            <Ionicons name="close-circle" size={20} color={COLORS.GRAY} />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Filter Tabs */}
+      <View style={styles.filterTabs}>
+        {filterTabs.map((tab) => (
+          <TouchableOpacity
+            key={tab.key}
+            style={[
+              styles.filterTab,
+              selectedTab === tab.key && styles.filterTabActive,
+            ]}
+            onPress={() => setSelectedTab(tab.key)}
+          >
+            <Ionicons
+              name={tab.icon}
+              size={18}
+              color={selectedTab === tab.key ? "#FFFFFF" : COLORS.GRAY}
+            />
+            <Text
+              style={[
+                styles.filterTabText,
+                selectedTab === tab.key && styles.filterTabTextActive,
+              ]}
+            >
+              {tab.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  );
+
+  const renderUserCard = ({ item }) => {
+    const status = getStatusStyle(item.isActive, item.driverApprovalStatus);
 
     return (
       <TouchableOpacity
@@ -418,460 +229,336 @@ const UserManagement = () => {
         onPress={() => handleUserPress(item)}
         activeOpacity={0.7}
       >
-        <View style={styles.userHeader}>
-          <View>
-            <Text style={styles.userName}>{item.fullName || item.name}</Text>
-            <Text style={styles.userId}>#{item.id}</Text>
+        <View style={styles.userCardHeader}>
+          <View style={styles.userAvatar}>
+            {item.profilePictureUrl ? (
+              <Image
+                source={{ uri: item.profilePictureUrl }}
+                style={styles.avatarImage}
+              />
+            ) : (
+              <Ionicons name="person" size={24} color={COLORS.GRAY} />
+            )}
           </View>
-          <View style={[styles.badge, { backgroundColor: style.background }]}>
-            <Text style={[styles.badgeLabel, { color: style.color }]}>
-              {style.label}
+          <View style={styles.userInfo}>
+            <Text style={styles.userName}>{item.fullName}</Text>
+            <Text style={styles.userPhone}>{item.phoneNumber}</Text>
+          </View>
+          <View style={[styles.statusBadge, { backgroundColor: status.bg }]}>
+            <Text style={[styles.statusText, { color: status.color }]}>
+              {status.label}
             </Text>
           </View>
         </View>
 
-        <View style={styles.userInfoRow}>
-          <Ionicons name="call-outline" size={16} color={COLORS.GRAY} />
-          <Text style={styles.userInfoText}>
-            {item.phoneNumber || item.phone}
-          </Text>
-        </View>
-        <View style={styles.userInfoRow}>
-          <Ionicons name="briefcase-outline" size={16} color={COLORS.GRAY} />
-          <Text style={styles.userInfoText}>
-            Vai trò: {item.userType === "DRIVER" ? "Tài xế" : "Hành khách"}
-          </Text>
-        </View>
-        <View style={styles.userStatsRow}>
-          <View style={styles.statBox}>
-            <Text style={styles.statValue}>{item.completedTrips || 0}</Text>
-            <Text style={styles.statLabel}>Chuyến hoàn thành</Text>
-          </View>
-          <View style={styles.statBox}>
-            <Text style={styles.statValue}>
-              {item.driverRating || item.rating
-                ? (item.driverRating || item.rating).toFixed(1)
-                : "N/A"}
+        <View style={styles.userCardFooter}>
+          <View style={styles.userStat}>
+            <Ionicons
+              name={item.userType === "DRIVER" ? "car" : "person"}
+              size={16}
+              color={COLORS.PRIMARY}
+            />
+            <Text style={styles.userStatText}>
+              {item.userType === "DRIVER" ? "Tài xế" : "Hành khách"}
             </Text>
-            <Text style={styles.statLabel}>Đánh giá trung bình</Text>
           </View>
-        </View>
 
-        <View style={styles.actionContainer}>{renderActions(item)}</View>
+          <View style={styles.userStat}>
+            <Ionicons name="star" size={16} color="#FFB300" />
+            <Text style={styles.userStatText}>
+              {item.rating?.toFixed(1) || "N/A"}
+            </Text>
+          </View>
+
+          <View style={styles.userStat}>
+            <Ionicons name="wallet" size={16} color="#4CAF50" />
+            <Text style={styles.userStatText}>{item.coins || 0} xu</Text>
+          </View>
+
+          <TouchableOpacity style={styles.viewButton}>
+            <Ionicons name="chevron-forward" size={20} color={COLORS.PRIMARY} />
+          </TouchableOpacity>
+        </View>
       </TouchableOpacity>
     );
   };
 
-  return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.title}>Quản lý người dùng</Text>
-        </View>
+  const renderEmpty = () => (
+    <View style={styles.emptyContainer}>
+      <Ionicons name="people-outline" size={64} color={COLORS.GRAY} />
+      <Text style={styles.emptyText}>Không tìm thấy người dùng</Text>
+      <Text style={styles.emptySubtext}>
+        {searchQuery
+          ? "Thử tìm kiếm với từ khóa khác"
+          : "Chưa có người dùng nào trong hệ thống"}
+      </Text>
+    </View>
+  );
+
+  const renderFooter = () => {
+    if (!loading || page === 0) return null;
+    return (
+      <View style={styles.footerLoader}>
+        <ActivityIndicator size="small" color={COLORS.PRIMARY} />
       </View>
+    );
+  };
 
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.BLUE} />
-          <Text style={styles.loadingText}>Đang tải dữ liệu...</Text>
-        </View>
-      ) : (
-        <>
-          <View style={styles.searchContainer}>
-            <Ionicons name="search-outline" size={18} color={COLORS.GRAY} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder={
-                filter === "licenses"
-                  ? "Tìm kiếm theo tên, số điện thoại"
-                  : "Tìm kiếm theo tên, số điện thoại"
-              }
-              placeholderTextColor={COLORS.GRAY}
-              value={search}
-              onChangeText={setSearch}
-            />
-          </View>
+  if (loading && page === 0) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={COLORS.PRIMARY} />
+        <Text style={styles.loadingText}>Đang tải...</Text>
+      </View>
+    );
+  }
 
-          <View style={styles.filterRow}>
-            {roleFilters.map((item) => {
-              const active = filter === item.key;
-              return (
-                <TouchableOpacity
-                  key={item.key}
-                  style={[styles.filterChip, active && styles.filterChipActive]}
-                  onPress={() => setFilter(item.key)}
-                >
-                  <Text
-                    style={[
-                      styles.filterChipLabel,
-                      active && styles.filterChipLabelActive,
-                    ]}
-                  >
-                    {item.label}
-                  </Text>
-                  {item.key === "licenses" && pendingLicenses.length > 0 && (
-                    <View style={styles.filterBadge}>
-                      <Text style={styles.filterBadgeText}>
-                        {pendingLicenses.length}
-                      </Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          <FlatList
-            data={listDescriptor}
-            keyExtractor={(item) => item.id.toString()}
-            renderItem={renderItem}
-            contentContainerStyle={styles.listContent}
-            showsVerticalScrollIndicator={false}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={onRefresh}
-                colors={[COLORS.BLUE]}
-                tintColor={COLORS.BLUE}
-              />
-            }
-            ListEmptyComponent={
-              <View style={styles.emptyState}>
-                <Ionicons
-                  name={
-                    filter === "licenses" ? "card-outline" : "people-outline"
-                  }
-                  size={48}
-                  color={COLORS.GRAY}
-                />
-                <Text style={styles.emptyTitle}>
-                  {filter === "licenses"
-                    ? "Không có đơn chờ duyệt"
-                    : "Không có người dùng phù hợp"}
-                </Text>
-                <Text style={styles.emptyDescription}>
-                  {filter === "licenses"
-                    ? "Tất cả đơn duyệt bằng lái xe đã được xử lý."
-                    : "Điều chỉnh tiêu chí lọc hoặc kiểm tra lại sau."}
-                </Text>
-              </View>
-            }
-          />
-        </>
-      )}
+  return (
+    <SafeAreaView style={styles.container} edges={["top"]}>
+      <FlatList
+        data={users}
+        renderItem={renderUserCard}
+        keyExtractor={(item) => item.id.toString()}
+        ListHeaderComponent={renderHeader}
+        ListEmptyComponent={renderEmpty}
+        ListFooterComponent={renderFooter}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+        onEndReached={loadMore}
+        onEndReachedThreshold={0.5}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.listContent}
+      />
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  safeArea: {
+  container: {
     flex: 1,
-    backgroundColor: COLORS.BG,
-  },
-  header: {
-    backgroundColor: COLORS.PRIMARY,
-    paddingHorizontal: 16,
-    paddingTop: 20,
-    paddingBottom: 20,
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
-    width: "100%",
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: COLORS.WHITE,
+    backgroundColor: "#F8F9FA",
   },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    paddingVertical: 40,
+    backgroundColor: "#FFFFFF",
   },
   loadingText: {
     marginTop: 12,
-    fontSize: 14,
+    fontSize: 16,
     color: COLORS.GRAY,
-  },
-  subtitle: {
-    marginTop: 4,
-    fontSize: 14,
-    color: COLORS.WHITE,
-    opacity: 0.9,
-    lineHeight: 20,
-  },
-  searchContainer: {
-    marginHorizontal: 20,
-    marginBottom: 12,
-    marginTop: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 14,
-    backgroundColor: COLORS.WHITE,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    borderWidth: 1,
-    borderColor: COLORS.GRAY_LIGHT,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 14,
-    color: COLORS.BLACK,
-  },
-  filterRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginHorizontal: 20,
-    marginTop: 8,
-    marginBottom: 12,
-  },
-  filterChip: {
-    flex: 1,
-    backgroundColor: COLORS.WHITE,
-    paddingVertical: 10,
-    marginHorizontal: 4,
-    borderRadius: 12,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: COLORS.GRAY_LIGHT,
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 6,
-  },
-  filterChipActive: {
-    borderColor: COLORS.BLUE,
-    backgroundColor: COLORS.BLUE_LIGHT,
-  },
-  filterChipLabel: {
-    fontSize: 13,
-    color: COLORS.GRAY,
-  },
-  filterChipLabelActive: {
-    color: COLORS.BLUE,
-    fontWeight: "600",
-  },
-  filterBadge: {
-    backgroundColor: COLORS.RED,
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 6,
-  },
-  filterBadgeText: {
-    fontSize: 11,
-    color: COLORS.WHITE,
-    fontWeight: "700",
   },
   listContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 24,
+    paddingBottom: 20,
   },
-  userCard: {
-    backgroundColor: COLORS.WHITE,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: COLORS.BLACK,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 1,
+  header: {
+    backgroundColor: "#FFFFFF",
+    paddingTop: 20,
+    paddingBottom: 16,
+    marginBottom: 12,
   },
-  userHeader: {
+  headerTop: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    paddingHorizontal: 20,
+    marginBottom: 20,
   },
-  userName: {
-    fontSize: 18,
+  headerTitle: {
+    fontSize: 24,
     fontWeight: "700",
     color: COLORS.BLACK,
+    marginBottom: 4,
   },
-  userId: {
-    marginTop: 4,
-    fontSize: 13,
-    color: COLORS.GRAY,
-  },
-  badge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  badgeLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  userInfoRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginTop: 6,
-  },
-  userInfoText: {
+  headerSubtitle: {
     fontSize: 14,
     color: COLORS.GRAY,
   },
-  userStatsRow: {
+  statsContainer: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 16,
+    flexWrap: "wrap",
+    paddingHorizontal: 16,
+    gap: 12,
+    marginBottom: 20,
   },
-  statBox: {
+  statCard: {
     flex: 1,
-    backgroundColor: COLORS.BG,
-    padding: 12,
+    minWidth: (SCREEN_WIDTH - 52) / 2,
+    backgroundColor: "#FFFFFF",
     borderRadius: 12,
+    padding: 16,
+    flexDirection: "row",
     alignItems: "center",
-    marginHorizontal: 4,
+    borderLeftWidth: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  statIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  statInfo: {
+    flex: 1,
   },
   statValue: {
-    fontSize: 16,
+    fontSize: 20,
     fontWeight: "700",
     color: COLORS.BLACK,
+    marginBottom: 2,
   },
   statLabel: {
     fontSize: 12,
     color: COLORS.GRAY,
-    marginTop: 4,
   },
-  actionContainer: {
-    marginTop: 16,
-  },
-  actionRow: {
-    flexDirection: "row",
-    gap: 10,
-  },
-  actionButton: {
+  searchContainer: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 10,
-    paddingHorizontal: 14,
+    backgroundColor: "#F8F9FA",
     borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginHorizontal: 20,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#E0E0E0",
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: COLORS.BLACK,
+    marginLeft: 8,
+  },
+  filterTabs: {
+    flexDirection: "row",
+    paddingHorizontal: 20,
+    gap: 8,
+  },
+  filterTab: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: "#F8F9FA",
     gap: 6,
   },
-  restoreButton: {
-    flex: 1,
-    backgroundColor: COLORS.GREEN,
+  filterTabActive: {
+    backgroundColor: COLORS.PRIMARY,
   },
-  suspendButton: {
-    flex: 1,
-    backgroundColor: COLORS.ORANGE_DARK,
-  },
-  actionLabel: {
+  filterTabText: {
     fontSize: 13,
-    color: COLORS.WHITE,
     fontWeight: "600",
-  },
-  emptyState: {
-    paddingVertical: 60,
-    alignItems: "center",
-    gap: 12,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.BLACK,
-  },
-  emptyDescription: {
-    fontSize: 13,
     color: COLORS.GRAY,
-    textAlign: "center",
-    paddingHorizontal: 32,
-    lineHeight: 18,
   },
-  licenseCard: {
-    backgroundColor: COLORS.WHITE,
+  filterTabTextActive: {
+    color: "#FFFFFF",
+  },
+  userCard: {
+    backgroundColor: "#FFFFFF",
     borderRadius: 16,
     padding: 16,
-    marginBottom: 16,
-    shadowColor: COLORS.BLACK,
+    marginHorizontal: 20,
+    marginBottom: 12,
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 8,
-    elevation: 1,
+    elevation: 2,
   },
-  licenseHeader: {
+  userCardHeader: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 16,
   },
-  licenseUserName: {
-    fontSize: 18,
-    fontWeight: "700",
+  userAvatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: "#F8F9FA",
+    justifyContent: "center",
+    alignItems: "center",
+    overflow: "hidden",
+  },
+  avatarImage: {
+    width: "100%",
+    height: "100%",
+  },
+  userInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  userName: {
+    fontSize: 16,
+    fontWeight: "600",
     color: COLORS.BLACK,
+    marginBottom: 4,
   },
-  licenseUserId: {
-    marginTop: 4,
-    fontSize: 13,
+  userPhone: {
+    fontSize: 14,
     color: COLORS.GRAY,
   },
-  licenseStatusBadge: {
+  statusBadge: {
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 12,
   },
-  licenseStatusText: {
+  statusText: {
     fontSize: 12,
     fontWeight: "600",
   },
-  licenseInfoRow: {
+  userCardFooter: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    marginTop: 8,
+    gap: 16,
   },
-  licenseInfoText: {
-    fontSize: 14,
-    color: COLORS.GRAY,
+  userStat: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
-  licenseImageContainer: {
-    marginTop: 12,
-    marginBottom: 8,
-  },
-  licenseImageLabel: {
+  userStatText: {
     fontSize: 13,
     color: COLORS.GRAY,
-    marginBottom: 8,
     fontWeight: "500",
   },
-  licenseImage: {
-    width: "100%",
-    height: 200,
-    borderRadius: 12,
-    backgroundColor: COLORS.BG,
-    borderWidth: 1,
-    borderColor: COLORS.GRAY_LIGHT,
+  viewButton: {
+    marginLeft: "auto",
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#F8F9FA",
+    justifyContent: "center",
+    alignItems: "center",
   },
-  licenseActions: {
-    flexDirection: "row",
-    gap: 10,
-    marginTop: 16,
-  },
-  licenseActionButton: {
-    flex: 1,
-    flexDirection: "row",
+  emptyContainer: {
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 12,
-    borderRadius: 12,
-    gap: 6,
+    paddingVertical: 60,
+    paddingHorizontal: 40,
   },
-  approveLicenseButton: {
-    backgroundColor: COLORS.GREEN,
-  },
-  rejectLicenseButton: {
-    backgroundColor: COLORS.RED,
-  },
-  licenseActionText: {
-    fontSize: 14,
-    color: COLORS.WHITE,
+  emptyText: {
+    fontSize: 18,
     fontWeight: "600",
+    color: COLORS.BLACK,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: COLORS.GRAY,
+    textAlign: "center",
+  },
+  footerLoader: {
+    paddingVertical: 20,
   },
 });
 

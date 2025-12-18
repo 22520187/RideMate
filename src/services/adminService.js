@@ -59,6 +59,11 @@ export const getUserStatistics = () => {
   return axiosClient.get(endpoints.admin.userStatistics);
 };
 
+// Get all users (alias for getUsers)
+export const getAllUsers = (params = {}) => {
+  return axiosClient.get(endpoints.admin.users, { params });
+};
+
 // Get pending driver approvals
 export const getPendingDrivers = (params = {}) => {
   return axiosClient.get(endpoints.admin.pendingDrivers, { params });
@@ -93,6 +98,11 @@ export const getTripById = (id) => {
   return axiosClient.get(endpoints.admin.tripById(id));
 };
 
+// Get trip statistics
+export const getTripStatistics = () => {
+  return axiosClient.get(endpoints.admin.tripStats);
+};
+
 /**
  * Report Management Services
  */
@@ -110,6 +120,11 @@ export const getReportById = (id) => {
 // Update report status
 export const updateReportStatus = (id, data) => {
   return axiosClient.patch(endpoints.admin.updateReportStatus(id), data);
+};
+
+// Get report statistics
+export const getReportStatistics = () => {
+  return axiosClient.get(endpoints.admin.reportStats);
 };
 
 /**
