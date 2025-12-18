@@ -339,7 +339,7 @@ const PassengerRideScreen = ({ navigation, route }) => {
     }
   };
 
-  const handleSearchAsPassenger = () => {
+  const handleSearchAsPassenger = async () => {
     if (!fromLocation || !toLocation) {
       Alert.alert(
         "Thiếu thông tin",
@@ -615,6 +615,213 @@ const PassengerRideScreen = ({ navigation, route }) => {
           )}
         </View>
       </View>
+
+      {/* Driver Selection Modal */}
+      <Modal
+        visible={isDriverModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => {
+          if (searchInterval) {
+            clearInterval(searchInterval);
+            setSearchInterval(null);
+          }
+          setIsDriverModalVisible(false);
+          setIsSearching(false);
+        }}
+      >
+        <View style={styles.modalBackdrop}>
+          <TouchableOpacity
+            style={styles.modalBackdrop}
+            activeOpacity={1}
+            onPress={() => {
+              if (searchInterval) {
+                clearInterval(searchInterval);
+                setSearchInterval(null);
+              }
+              setIsDriverModalVisible(false);
+              setIsSearching(false);
+            }}
+          />
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Chọn tài xế</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  if (searchInterval) {
+                    clearInterval(searchInterval);
+                    setSearchInterval(null);
+                  }
+                  setIsDriverModalVisible(false);
+                  setIsSearching(false);
+                }}
+              >
+                <MaterialIcons name="close" size={24} color={COLORS.BLACK} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.modalSubtitle}>
+              {isSearching
+                ? `Đang tìm kiếm... (${searchTimeLeft}s)`
+                : `${availableDrivers.length} tài xế đang tìm hành khách từ ${fromLocation} đến ${toLocation}`}
+            </Text>
+
+            <FlatList
+              data={availableDrivers}
+              keyExtractor={(item) => item.id.toString()}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={styles.driverCard}
+                  onPress={() => handleSelectDriver(item)}
+                >
+                  <Image
+                    source={{ uri: item.driverAvatar }}
+                    style={styles.driverAvatar}
+                  />
+                  <View style={styles.driverInfo}>
+                    <Text style={styles.driverName}>{item.driverName}</Text>
+                    <View style={styles.driverDetails}>
+                      <MaterialIcons
+                        name="phone"
+                        size={14}
+                        color={COLORS.GRAY}
+                      />
+                      <Text style={styles.driverPhone}>{item.driverPhone}</Text>
+                    </View>
+                    <View style={styles.driverDetails}>
+                      <MaterialIcons
+                        name="star"
+                        size={14}
+                        color={COLORS.ORANGE_DARK}
+                      />
+                      <Text style={styles.driverRating}>{item.rating}</Text>
+                      <Text style={styles.driverReviews}>(10 đánh giá)</Text>
+                    </View>
+                    <Text style={styles.carInfo}>
+                      {item.carModel} - {item.licensePlate}
+                    </Text>
+                  </View>
+                  <View style={styles.driverActions}>
+                    <Text style={styles.price}>{formatVND(item.price)}</Text>
+                    <TouchableOpacity
+                      style={styles.selectBtn}
+                      onPress={() => handleSelectDriver(item)}
+                    >
+                      <MaterialIcons
+                        name="check-circle"
+                        size={20}
+                        color={COLORS.GREEN}
+                      />
+                    </TouchableOpacity>
+                  </View>
+                </TouchableOpacity>
+              )}
+              style={[styles.driversList, { paddingBottom: insets.bottom }]}
+            />
+          </View>
+        </View>
+      </Modal>
+
+      {/* Confirmation Modal */}
+      <Modal
+        visible={isConfirmationModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setIsConfirmationModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View
+            style={[styles.confirmationModal, { paddingBottom: insets.bottom }]}
+          >
+            <View style={styles.confirmationHeader}>
+              <Text style={styles.confirmationTitle}>Xác nhận ghép chuyến</Text>
+              <TouchableOpacity
+                onPress={() => setIsConfirmationModalVisible(false)}
+                style={styles.closeBtn}
+              >
+                <MaterialIcons name="close" size={24} color={COLORS.GRAY} />
+              </TouchableOpacity>
+            </View>
+
+            {selectedDriver && (
+              <View style={styles.confirmationContent}>
+                <View style={styles.confirmationDriverCard}>
+                  <Image
+                    source={{ uri: selectedDriver.driverAvatar }}
+                    style={styles.confirmationAvatar}
+                  />
+                  <View style={styles.confirmationDriverInfo}>
+                    <Text style={styles.confirmationDriverName}>
+                      {selectedDriver.driverName}
+                    </Text>
+                    <View style={styles.confirmationDriverDetails}>
+                      <MaterialIcons
+                        name="phone"
+                        size={16}
+                        color={COLORS.GRAY}
+                      />
+                      <Text style={styles.confirmationDriverPhone}>
+                        {selectedDriver.driverPhone}
+                      </Text>
+                    </View>
+                    <View style={styles.confirmationDriverDetails}>
+                      <MaterialIcons
+                        name="directions-car"
+                        size={16}
+                        color={COLORS.GRAY}
+                      />
+                      <Text style={styles.confirmationVehicle}>
+                        {selectedDriver.carModel} -{" "}
+                        {selectedDriver.licensePlate}
+                      </Text>
+                    </View>
+                    <View style={styles.confirmationDriverDetails}>
+                      <MaterialIcons
+                        name="location-on"
+                        size={16}
+                        color={COLORS.GRAY}
+                      />
+                      <Text style={styles.confirmationRoute}>
+                        {fromLocation} → {toLocation}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                <View style={styles.confirmationPrice}>
+                  <Text style={styles.priceLabel}>Giá dự kiến:</Text>
+                  <Text style={styles.priceValue}>
+                    {formatVND(selectedDriver.price)}
+                  </Text>
+                </View>
+
+                <View style={styles.confirmationWarning}>
+                  <MaterialIcons name="info" size={20} color={COLORS.ORANGE} />
+                  <Text style={styles.confirmationWarningText}>
+                    Sau khi xác nhận, tài xế sẽ bắt đầu đến đón bạn. Vui lòng
+                    chuẩn bị và đảm bảo thông tin liên lạc chính xác.
+                  </Text>
+                </View>
+
+                <View style={styles.confirmationActions}>
+                  <TouchableOpacity
+                    style={[styles.confirmationBtn, styles.cancelBtn]}
+                    onPress={() => setIsConfirmationModalVisible(false)}
+                  >
+                    <Text style={styles.cancelBtnText}>Hủy</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.confirmationBtn, styles.confirmBtn]}
+                    onPress={handleConfirmDriverSelection}
+                  >
+                    <Text style={styles.confirmBtnText}>Ghép chuyến</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };

@@ -12,6 +12,7 @@ export default {
   user: {
     profile: "/users/me",
     update: "/users",
+    byId: (id) => `/users/${id}`,
   },
 
   vehicles: {
@@ -41,6 +42,14 @@ export default {
     create: "/vouchers",
     update: (id) => `/vouchers/${id}`,
     delete: (id) => `/vouchers/${id}`,
+  },
+
+  missions: {
+    available: "/missions/available",
+    myMissions: "/missions/my-missions",
+    accept: (id) => `/missions/${id}/accept`,
+    claim: (id) => `/missions/${id}/claim`,
+    stats: "/missions/stats",
   },
 
   upload: {

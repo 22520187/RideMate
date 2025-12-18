@@ -30,6 +30,7 @@ import {
   watchChannel,
   unwatchChannel,
 } from "../../../services/chatService";
+import { getProfile } from "../../../services/userService";
 
 const { width, height } = Dimensions.get("window");
 
@@ -127,14 +128,19 @@ const MatchedRideScreen = ({ navigation, route }) => {
       try {
         setLoadingChat(true);
 
-        // Assuming current user info is available in matchedRideData or navigation params
-        const currentUserId = matchedRideData.currentUserId;
+        // Get current user ID from API
+        const profileResp = await getProfile();
+        const currentUser = profileResp?.data?.data;
+        const currentUserId = currentUser?.id;
         const otherUserId = matchedRideData.isDriver
           ? matchedRideData.passengerId
           : matchedRideData.driverId;
 
         if (!currentUserId || !otherUserId) {
-          console.warn("Missing user IDs for chat initialization");
+          console.warn("Missing user IDs for chat initialization", {
+            currentUserId,
+            otherUserId,
+          });
           setLoadingChat(false);
           return;
         }

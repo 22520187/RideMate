@@ -29,6 +29,12 @@ import {
 import { useSharedPath } from "../../../hooks/useSharedPath";
 import { getProfile } from "../../../services/userService";
 import { getMyVehicle } from "../../../services/vehicleService";
+import {
+  broadcastAsDriver,
+  findMatches,
+  acceptMatch,
+  cancelMatch,
+} from "../../../services/matchService";
 
 const DriverRideScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
@@ -183,6 +189,12 @@ const DriverRideScreen = ({ navigation, route }) => {
   const [activeInput, setActiveInput] = useState(null); // 'from' or 'to'
   const [isPassengerModalVisible, setIsPassengerModalVisible] = useState(false);
   const [availablePassengers, setAvailablePassengers] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchTimeLeft, setSearchTimeLeft] = useState(60);
+  const [searchInterval, setSearchInterval] = useState(null);
+  const [isConfirmationModalVisible, setIsConfirmationModalVisible] =
+    useState(false);
+  const [selectedPassenger, setSelectedPassenger] = useState(null);
 
   // Update path để MatchedRideScreen dùng chung thông qua hook useSharedPath để lưu trữ
   useEffect(() => {
@@ -559,44 +571,83 @@ const DriverRideScreen = ({ navigation, route }) => {
         price: `${price.toLocaleString("vi-VN")}đ`,
       });
 
-      // Mock data for available passengers
-      const mockPassengers = [
-        {
-          id: 1,
-          name: "Nguyễn Văn A",
-          phone: "0901234567",
-          avatar: "https://i.pravatar.cc/150?img=12",
-          departureTime: "14:30",
-          from: "Bến Xe Giáp Bát",
-          to: toLocation,
-          rating: 4.8,
-          reviews: 23,
-        },
-        {
-          id: 2,
-          name: "Trần Thị B",
-          phone: "0901234568",
-          avatar: "https://i.pravatar.cc/150?img=13",
-          departureTime: "15:00",
-          from: "Nhà ga Hà Nội",
-          to: toLocation,
-          rating: 4.9,
-          reviews: 45,
-        },
-        {
-          id: 3,
-          name: "Lê Văn C",
-          phone: "0901234569",
-          avatar: "https://i.pravatar.cc/150?img=14",
-          departureTime: "15:30",
-          from: "Aeon Mall Long Biên",
-          to: toLocation,
-          rating: 4.7,
-          reviews: 18,
-        },
-      ];
-      setAvailablePassengers(mockPassengers);
+      // Broadcast as driver looking for passengers
+      try {
+        await broadcastAsDriver({
+          pickupAddress: fromLocation,
+          destinationAddress: toLocation,
+          pickupLatitude: originCoordinate.latitude,
+          pickupLongitude: originCoordinate.longitude,
+          destinationLatitude: destinationCoordinate.latitude,
+          destinationLongitude: destinationCoordinate.longitude,
+          estimatedPrice: price,
+        });
+      } catch (error) {
+        console.error("Broadcast error:", error);
+        Alert.alert("Lỗi", "Không thể broadcast tìm kiếm hành khách");
+        setIsLoadingDirections(false);
+        return;
+      }
+
+      // Start searching for passengers
+      setIsSearching(true);
+      setSearchTimeLeft(60);
       setIsPassengerModalVisible(true);
+
+      // Start polling for matches
+      const interval = setInterval(async () => {
+        setSearchTimeLeft((prev) => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            setIsSearching(false);
+            setIsPassengerModalVisible(false);
+            Alert.alert(
+              "Thông báo",
+              "Không tìm thấy hành khách nào trong thời gian quy định"
+            );
+            return 0;
+          }
+          return prev - 1;
+        });
+
+        try {
+          const response = await findMatches({
+            type: "driver",
+            pickupLatitude: originCoordinate.latitude,
+            pickupLongitude: originCoordinate.longitude,
+            destinationLatitude: destinationCoordinate.latitude,
+            destinationLongitude: destinationCoordinate.longitude,
+          });
+
+          const matches = response?.data?.data || [];
+          if (matches.length > 0) {
+            clearInterval(interval);
+            setIsSearching(false);
+            setAvailablePassengers(
+              matches.map((match) => ({
+                id: match.id,
+                name: match.passengerName,
+                phone: match.passengerPhone,
+                avatar:
+                  `https://randomuser.me/api/portraits/lego/1.jpg` ||
+                  match.passengerAvatar,
+                departureTime: new Date().toLocaleTimeString("vi-VN", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                }),
+                from: match.pickupAddress,
+                to: match.destinationAddress,
+                rating: match.passengerRating || 4.5,
+                reviews: match.passengerReviews || 10,
+              }))
+            );
+          }
+        } catch (error) {
+          console.error("Find matches error:", error);
+        }
+      }, 2000); // Poll every 2 seconds
+
+      setSearchInterval(interval);
       // Alert.alert('Đã tìm thấy hành khách!', `Có ${mockPassengers.length} người đang tìm đi cùng`)
     } catch (error) {
       console.error("Error getting directions:", error);
@@ -610,25 +661,53 @@ const DriverRideScreen = ({ navigation, route }) => {
   };
 
   const handleSelectPassenger = (passenger) => {
-    const durationMinutes = Math.round(
-      parseFloat(routeInfo.distance.replace(" km", "")) * 2.5
-    );
-    const distanceKm = parseFloat(routeInfo.distance.replace(" km", ""));
-    const price = calculatePrice(distanceKm);
-
-    navigation.navigate("MatchedRide", {
-      isDriver: true,
-      passengerName: passenger.name,
-      passengerPhone: passenger.phone,
-      passengerAvatar: passenger.avatar,
-      from: fromLocation,
-      to: toLocation,
-      departureTime: scheduledRide?.time || passenger.departureTime,
-      price: routeInfo.price,
-      duration: routeInfo.duration,
-      distance: routeInfo.distance,
-    });
+    setSelectedPassenger(passenger);
     setIsPassengerModalVisible(false);
+    setIsConfirmationModalVisible(true);
+  };
+
+  const handleConfirmPassengerSelection = async () => {
+    if (!selectedPassenger) return;
+
+    try {
+      const response = await acceptMatch(selectedPassenger.id);
+      const matchData = response?.data?.data; // Get the match response data
+
+      // Clear search interval
+      if (searchInterval) {
+        clearInterval(searchInterval);
+        setSearchInterval(null);
+      }
+
+      setIsConfirmationModalVisible(false);
+      setIsSearching(false);
+
+      const durationMinutes = Math.round(
+        parseFloat(routeInfo.distance.replace(" km", "")) * 2.5
+      );
+      const distanceKm = parseFloat(routeInfo.distance.replace(" km", ""));
+      const price = calculatePrice(distanceKm);
+
+      navigation.navigate("MatchedRide", {
+        isDriver: true,
+        passengerId: selectedPassenger.id, // Keep passenger ID for chat
+        passengerName: selectedPassenger.name,
+        passengerPhone: selectedPassenger.phone,
+        passengerAvatar: selectedPassenger.avatar,
+        rideId: matchData?.id || selectedPassenger.id, // Use real match ID if available
+        from: fromLocation,
+        to: toLocation,
+        departureTime: scheduledRide?.time || selectedPassenger.departureTime,
+        price: routeInfo.price,
+        duration: routeInfo.duration,
+        distance: routeInfo.distance,
+      });
+      setIsConfirmationModalVisible(false);
+    } catch (error) {
+      console.error("Accept match error:", error);
+      Alert.alert("Lỗi", "Không thể chấp nhận chuyến đi. Vui lòng thử lại.");
+      setIsConfirmationModalVisible(false);
+    }
   };
 
   return (
@@ -959,6 +1038,89 @@ const DriverRideScreen = ({ navigation, route }) => {
           </View>
         </View>
       </Modal>
+
+      {/* Confirmation Modal */}
+      <Modal
+        visible={isConfirmationModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setIsConfirmationModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View
+            style={[styles.confirmationModal, { paddingBottom: insets.bottom }]}
+          >
+            <View style={styles.confirmationHeader}>
+              <Text style={styles.confirmationTitle}>Xác nhận ghép chuyến</Text>
+              <TouchableOpacity
+                onPress={() => setIsConfirmationModalVisible(false)}
+                style={styles.closeBtn}
+              >
+                <MaterialIcons name="close" size={24} color={COLORS.GRAY} />
+              </TouchableOpacity>
+            </View>
+
+            {selectedPassenger && (
+              <View style={styles.confirmationContent}>
+                <View style={styles.confirmationPassengerCard}>
+                  <Image
+                    source={{ uri: selectedPassenger.avatar }}
+                    style={styles.confirmationAvatar}
+                  />
+                  <View style={styles.confirmationPassengerInfo}>
+                    <Text style={styles.confirmationPassengerName}>
+                      {selectedPassenger.name}
+                    </Text>
+                    <View style={styles.confirmationPassengerDetails}>
+                      <MaterialIcons
+                        name="phone"
+                        size={16}
+                        color={COLORS.GRAY}
+                      />
+                      <Text style={styles.confirmationPassengerPhone}>
+                        {selectedPassenger.phone}
+                      </Text>
+                    </View>
+                    <View style={styles.confirmationPassengerDetails}>
+                      <MaterialIcons
+                        name="location-on"
+                        size={16}
+                        color={COLORS.GRAY}
+                      />
+                      <Text style={styles.confirmationRoute}>
+                        {fromLocation} → {toLocation}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                <View style={styles.confirmationWarning}>
+                  <MaterialIcons name="info" size={20} color={COLORS.ORANGE} />
+                  <Text style={styles.confirmationWarningText}>
+                    Sau khi xác nhận, bạn sẽ bắt đầu chuyến đi với hành khách
+                    này. Vui lòng đảm bảo vị trí và thời gian phù hợp.
+                  </Text>
+                </View>
+
+                <View style={styles.confirmationActions}>
+                  <TouchableOpacity
+                    style={[styles.confirmationBtn, styles.cancelBtn]}
+                    onPress={() => setIsConfirmationModalVisible(false)}
+                  >
+                    <Text style={styles.cancelBtnText}>Hủy</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.confirmationBtn, styles.confirmBtn]}
+                    onPress={handleConfirmPassengerSelection}
+                  >
+                    <Text style={styles.confirmBtnText}>Ghép chuyến</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -1261,6 +1423,8 @@ const styles = StyleSheet.create({
     height: 50,
     borderRadius: 25,
     backgroundColor: COLORS.GRAY_LIGHT,
+    borderColor: COLORS.BLUE,
+    borderWidth: 2,
   },
   passengerInfo: {
     flex: 1,
@@ -1306,6 +1470,121 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.GREEN + "20",
     borderRadius: 20,
     padding: 4,
+  },
+  // Confirmation Modal Styles
+  confirmationModal: {
+    backgroundColor: COLORS.WHITE,
+    margin: 20,
+    borderRadius: 16,
+    // maxHeight: "80%",
+    shadowColor: COLORS.BLACK,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  confirmationHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.GRAY_LIGHT,
+  },
+  confirmationTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: COLORS.BLACK,
+  },
+  closeBtn: {
+    padding: 4,
+  },
+  confirmationContent: {
+    padding: 20,
+  },
+  confirmationPassengerCard: {
+    flexDirection: "row",
+    backgroundColor: COLORS.GRAY_LIGHT + "30",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+  },
+  confirmationAvatar: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: COLORS.GRAY_LIGHT,
+    borderColor: COLORS.BLUE,
+    borderWidth: 2,
+  },
+  confirmationPassengerInfo: {
+    flex: 1,
+    marginLeft: 16,
+  },
+  confirmationPassengerName: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: COLORS.BLACK,
+    marginBottom: 8,
+  },
+  confirmationPassengerDetails: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  confirmationPassengerPhone: {
+    fontSize: 14,
+    color: COLORS.GRAY,
+    marginLeft: 6,
+  },
+  confirmationRoute: {
+    fontSize: 14,
+    color: COLORS.GRAY,
+    marginLeft: 6,
+    flex: 1,
+  },
+  confirmationWarning: {
+    flexDirection: "row",
+    backgroundColor: COLORS.ORANGE + "10",
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 20,
+    borderLeftWidth: 4,
+    borderLeftColor: COLORS.ORANGE,
+  },
+  confirmationWarningText: {
+    fontSize: 14,
+    color: COLORS.BLACK,
+    marginLeft: 8,
+    flex: 1,
+    lineHeight: 20,
+  },
+  confirmationActions: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  confirmationBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cancelBtn: {
+    backgroundColor: COLORS.GRAY_LIGHT,
+  },
+  cancelBtnText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: COLORS.GRAY,
+  },
+  confirmBtn: {
+    backgroundColor: COLORS.GREEN,
+  },
+  confirmBtnText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: COLORS.WHITE,
   },
 });
 

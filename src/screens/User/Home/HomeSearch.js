@@ -34,15 +34,20 @@ export const HomeSearch = () => {
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [isGettingLocation, setIsGettingLocation] = useState(false);
 
-  // Debounce search query
   const debouncedQuery = useDebounce(searchQuery, 1000);
 
-  // Load search history on mount
-  useEffect(() => {
-    loadSearchHistory();
-  }, []);
+  useFocusEffect(
+    React.useCallback(() => {
+      setSearchQuery('');
+      setSuggestions([]);
+      setIsLoading(false);
+      loadSearchHistory();
+      
+      return () => {
+      };
+    }, [])
+  );
 
-  // Search places when debounced query changes
   useEffect(() => {
     if (debouncedQuery && debouncedQuery.length >= 2) {
       performSearch(debouncedQuery);
@@ -82,7 +87,7 @@ export const HomeSearch = () => {
   };
 
   const handleHistorySelect = async (historyItem) => {
-    setSearchQuery(historyItem.description);
+    setSelectedLocation(historyItem);
     await saveSearchHistory(historyItem);
     await loadSearchHistory();
     setShowRoleModal(true);
@@ -190,13 +195,33 @@ export const HomeSearch = () => {
         </Text>
       </View>
       <TouchableOpacity
-        onPress={() => handleRemoveHistoryItem(item.placeId)}
-        style={styles.removeButton}
+        style={styles.historyItem}
+        onPress={() => handleHistorySelect(item)}
+        activeOpacity={0.7}
       >
-        <MaterialIcons name="close" size={16} color={COLORS.GRAY} />
+        <MaterialIcons 
+          name="history" 
+          size={20} 
+          color={COLORS.GRAY} 
+          style={styles.historyIcon}
+        />
+        <View style={styles.historyContent}>
+          <Text style={styles.historyText} numberOfLines={1}>
+            {item.description}
+          </Text>
+          <Text style={styles.historyCoords}>
+            {item.latitude.toFixed(4)}, {item.longitude.toFixed(4)}
+          </Text>
+        </View>
+        <TouchableOpacity
+          onPress={() => handleRemoveHistoryItem(item.placeId)}
+          style={styles.removeButton}
+        >
+          <MaterialIcons name="close" size={16} color={COLORS.GRAY} />
+        </TouchableOpacity>
       </TouchableOpacity>
-    </TouchableOpacity>
-  );
+    );
+  };
 
   const renderSuggestionItem = ({ item }) => (
     <TouchableOpacity
@@ -288,13 +313,15 @@ export const HomeSearch = () => {
               <Text style={styles.sectionTitle}>Lịch sử tìm kiếm</Text>
             </View>
             {searchHistory.length > 0 ? (
-              <FlatList
-                data={searchHistory}
-                renderItem={renderHistoryItem}
-                keyExtractor={(item) => item.placeId}
-                showsVerticalScrollIndicator={false}
-                style={styles.historyList}
-              />
+              <>
+                <FlatList
+                  data={searchHistory}
+                  renderItem={renderHistoryItem}
+                  keyExtractor={(item, index) => item.placeId || `history-${index}`}
+                  showsVerticalScrollIndicator={false}
+                  style={styles.historyList}
+                />
+              </>
             ) : (
               <View style={styles.emptyState}>
                 <MaterialIcons
@@ -428,6 +455,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   historySection: {
+    flex: 1,
     paddingTop: 20,
   },
   sectionHeader: {
@@ -477,6 +505,7 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   resultsSection: {
+    flex: 1,
     paddingTop: 20,
     zIndex: 1000,
   },

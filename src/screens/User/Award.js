@@ -37,7 +37,6 @@ const Award = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Force refresh SafeArea khi app resume từ background
   useEffect(() => {
     const handleAppStateChange = (nextAppState) => {
       if (nextAppState === "active") {
