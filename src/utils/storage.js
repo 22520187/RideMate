@@ -44,6 +44,50 @@ export async function getRefreshToken() {
   }
 }
 
+// User type helpers
+const USER_TYPE_KEY = "userType";
+const USER_DATA_KEY = "userData";
+
+// Lưu user type (ADMIN, DRIVER, PASSENGER)
+export async function saveUserType(userType) {
+  try {
+    await SecureStore.setItemAsync(USER_TYPE_KEY, userType);
+  } catch (error) {
+    console.error("Error saving user type:", error);
+  }
+}
+
+// Lấy user type
+export async function getUserType() {
+  try {
+    const userType = await SecureStore.getItemAsync(USER_TYPE_KEY);
+    return userType;
+  } catch (error) {
+    console.error("Error getting user type:", error);
+    return null;
+  }
+}
+
+// Lưu user data (id, fullName, etc.)
+export async function saveUserData(userData) {
+  try {
+    await SecureStore.setItemAsync(USER_DATA_KEY, JSON.stringify(userData));
+  } catch (error) {
+    console.error("Error saving user data:", error);
+  }
+}
+
+// Lấy user data
+export async function getUserData() {
+  try {
+    const userDataString = await SecureStore.getItemAsync(USER_DATA_KEY);
+    return userDataString ? JSON.parse(userDataString) : null;
+  } catch (error) {
+    console.error("Error getting user data:", error);
+    return null;
+  }
+}
+
 // Xoá access token (khi logout)
 export async function clearToken() {
   try {
@@ -58,6 +102,8 @@ export async function clearTokens() {
   try {
     await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
     await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+    await SecureStore.deleteItemAsync(USER_TYPE_KEY);
+    await SecureStore.deleteItemAsync(USER_DATA_KEY);
   } catch (error) {
     console.error("Error clearing tokens:", error);
   }

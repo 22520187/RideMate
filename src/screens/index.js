@@ -1,4 +1,5 @@
 const SCREENS = {
+  ONBOARDING: "Onboarding",
   LOGIN: "Login",
   PHONE_VERIFICATION: "PhoneVerification",
   REGISTER_COMPLETE: "RegisterComplete",
@@ -16,6 +17,7 @@ const SCREENS = {
   MEMBER_DETAIL: "MemberDetail",
   VOUCHER: "Voucher",
   MISSION: "Mission",
+  RIDE_HISTORY: "RideHistory",
   ADMIN_STACK: "AdminStack",
   ADMIN_DASHBOARD: "AdminDashboard",
   ADMIN_TRIP_MANAGEMENT: "AdminTripManagement",

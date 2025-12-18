@@ -8,7 +8,7 @@ import {
   FlatList,
   AppState,
   Dimensions,
-  Modal,
+  ActivityIndicator,
   Image,
 } from "react-native";
 import {
@@ -16,23 +16,22 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
+import { Bell } from "lucide-react-native";
 import COLORS from "../../../constant/colors";
 import LocationSearch from "../../../components/LocationSearch";
 import RouteMap from "../../../components/RouteMap";
+import RadarScanning from "../../../components/RadarScanning";
 import { getCurrentLocation, reverseGeocode } from "../../../config/maps";
-import { searchPlaces as osmSearchPlaces } from "../../../utils/api";
-import {
-  broadcastAsPassenger,
-  findMatches,
-  acceptMatch,
-  cancelMatch,
-} from "../../../services/matchService";
-import { formatVND } from "../../../utils/utils";
-import AsyncStorageService from "../../../services/AsyncStorageService";
+import { searchPlaces as osmSearchPlaces, getRoute } from "../../../utils/api";
+import { getProfile } from "../../../services/userService";
 
 const PassengerRideScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // User profile state
+  const [userProfile, setUserProfile] = useState(null);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
 
   // Force refresh SafeArea khi app resume từ background
   useEffect(() => {
@@ -40,6 +39,7 @@ const PassengerRideScreen = ({ navigation, route }) => {
       if (nextAppState === "active") {
         // Force component re-render để refresh SafeArea insets
         setRefreshKey((prev) => prev + 1);
+        loadUserProfile(); // Reload profile khi app active
       }
     };
 
@@ -49,6 +49,34 @@ const PassengerRideScreen = ({ navigation, route }) => {
     );
     return () => subscription?.remove();
   }, []);
+
+  // Load user profile on mount
+  useEffect(() => {
+    loadUserProfile();
+  }, []);
+
+  // Load profile when screen focused
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("focus", () => {
+      loadUserProfile();
+    });
+    return unsubscribe;
+  }, [navigation]);
+
+  const loadUserProfile = async () => {
+    try {
+      setIsLoadingProfile(true);
+      const profileResp = await getProfile();
+      const profile = profileResp?.data;
+      setUserProfile(profile);
+    } catch (error) {
+      console.warn("Failed to load user profile:", error);
+      // Không hiển thị alert để không làm phiền user
+    } finally {
+      setIsLoadingProfile(false);
+    }
+  };
+
   const [fromLocation, setFromLocation] = useState("");
   const [toLocation, setToLocation] = useState("");
   const [originCoordinate, setOriginCoordinate] = useState(null);
@@ -57,14 +85,11 @@ const PassengerRideScreen = ({ navigation, route }) => {
   const [toSuggestions, setToSuggestions] = useState([]);
   const [routePath, setRoutePath] = useState([]);
   const [activeInput, setActiveInput] = useState(null); // 'from' or 'to'
-  const [isDriverModalVisible, setIsDriverModalVisible] = useState(false);
-  const [availableDrivers, setAvailableDrivers] = useState([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [searchTimeLeft, setSearchTimeLeft] = useState(60);
-  const [searchInterval, setSearchInterval] = useState(null);
-  const [isConfirmationModalVisible, setIsConfirmationModalVisible] =
-    useState(false);
-  const [selectedDriver, setSelectedDriver] = useState(null);
+  const [isGettingLocation, setIsGettingLocation] = useState(false);
+  const [shouldAnimateRoute, setShouldAnimateRoute] = useState(false); // Kiểm soát animation
+  const [routeDistance, setRouteDistance] = useState("0");
+  const [routeDuration, setRouteDuration] = useState("0");
+  const [isSearching, setIsSearching] = useState(false); // Trạng thái đang tìm tài xế
 
   // Xử lý destination từ params
   useEffect(() => {
@@ -79,6 +104,75 @@ const PassengerRideScreen = ({ navigation, route }) => {
       });
     }
   }, [route?.params?.destination]);
+
+  // Tính toán route, khoảng cách và thời gian khi có cả origin và destination
+  useEffect(() => {
+    const calculateRoute = async () => {
+      if (originCoordinate && destinationCoordinate) {
+        try {
+          console.log("🗺️ Calculating route...");
+          const path = await getRoute(originCoordinate, destinationCoordinate);
+
+          if (!path || path.length === 0) {
+            console.warn("⚠️ No route found");
+            Alert.alert(
+              "Không tìm thấy đường đi",
+              "Không thể tính toán lộ trình giữa hai điểm này. Vui lòng chọn địa điểm khác.",
+              [{ text: "OK" }]
+            );
+            setRoutePath([]);
+            setRouteDistance("0");
+            setRouteDuration("0");
+            return;
+          }
+
+          setRoutePath(path);
+
+          // Tính khoảng cách từ path
+          let distanceKm = 0;
+          for (let i = 1; i < path.length; i++) {
+            const a = path[i - 1];
+            const b = path[i];
+            const dLat = ((b.latitude - a.latitude) * Math.PI) / 180;
+            const dLon = ((b.longitude - a.longitude) * Math.PI) / 180;
+            const lat1 = (a.latitude * Math.PI) / 180;
+            const lat2 = (b.latitude * Math.PI) / 180;
+
+            const haversine =
+              Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(lat1) *
+                Math.cos(lat2) *
+                Math.sin(dLon / 2) *
+                Math.sin(dLon / 2);
+            const c =
+              2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+            distanceKm += 6371 * c; // Earth radius in km
+          }
+
+          // Tính thời gian (giả sử tốc độ trung bình 30km/h)
+          const durationMin = Math.ceil((distanceKm / 30) * 60);
+
+          setRouteDistance(distanceKm.toFixed(1));
+          setRouteDuration(durationMin.toString());
+
+          console.log(
+            `✅ Route calculated: ${distanceKm.toFixed(
+              1
+            )} km, ${durationMin} phút`
+          );
+        } catch (error) {
+          console.error("❌ Error calculating route:", error);
+        }
+      } else {
+        // Reset khi không có đủ tọa độ
+        setRoutePath([]);
+        setRouteDistance("0");
+        setRouteDuration("0");
+      }
+    };
+
+    calculateRoute();
+  }, [originCoordinate, destinationCoordinate]);
 
   // Tính toán chiều rộng cho suggestions
   const screenWidth = Dimensions.get("window").width;
@@ -177,16 +271,52 @@ const PassengerRideScreen = ({ navigation, route }) => {
       setToSuggestions([]);
     }
     setActiveInput(null);
-    setRoutePath([]);
+    // Không cần reset routePath vì useEffect sẽ tự động tính toán lại khi coordinates thay đổi
   };
 
   const handleGetCurrentLocation = async (type) => {
     try {
-      const currentLocation = await getCurrentLocation();
-      const address = await reverseGeocode(
-        currentLocation.latitude,
-        currentLocation.longitude
-      );
+      setIsGettingLocation(true);
+
+      // First, try to get current location with longer timeout (20 seconds)
+      let currentLocation;
+      try {
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Location timeout")), 20000)
+        );
+
+        currentLocation = await Promise.race([
+          getCurrentLocation(),
+          timeoutPromise,
+        ]);
+      } catch (locationError) {
+        console.error("❌ Failed to get location:", locationError.message);
+        Alert.alert(
+          "Lỗi",
+          locationError.message === "Location timeout"
+            ? "Lấy vị trí quá lâu. Vui lòng thử lại hoặc nhập địa chỉ thủ công."
+            : "Không thể lấy vị trí hiện tại. Vui lòng kiểm tra quyền truy cập vị trí."
+        );
+        return;
+      }
+
+      // Then, reverse geocode to get address
+      let address = "Vị trí hiện tại";
+      try {
+        const reverseGeoResult = await reverseGeocode(
+          currentLocation.latitude,
+          currentLocation.longitude
+        );
+        if (reverseGeoResult) {
+          address = reverseGeoResult;
+        }
+      } catch (geocodeError) {
+        console.warn("⚠️ Geocode failed, using coordinates:", geocodeError);
+        // Use coordinates if geocoding fails
+        address = `${currentLocation.latitude.toFixed(
+          4
+        )}, ${currentLocation.longitude.toFixed(4)}`;
+      }
 
       if (type === "from") {
         setFromLocation(address);
@@ -196,151 +326,107 @@ const PassengerRideScreen = ({ navigation, route }) => {
         setDestinationCoordinate(currentLocation);
       }
 
-      Alert.alert("Thành công", `Đã lấy vị trí hiện tại: ${address}`);
+      Alert.alert("Thành công", `Đã lấy vị trí: ${address}`);
     } catch (error) {
+      console.error("❌ Unexpected error:", error);
       Alert.alert(
         "Lỗi",
-        "Không thể lấy vị trí hiện tại. Vui lòng kiểm tra quyền truy cập vị trí."
+        "Có lỗi không mong muốn xảy ra. Vui lòng thử lại hoặc nhập địa chỉ thủ công.",
+        [{ text: "OK" }]
       );
+    } finally {
+      setIsGettingLocation(false);
     }
   };
 
   const handleSearchAsPassenger = async () => {
     if (!fromLocation || !toLocation) {
-      Alert.alert("Lỗi", "Vui lòng nhập đầy đủ điểm xuất phát và điểm đến");
+      Alert.alert(
+        "Thiếu thông tin",
+        "Vui lòng nhập đầy đủ điểm xuất phát và điểm đến để tìm chuyến đi.",
+        [{ text: "OK" }]
+      );
       return;
     }
     if (!originCoordinate || !destinationCoordinate) {
-      Alert.alert("Lỗi", "Vui lòng chọn địa điểm từ danh sách gợi ý");
+      Alert.alert(
+        "Thông tin không hợp lệ",
+        "Vui lòng chọn địa điểm từ danh sách gợi ý hoặc sử dụng nút lấy vị trí hiện tại.",
+        [{ text: "OK" }]
+      );
       return;
     }
 
-    // Broadcast as passenger looking for drivers
-    try {
-      await broadcastAsPassenger({
-        pickupAddress: fromLocation,
-        destinationAddress: toLocation,
-        pickupLatitude: originCoordinate.latitude,
-        pickupLongitude: originCoordinate.longitude,
-        destinationLatitude: destinationCoordinate.latitude,
-        destinationLongitude: destinationCoordinate.longitude,
-      });
-    } catch (error) {
-      console.error("Broadcast error:", error);
-      Alert.alert("Lỗi", "Không thể broadcast tìm kiếm tài xế");
+    // Validate route distance
+    if (routeDistance === "0" || !routePath || routePath.length === 0) {
+      Alert.alert(
+        "Chưa tính được lộ trình",
+        "Vui lòng đợi hệ thống tính toán lộ trình hoặc chọn lại địa điểm.",
+        [{ text: "OK" }]
+      );
       return;
     }
 
-    // Start searching for drivers
+    // Bắt đầu tìm kiếm - hiển thị radar animation
     setIsSearching(true);
-    setSearchTimeLeft(60);
-    setIsDriverModalVisible(true);
 
-    // Start polling for matches
-    const interval = setInterval(async () => {
-      setSearchTimeLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          setIsSearching(false);
-          setIsDriverModalVisible(false);
-          Alert.alert(
-            "Thông báo",
-            "Không tìm thấy tài xế nào trong thời gian quy định"
-          );
-          return 0;
-        }
-        return prev - 1;
-      });
+    // Giả lập tìm kiếm trong 3-5 giây
+    const searchTimeout = setTimeout(() => {
+      // Auto-match với chuyến đầu tiên sau khi tìm thấy
+      const matchedRide = availableRides[0]; // Lấy chuyến đầu tiên
 
-      try {
-        const response = await findMatches({
-          type: "passenger",
-          pickupLatitude: originCoordinate.latitude,
-          pickupLongitude: originCoordinate.longitude,
-          destinationLatitude: destinationCoordinate.latitude,
-          destinationLongitude: destinationCoordinate.longitude,
-        });
+      if (matchedRide) {
+        setIsSearching(false);
 
-        const matches = response?.data?.data || [];
-        if (matches.length > 0) {
-          clearInterval(interval);
-          setIsSearching(false);
-          setAvailableDrivers(
-            matches.map((match) => ({
-              id: match.id,
-              driverName: match.driverName,
-              rating: match.driverRating || 4.5,
-              carModel: match.vehicleModel || "Toyota Vios",
-              departureTime: new Date().toLocaleTimeString("vi-VN", {
-                hour: "2-digit",
-                minute: "2-digit",
-              }),
-              price: match.estimatedPrice || "25,000đ",
-              availableSeats: match.availableSeats || 2,
-              fromLocation: match.pickupAddress,
-              toLocation: match.destinationAddress,
-              licensePlate: match.licensePlate || `30A-${12345 + match.id}`,
-              driverPhone: match.driverPhone,
-              driverAvatar:
-                "https://randomuser.me/api/portraits/lego/1.jpg" ||
-                match.driverAvatar,
-            }))
-          );
-        }
-      } catch (error) {
-        console.error("Find matches error:", error);
+        // Hiển thị thông báo tìm thấy
+        Alert.alert(
+          "🎉 Tìm thấy tài xế!",
+          `${matchedRide.driverName} đang di chuyển đến điểm đón của bạn...`,
+          [
+            {
+              text: "OK",
+              onPress: () => {
+                // Navigate to MatchedRideScreen
+                navigation.navigate("MatchedRide", {
+                  isDriver: false,
+                  driverName: matchedRide.driverName,
+                  driverPhone: "0901234569",
+                  driverAvatar: `https://i.pravatar.cc/150?img=${
+                    matchedRide.id + 10
+                  }`,
+                  vehicleModel: matchedRide.carModel,
+                  licensePlate: `30A-${12345 + matchedRide.id}`,
+                  from: fromLocation,
+                  to: toLocation,
+                  // Truyền tọa độ thực tế đã chọn
+                  originCoordinate: originCoordinate,
+                  destinationCoordinate: destinationCoordinate,
+                  // Truyền vị trí thực của tài xế (giả lập cách pickup 0.5-1km)
+                  driverLocation: {
+                    latitude: originCoordinate.latitude - 0.008, // ~0.8km về phía nam
+                    longitude: originCoordinate.longitude - 0.006, // ~0.5km về phía tây
+                  },
+                  departureTime: matchedRide.departureTime,
+                  price: matchedRide.price,
+                  duration: `${routeDuration} phút`,
+                  distance: `${routeDistance} km`,
+                  rideId: matchedRide.id,
+                });
+              },
+            },
+          ]
+        );
+      } else {
+        setIsSearching(false);
+        Alert.alert(
+          "Thông báo",
+          `Không tìm thấy chuyến đi phù hợp từ ${fromLocation} đến ${toLocation}`
+        );
       }
-    }, 2000); // Poll every 2 seconds
+    }, 3000); // 3 giây tìm kiếm
 
-    setSearchInterval(interval);
-  };
-
-  const handleSelectDriver = (driver) => {
-    setSelectedDriver(driver);
-    setIsDriverModalVisible(false);
-    setIsConfirmationModalVisible(true);
-  };
-
-  const handleConfirmDriverSelection = async () => {
-    if (!selectedDriver) return;
-
-    try {
-      // For passengers accepting drivers, we need to send the passenger's ID (current user)
-      // since the passenger is the one who broadcast the ride request
-      const currentUserId = await AsyncStorageService.getUserId();
-      const response = await acceptMatch(currentUserId);
-      const matchData = response?.data?.data; // Get the match response data
-
-      // Clear search interval
-      if (searchInterval) {
-        clearInterval(searchInterval);
-        setSearchInterval(null);
-      }
-
-      setIsConfirmationModalVisible(false);
-      setIsSearching(false);
-
-      navigation.navigate("MatchedRide", {
-        isDriver: false,
-        driverId: selectedDriver.id, // Keep driver ID for chat
-        driverName: selectedDriver.driverName,
-        driverPhone: selectedDriver.driverPhone,
-        driverAvatar: selectedDriver.driverAvatar,
-        vehicleModel: selectedDriver.carModel,
-        licensePlate: selectedDriver.licensePlate,
-        rideId: matchData?.id || currentUserId, // Use real match ID if available
-        from: fromLocation,
-        to: toLocation,
-        departureTime: selectedDriver.departureTime,
-        price: selectedDriver.price,
-        duration: "30 phút",
-        distance: "12 km",
-      });
-    } catch (error) {
-      console.error("Accept match error:", error);
-      Alert.alert("Lỗi", "Không thể chấp nhận chuyến đi. Vui lòng thử lại.");
-      setIsConfirmationModalVisible(false);
-    }
+    // Cleanup nếu component unmount
+    return () => clearTimeout(searchTimeout);
   };
 
   return (
@@ -348,13 +434,19 @@ const PassengerRideScreen = ({ navigation, route }) => {
       <SafeAreaView key={refreshKey} style={styles.safeArea} edges={["top"]}>
         <View style={styles.header}>
           <TouchableOpacity
-            style={styles.backBtn}
+            style={styles.backButton}
             onPress={() => navigation.goBack()}
           >
-            <MaterialIcons name="arrow-back" size={24} color={COLORS.BLACK} />
+            <MaterialIcons name="arrow-back" size={24} color="#004553" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Tìm chuyến đi</Text>
-          <View style={styles.headerSpacer} />
+          <TouchableOpacity
+            style={styles.notificationButton}
+            onPress={() => navigation.navigate("Notification")}
+          >
+            <Bell size={22} color="#004553" />
+            <View style={styles.notificationDot} />
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
 
@@ -366,152 +458,161 @@ const PassengerRideScreen = ({ navigation, route }) => {
           showRoute={true}
           path={routePath}
           fullScreen={true}
+          startAnimation={false}
+          showVehicle={false}
         />
 
+        {/* Radar Scanning Overlay khi đang tìm kiếm */}
+        {isSearching && (
+          <View style={styles.searchingOverlay}>
+            <View style={styles.searchingContent}>
+              <RadarScanning size={250} />
+              <Text style={styles.searchingText}>Đang tìm tài xế...</Text>
+              <Text style={styles.searchingSubtext}>
+                Vui lòng chờ trong giây lát
+              </Text>
+            </View>
+          </View>
+        )}
+
         <View style={styles.overlayContainer} pointerEvents="box-none">
-          <View style={styles.topControls} pointerEvents="box-none">
-            <View style={styles.inputContainerWrapper} pointerEvents="auto">
-              <View style={styles.inputContainer}>
-                <View style={styles.locationRow}>
-                  <View style={styles.locationSearchWrapper}>
-                    <LocationSearch
-                      placeholder="Điểm xuất phát"
-                      value={fromLocation}
-                      onChangeText={handleChangeFromText}
-                      onLocationSelect={(location) =>
-                        handleLocationSelect(location, "from")
-                      }
-                      iconName="my-location"
-                      containerWidth={suggestionsWidth}
-                    />
-                  </View>
-                  <TouchableOpacity
-                    style={styles.currentLocationBtn}
-                    onPress={() => handleGetCurrentLocation("from")}
-                  >
+          {/* Chỉ hiển thị input khi KHÔNG đang searching */}
+          {!isSearching && (
+            <View style={styles.topControls} pointerEvents="box-none">
+              <View style={styles.inputContainerWrapper} pointerEvents="auto">
+                <View style={styles.inputContainer}>
+                  <View style={styles.locationInputRow}>
                     <MaterialIcons
-                      name="my-location"
-                      size={16}
-                      color={COLORS.WHITE}
+                      name="radio-button-checked"
+                      size={20}
+                      color={COLORS.PRIMARY}
+                      style={styles.locationIcon}
                     />
-                    <Text style={styles.currentLocationText}>Hiện tại</Text>
-                  </TouchableOpacity>
-                </View>
-                <View style={styles.locationRowTo}>
-                  <View style={styles.locationSearchWrapper}>
-                    <LocationSearch
-                      placeholder="Điểm đến"
-                      value={toLocation}
-                      onChangeText={handleChangeToText}
-                      onLocationSelect={(location) =>
-                        handleLocationSelect(location, "to")
-                      }
-                      iconName="place"
-                      containerWidth="100%"
+                    <View style={styles.inputWrapper}>
+                      <LocationSearch
+                        placeholder="Điểm xuất phát"
+                        value={fromLocation}
+                        onChangeText={handleChangeFromText}
+                        onLocationSelect={(location) =>
+                          handleLocationSelect(location, "from")
+                        }
+                        iconName=""
+                        containerWidth="100%"
+                        showClearButton={false}
+                      />
+                    </View>
+                    {fromLocation ? (
+                      <TouchableOpacity
+                        style={styles.clearBtn}
+                        onPress={() => {
+                          setFromLocation("");
+                          setOriginCoordinate(null);
+                          setShouldAnimateRoute(false); // Reset animation
+                        }}
+                      >
+                        <MaterialIcons
+                          name="close"
+                          size={20}
+                          color={COLORS.GRAY}
+                        />
+                      </TouchableOpacity>
+                    ) : (
+                      <TouchableOpacity
+                        style={styles.currentLocationBtn}
+                        onPress={() => handleGetCurrentLocation("from")}
+                        disabled={isGettingLocation}
+                      >
+                        {isGettingLocation ? (
+                          <ActivityIndicator
+                            size="small"
+                            color={COLORS.PRIMARY}
+                          />
+                        ) : (
+                          <View style={styles.locationIconWrapper}>
+                            <MaterialIcons
+                              name="my-location"
+                              size={18}
+                              color={COLORS.PRIMARY}
+                            />
+                            <Text style={styles.locationButtonLabel}>
+                              Vị trí hiện tại
+                            </Text>
+                          </View>
+                        )}
+                      </TouchableOpacity>
+                    )}
+                  </View>
+
+                  <View style={styles.locationInputRow}>
+                    <MaterialIcons
+                      name="place"
+                      size={20}
+                      color={COLORS.PRIMARY}
+                      style={styles.locationIcon}
                     />
+                    <View style={styles.inputWrapper}>
+                      <LocationSearch
+                        placeholder="Điểm đến"
+                        value={toLocation}
+                        onChangeText={handleChangeToText}
+                        onLocationSelect={(location) =>
+                          handleLocationSelect(location, "to")
+                        }
+                        iconName=""
+                        containerWidth="100%"
+                        showClearButton={false}
+                      />
+                    </View>
+                    {toLocation ? (
+                      <TouchableOpacity
+                        style={styles.clearBtn}
+                        onPress={() => {
+                          setToLocation("");
+                          setDestinationCoordinate(null);
+                          setShouldAnimateRoute(false); // Reset animation
+                        }}
+                      >
+                        <MaterialIcons
+                          name="close"
+                          size={20}
+                          color={COLORS.GRAY}
+                        />
+                      </TouchableOpacity>
+                    ) : null}
                   </View>
                 </View>
               </View>
             </View>
-          </View>
+          )}
 
-          <View style={styles.bottomControls}>
-            <View style={styles.searchSection}>
-              <TouchableOpacity
-                style={styles.searchBtn}
-                onPress={handleSearchAsPassenger}
-              >
-                <MaterialIcons name="search" size={20} color={COLORS.WHITE} />
-                <Text style={styles.searchBtnText}>Tìm chuyến đi</Text>
-              </TouchableOpacity>
-
-              {/* <Text style={styles.listTitle}>
-                {(fromLocation && toLocation) 
-                  ? `Chuyến đi từ ${fromLocation} đến ${toLocation}`
-                  : 'Các chuyến đi có sẵn'}
-              </Text> */}
-            </View>
-
-            <FlatList
-              data={availableRides}
-              renderItem={({ item }) => (
-                <TouchableOpacity style={styles.rideCard}>
-                  <View style={styles.rideHeader}>
-                    <View style={styles.driverInfo}>
-                      <Text style={styles.driverName}>{item.driverName}</Text>
-                      <View style={styles.driverRating}>
-                        <MaterialIcons
-                          name="star"
-                          size={16}
-                          color={COLORS.ORANGE_DARK}
-                        />
-                        <Text style={styles.ratingText}>{item.rating}</Text>
-                      </View>
-                    </View>
-                    <Text style={styles.price}>{item.price}</Text>
-                  </View>
-                  <View style={styles.rideDetails}>
-                    <Text style={styles.carModel}>{item.carModel}</Text>
-                    <Text style={styles.seatsInfo}>
-                      Còn {item.availableSeats} chỗ trống
+          {/* Chỉ hiển thị info card khi KHÔNG đang searching */}
+          {!isSearching && (
+            <View style={styles.bottomControls} pointerEvents="auto">
+              <View style={styles.infoCard}>
+                <View style={styles.infoRow}>
+                  <View style={styles.infoItem}>
+                    <Text style={styles.infoLabel}>Khoảng cách</Text>
+                    <Text style={styles.infoValue}>
+                      {routeDistance} <Text style={styles.infoUnit}>km</Text>
                     </Text>
                   </View>
-                  <View style={styles.routeInfo}>
-                    <MaterialIcons
-                      name="radio-button-checked"
-                      size={16}
-                      color={COLORS.GREEN}
-                    />
-                    <Text style={styles.routeText}>{item.fromLocation}</Text>
-                  </View>
-                  <View style={styles.routeInfo}>
-                    <MaterialIcons name="place" size={16} color={COLORS.RED} />
-                    <Text style={styles.routeText}>{item.toLocation}</Text>
-                  </View>
-                  <View style={styles.timeContainer}>
-                    <MaterialIcons
-                      name="access-time"
-                      size={16}
-                      color={COLORS.BLUE}
-                    />
-                    <Text style={styles.timeText}>
-                      Khởi hành lúc {item.departureTime}
+                  <View style={styles.infoItem}>
+                    <Text style={styles.infoLabel}>Thời gian dự kiến</Text>
+                    <Text style={styles.infoValue}>
+                      {routeDuration} <Text style={styles.infoUnit}>phút</Text>
                     </Text>
                   </View>
-                  <TouchableOpacity
-                    style={styles.joinBtn}
-                    onPress={() => {
-                      navigation.navigate("MatchedRide", {
-                        isDriver: false,
-                        driverName: item.driverName,
-                        driverPhone: "0901234569",
-                        driverAvatar: `https://i.pravatar.cc/150?img=${
-                          item.id + 10
-                        }`,
-                        vehicleModel: item.carModel,
-                        licensePlate: `30A-${12345 + item.id}`,
-                        from: fromLocation || item.fromLocation,
-                        to: toLocation || item.toLocation,
-                        departureTime: item.departureTime,
-                        price: item.price,
-                        duration: "30 phút",
-                        distance: "12 km",
-                        rideId: item.id,
-                      });
-                    }}
-                  >
-                    <Text style={styles.joinBtnText}>Tham gia chuyến đi</Text>
-                  </TouchableOpacity>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.nextBtn}
+                  onPress={handleSearchAsPassenger}
+                >
+                  <Text style={styles.nextBtnText}>Next</Text>
                 </TouchableOpacity>
-              )}
-              keyExtractor={(item) => item.id.toString()}
-              showsVerticalScrollIndicator={true}
-              contentContainerStyle={[
-                styles.ridesListContent,
-                { paddingBottom: insets.bottom },
-              ]}
-            />
-          </View>
+              </View>
+            </View>
+          )}
         </View>
       </View>
 
@@ -728,32 +829,62 @@ const PassengerRideScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BG,
+    backgroundColor: "#E8F5F3",
   },
   safeArea: {
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: "#FFFFFF",
     zIndex: 1000,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingVertical: 15,
-    backgroundColor: COLORS.WHITE,
+    paddingVertical: 16,
+    backgroundColor: "#FFFFFF",
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.GRAY_LIGHT,
+    borderBottomColor: "#F0F0F0",
   },
-  backBtn: {
-    marginRight: 15,
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#F8F9FA",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: "600",
-    color: COLORS.BLACK,
+    fontWeight: "700",
+    color: "#004553",
     flex: 1,
+    textAlign: "center",
+    marginHorizontal: 12,
   },
-  headerSpacer: {
-    width: 39,
+  notificationButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#F8F9FA",
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
+  },
+  notificationDot: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#FF3B30",
+    borderWidth: 1.5,
+    borderColor: "#FFFFFF",
   },
   contentArea: {
     flex: 1,
@@ -765,452 +896,162 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    zIndex: 100,
+    zIndex: 9999,
     justifyContent: "space-between",
   },
   topControls: {
     paddingHorizontal: 15,
-    paddingTop: 10,
-    zIndex: 3000,
+    paddingTop: 15,
+    zIndex: 10000,
   },
   bottomControls: {
     paddingHorizontal: 15,
-    paddingBottom: 15,
-    paddingTop: 10,
-    maxHeight: "50%",
-    backgroundColor: "transparent",
-  },
-  searchSection: {
-    marginBottom: 10,
+    paddingBottom: 20,
   },
   inputContainerWrapper: {
     position: "relative",
   },
   inputContainer: {
     backgroundColor: COLORS.WHITE,
-    borderRadius: 12,
-    padding: 15,
-    elevation: 5,
-    shadowColor: COLORS.BLACK,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
+    borderRadius: 24,
+    padding: 22,
+    elevation: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(0, 69, 83, 0.06)",
   },
-  suggestionsContainer: {
-    backgroundColor: COLORS.WHITE,
-    borderRadius: 10,
-    marginTop: 8,
-    elevation: 20,
-    shadowColor: COLORS.BLACK,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    maxHeight: 200,
-  },
-  suggestionsList: {
-    maxHeight: 200,
-  },
-  suggestionItem: {
+  locationInputRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.GRAY_LIGHT,
+    borderBottomColor: "#F0F0F0",
   },
-  suggestionContent: {
+  locationIcon: {
+    marginRight: 12,
+  },
+  inputWrapper: {
     flex: 1,
+  },
+  clearBtn: {
+    padding: 4,
     marginLeft: 8,
-  },
-  suggestionTitle: {
-    fontSize: 13,
-    color: COLORS.BLACK,
-    fontWeight: "500",
-  },
-  locationRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    marginBottom: 10,
-  },
-  locationRowTo: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    marginRight: 80,
-  },
-  locationSearchWrapper: {
-    flex: 1,
   },
   currentLocationBtn: {
-    backgroundColor: COLORS.PRIMARY,
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    padding: 6,
+    marginLeft: 8,
+  },
+  locationIconWrapper: {
     flexDirection: "row",
     alignItems: "center",
-    marginLeft: 8,
-    width: 72,
-    justifyContent: "center",
-    marginTop: 5,
+    gap: 4,
   },
-  currentLocationText: {
-    color: COLORS.WHITE,
+  locationButtonLabel: {
     fontSize: 11,
-    fontWeight: "600",
+    color: COLORS.PRIMARY,
+    fontWeight: "500",
     marginLeft: 4,
   },
-  searchBtn: {
-    backgroundColor: COLORS.PRIMARY,
-    borderRadius: 12,
-    padding: 15,
+  infoCard: {
+    backgroundColor: COLORS.WHITE,
+    borderRadius: 28,
+    padding: 28,
+    elevation: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(0, 69, 83, 0.08)",
+  },
+  infoRow: {
     flexDirection: "row",
+    justifyContent: "space-around",
+    marginBottom: 28,
+    paddingVertical: 8,
+  },
+  infoItem: {
+    flex: 1,
+    alignItems: "center",
+    paddingHorizontal: 8,
+  },
+  infoLabel: {
+    fontSize: 12,
+    color: "#8E8E93",
+    marginBottom: 10,
+    fontWeight: "600",
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
+  },
+  infoValue: {
+    fontSize: 32,
+    fontWeight: "800",
+    color: "#004553",
+    letterSpacing: -0.5,
+  },
+  infoUnit: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#8E8E93",
+    marginLeft: 2,
+  },
+  nextBtn: {
+    backgroundColor: "#004553",
+    borderRadius: 20,
+    paddingVertical: 20,
+    alignItems: "center",
+    elevation: 8,
+    shadowColor: "#004553",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    overflow: "hidden",
+  },
+  nextBtnText: {
+    color: COLORS.WHITE,
+    fontSize: 17,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
+  searchingOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
     justifyContent: "center",
     alignItems: "center",
-    elevation: 5,
-    shadowColor: COLORS.BLACK,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    marginBottom: 10,
+    zIndex: 9999,
   },
-  searchBtnText: {
-    color: COLORS.WHITE,
-    fontSize: 16,
-    fontWeight: "bold",
-    marginLeft: 10,
-  },
-  ridesListContent: {
-    paddingBottom: 20,
-  },
-  listTitle: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: COLORS.BLACK,
-    marginBottom: 10,
+  searchingContent: {
+    alignItems: "center",
     backgroundColor: COLORS.WHITE,
-    padding: 10,
-    borderRadius: 10,
-    elevation: 3,
-    shadowColor: COLORS.BLACK,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-  },
-  rideCard: {
-    backgroundColor: COLORS.WHITE,
-    borderRadius: 12,
-    padding: 15,
-    marginBottom: 10,
-    elevation: 3,
-    shadowColor: COLORS.BLACK,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  rideHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  driverInfo: {
-    flex: 1,
-  },
-  driverName: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: COLORS.BLACK,
-    marginBottom: 4,
-  },
-  driverRating: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  ratingText: {
-    fontSize: 13,
-    color: COLORS.BLACK,
-    marginLeft: 5,
-    fontWeight: "500",
-  },
-  price: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: COLORS.PRIMARY,
-  },
-  rideDetails: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 12,
-  },
-  carModel: {
-    fontSize: 14,
-    color: COLORS.BLACK,
-    fontWeight: "500",
-  },
-  seatsInfo: {
-    fontSize: 13,
-    color: COLORS.BLUE,
-    fontWeight: "500",
-  },
-  routeInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 6,
-  },
-  routeText: {
-    fontSize: 13,
-    color: COLORS.BLACK,
-    marginLeft: 8,
-  },
-  timeContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 8,
-    marginBottom: 12,
-  },
-  timeText: {
-    fontSize: 13,
-    color: COLORS.BLUE,
-    fontWeight: "600",
-    marginLeft: 8,
-  },
-  joinBtn: {
-    backgroundColor: COLORS.PRIMARY,
-    borderRadius: 10,
-    padding: 12,
-    alignItems: "center",
-  },
-  joinBtnText: {
-    color: COLORS.WHITE,
-    fontSize: 14,
-    fontWeight: "bold",
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "flex-end",
-  },
-  modalContainer: {
-    backgroundColor: COLORS.WHITE,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: "70%",
-    minHeight: "40%",
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.GRAY_LIGHT,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: COLORS.BLACK,
-  },
-  modalSubtitle: {
-    fontSize: 14,
-    color: COLORS.GRAY,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-  },
-  driversList: {
-    paddingHorizontal: 20,
-  },
-  driverCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: COLORS.BG,
-    borderRadius: 12,
-    padding: 15,
-    marginBottom: 10,
-  },
-  driverAvatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    marginRight: 15,
-    borderColor: COLORS.BLUE,
-    borderWidth: 2,
-  },
-  driverInfo: {
-    flex: 1,
-  },
-  driverName: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: COLORS.BLACK,
-    marginBottom: 4,
-  },
-  driverDetails: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 2,
-  },
-  driverPhone: {
-    fontSize: 12,
-    color: COLORS.GRAY,
-    marginLeft: 4,
-  },
-  driverRating: {
-    fontSize: 12,
-    color: COLORS.ORANGE_DARK,
-    marginLeft: 4,
-  },
-  driverReviews: {
-    fontSize: 12,
-    color: COLORS.GRAY,
-    marginLeft: 4,
-  },
-  carInfo: {
-    fontSize: 12,
-    color: COLORS.BLUE,
-    marginTop: 4,
-  },
-  driverActions: {
-    alignItems: "center",
-  },
-  selectBtn: {
-    marginTop: 5,
-  },
-  // Confirmation Modal Styles
-  confirmationModal: {
-    backgroundColor: COLORS.WHITE,
-    margin: 20,
-    borderRadius: 16,
-    shadowColor: COLORS.BLACK,
-    shadowOffset: { width: 0, height: 4 },
+    borderRadius: 32,
+    padding: 48,
+    elevation: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 10,
+    shadowRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(0, 69, 83, 0.08)",
   },
-  confirmationHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.GRAY_LIGHT,
+  searchingText: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#004553",
+    marginTop: 28,
+    letterSpacing: 0.3,
   },
-  confirmationTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: COLORS.BLACK,
-  },
-  closeBtn: {
-    padding: 4,
-  },
-  confirmationContent: {
-    padding: 20,
-  },
-  confirmationDriverCard: {
-    flexDirection: "row",
-    backgroundColor: COLORS.GRAY_LIGHT + "30",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
-  },
-  confirmationAvatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: COLORS.GRAY_LIGHT,
-    borderColor: COLORS.BLUE,
-    borderWidth: 2,
-  },
-  confirmationDriverInfo: {
-    flex: 1,
-    marginLeft: 16,
-  },
-  confirmationDriverName: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: COLORS.BLACK,
-    marginBottom: 8,
-  },
-  confirmationDriverDetails: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 4,
-  },
-  confirmationDriverPhone: {
-    fontSize: 14,
-    color: COLORS.GRAY,
-    marginLeft: 6,
-  },
-  confirmationVehicle: {
-    fontSize: 14,
-    color: COLORS.GRAY,
-    marginLeft: 6,
-    flex: 1,
-  },
-  confirmationRoute: {
-    fontSize: 14,
-    color: COLORS.GRAY,
-    marginLeft: 6,
-    flex: 1,
-  },
-  confirmationPrice: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    backgroundColor: COLORS.GREEN + "10",
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 20,
-  },
-  priceLabel: {
-    fontSize: 16,
-    color: COLORS.BLACK,
+  searchingSubtext: {
+    fontSize: 15,
+    color: "#8E8E93",
+    marginTop: 10,
     fontWeight: "500",
-  },
-  priceValue: {
-    fontSize: 18,
-    color: COLORS.GREEN,
-    fontWeight: "600",
-  },
-  confirmationWarning: {
-    flexDirection: "row",
-    backgroundColor: COLORS.ORANGE + "10",
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 20,
-    borderLeftWidth: 4,
-    borderLeftColor: COLORS.ORANGE,
-  },
-  confirmationWarningText: {
-    fontSize: 14,
-    color: COLORS.BLACK,
-    marginLeft: 8,
-    flex: 1,
-    lineHeight: 20,
-  },
-  confirmationActions: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  confirmationBtn: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 8,
-    alignItems: "center",
-  },
-  cancelBtn: {
-    backgroundColor: COLORS.GRAY_LIGHT,
-  },
-  cancelBtnText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.GRAY,
-  },
-  confirmBtn: {
-    backgroundColor: COLORS.GREEN,
-  },
-  confirmBtnText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.WHITE,
   },
 });
 

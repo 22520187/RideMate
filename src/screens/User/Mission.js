@@ -1,743 +1,426 @@
-import React, { useState, useEffect } from 'react'
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  ScrollView, 
-  TouchableOpacity, 
-  Image,
-  Dimensions,
+import React, { useState, useEffect, useCallback } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
   FlatList,
+  TouchableOpacity,
   ActivityIndicator,
+  RefreshControl,
   Alert,
-  RefreshControl
-} from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
-import { 
-  ArrowLeft, 
-  Gift, 
-  Star, 
-  CheckCircle, 
-  Clock, 
-  Car, 
-  MessageCircle, 
-  Users,
-  Award,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  ArrowLeft,
+  Gift,
+  Star,
+  CheckCircle,
+  Calendar,
   Target,
   TrendingUp,
-  Calendar
-} from 'lucide-react-native'
-import COLORS from '../../constant/colors'
-import { getMyMissions, claimMissionReward, getMissionStats } from '../../services/missionService'
-import { getProfile } from '../../services/userService'
-
-const { width } = Dimensions.get('window')
+  Award,
+} from "lucide-react-native";
+import COLORS from "../../constant/colors";
+import {
+  getAvailableMissions,
+  getMyMissions,
+  acceptMission,
+  claimMissionReward,
+  getMissionStats,
+} from "../../services/missionService";
 
 const Mission = ({ navigation }) => {
-  const [userPoints, setUserPoints] = useState(0)
-  const [missions, setMissions] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
-  const [stats, setStats] = useState(null)
+  const [userPoints, setUserPoints] = useState(0);
+  const [availableMissions, setAvailableMissions] = useState([]);
+  const [myMissions, setMyMissions] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [tab, setTab] = useState("available"); // 'available' | 'my'
+  const [stats, setStats] = useState({ completed: 0, unclaimedRewards: 0 });
 
-  // Load data from API
-  const loadData = async () => {
+  const loadAll = useCallback(async () => {
     try {
-      const [missionsResponse, profileResponse] = await Promise.all([
+      setLoading(true);
+      const [availRes, myRes, statsRes] = await Promise.all([
+        getAvailableMissions(),
         getMyMissions(),
-        getProfile()
-      ])
+        getMissionStats(),
+      ]);
 
-      // Handle nested response structure: response.data.data
-      if (missionsResponse?.data?.data && Array.isArray(missionsResponse.data.data)) {
-        setMissions(missionsResponse.data.data)
-      } else if (missionsResponse?.data && Array.isArray(missionsResponse.data)) {
-        // Handle case where data is not nested
-        setMissions(missionsResponse.data)
-      } else {
-        console.log('Missions response has no data array')
-        setMissions([])
+      if (availRes?.data) setAvailableMissions(availRes.data);
+      if (myRes?.data) {
+        // myRes.data expected to be array of UserMissionDto
+        setMyMissions(myRes.data);
+        // derive user points from response if provided (optional)
+        if (myRes.data.userPoints !== undefined)
+          setUserPoints(myRes.data.userPoints);
       }
-
-      if (profileResponse?.data?.data) {
-        setUserPoints(profileResponse.data.data.coins || 0)
-      } else {
-        console.log('Profile response has no data field')
-        setUserPoints(0)
-      }
-    } catch (error) {
-      console.error('Error loading data:', error)
-      console.error('Error details:', error.response?.data)
-      Alert.alert('Lỗi', 'Không thể tải dữ liệu. Vui lòng thử lại.')
+      if (statsRes?.data) setStats(statsRes.data);
+    } catch (err) {
+      console.error("Failed to load missions", err);
+      Alert.alert("Lỗi", "Không thể tải nhiệm vụ. Vui lòng thử lại.");
     } finally {
-      setLoading(false)
-      setRefreshing(false)
+      setLoading(false);
+      setRefreshing(false);
     }
-  }
+  }, []);
 
-  // Initial load
   useEffect(() => {
-    loadData()
-  }, [])
+    loadAll();
+  }, [loadAll]);
 
-  // Refresh handler
-  const handleRefresh = () => {
-    setRefreshing(true)
-    loadData()
-  }
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadAll();
+  };
 
-  // Get icon for mission based on target type
-  const getMissionIcon = (targetType) => {
-    switch (targetType) {
-      case 'COMPLETE_RIDES':
-        return Car
-      case 'RATE_RIDES':
-        return Star
-      case 'SHARE_APP':
-        return Users
-      case 'EARN_POINTS':
-        return TrendingUp
-      case 'GET_FIVE_STAR':
-        return Award
-      default:
-        return Target
-    }
-  }
-
-  // Get color for mission based on type
-  const getMissionColor = (missionType) => {
-    switch (missionType) {
-      case 'DAILY':
-        return COLORS.BLUE
-      case 'WEEKLY':
-        return COLORS.PURPLE
-      case 'MONTHLY':
-        return COLORS.ORANGE
-      default:
-        return COLORS.GREEN
-    }
-  }
-
-  // Handle claim mission reward
-  const handleClaimReward = async (userMissionId) => {
+  const handleAccept = async (missionId) => {
     try {
-      setLoading(true)
-      const response = await claimMissionReward(userMissionId)
-      
-      if (response?.data?.statusCode === 200 || response?.data) {
-        Alert.alert('Thành công', 'Đã nhận thưởng thành công!')
-        // Reload data to update points and missions
-        await loadData()
-      } else {
-        Alert.alert('Lỗi', response?.data?.message || 'Không thể nhận thưởng.')
-      }
-    } catch (error) {
-      console.error('Claim reward error:', error)
+      setLoading(true);
+      await acceptMission(missionId);
+      Alert.alert("Thành công", "Bạn đã nhận nhiệm vụ");
+      await loadAll();
+    } catch (err) {
+      console.error("Accept error", err);
       Alert.alert(
-        'Lỗi',
-        error.response?.data?.message || error.message || 'Không thể nhận thưởng. Vui lòng thử lại.'
-      )
+        "Lỗi",
+        err?.response?.data?.message || "Không thể nhận nhiệm vụ"
+      );
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
-  const renderMissionCard = ({ item }) => {
-    const mission = item.mission
-    const IconComponent = getMissionIcon(mission.targetType)
-    const color = getMissionColor(mission.missionType)
-    const isCompleted = item.isCompleted
-    const canClaim = item.canClaim
-    const rewardClaimed = item.rewardClaimed
-    const progressPercentage = item.progressPercentage || 0
+  const handleClaim = async (missionId) => {
+    try {
+      setLoading(true);
+      await claimMissionReward(missionId);
+      Alert.alert(
+        "Thành công",
+        "Phần thưởng đã được gửi vào tài khoản của bạn"
+      );
+      await loadAll();
+    } catch (err) {
+      console.error("Claim error", err);
+      Alert.alert(
+        "Lỗi",
+        err?.response?.data?.message || "Không thể nhận phần thưởng"
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    // Mission type label
-    let typeLabel = 'Hằng ngày'
-    if (mission.missionType === 'WEEKLY') typeLabel = 'Hằng tuần'
-    if (mission.missionType === 'MONTHLY') typeLabel = 'Hằng tháng'
-
+  const renderAvailable = ({ item }) => {
+    // item is MissionDto
     return (
       <View style={styles.missionCard}>
         <View style={styles.missionHeader}>
-          <View style={[styles.iconContainer, { backgroundColor: color + '20' }]}>
-            <IconComponent size={20} color={color} />
+          <View
+            style={[styles.iconContainer, { backgroundColor: "#00000010" }]}
+          >
+            <Gift size={20} color={COLORS.PRIMARY} />
           </View>
           <View style={styles.missionInfo}>
-            <Text style={styles.missionTitle}>{mission.title}</Text>
-            <Text style={styles.missionDescription}>{mission.description}</Text>
+            <Text style={styles.missionTitle}>{item.title}</Text>
+            {item.description ? (
+              <Text style={styles.missionDescription}>{item.description}</Text>
+            ) : null}
           </View>
           <View style={styles.pointsContainer}>
-            <Text style={styles.pointsText}>+{mission.rewardPoints}</Text>
+            <Text style={styles.pointsText}>+{item.rewardPoints || 0}</Text>
             <Star size={16} color={COLORS.YELLOW} />
           </View>
         </View>
 
         <View style={styles.progressContainer}>
           <View style={styles.progressBar}>
-            <View 
+            <View
               style={[
-                styles.progressFill, 
-                { 
-                  width: `${progressPercentage}%`,
-                  backgroundColor: rewardClaimed ? COLORS.GREEN : color
-                }
-              ]} 
+                styles.progressFill,
+                { width: `0%`, backgroundColor: COLORS.PRIMARY },
+              ]}
+            />
+          </View>
+          <Text style={styles.progressText}>Mục tiêu: {item.targetValue}</Text>
+        </View>
+
+        <View style={styles.missionFooter}>
+          <View style={styles.typeBadge}>
+            <Calendar size={12} color={COLORS.GRAY} />
+            <Text style={styles.typeText}>{item.missionType}</Text>
+          </View>
+
+          <TouchableOpacity
+            style={[styles.button, styles.acceptButton]}
+            onPress={() => handleAccept(item.id)}
+          >
+            <Text style={styles.buttonText}>Nhận</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
+
+  const renderMy = ({ item }) => {
+    // item is UserMissionDto, contains mission and progress fields
+    const mission = item.mission || {};
+    const progress = item.progress || 0;
+    const target = mission.targetValue || 1;
+    const percent = Math.min(100, Math.round((progress / target) * 100));
+    const canClaim = item.isCompleted === true && item.rewardClaimed !== true;
+
+    return (
+      <View style={styles.missionCard}>
+        <View style={styles.missionHeader}>
+          <View
+            style={[styles.iconContainer, { backgroundColor: "#00000010" }]}
+          >
+            <Gift size={20} color={COLORS.PRIMARY} />
+          </View>
+          <View style={styles.missionInfo}>
+            <Text style={styles.missionTitle}>{mission.title}</Text>
+            {mission.description ? (
+              <Text style={styles.missionDescription}>
+                {mission.description}
+              </Text>
+            ) : null}
+          </View>
+          <View style={styles.pointsContainer}>
+            <Text style={styles.pointsText}>+{mission.rewardPoints || 0}</Text>
+            <Star size={16} color={COLORS.YELLOW} />
+          </View>
+        </View>
+
+        <View style={styles.progressContainer}>
+          <View style={styles.progressBar}>
+            <View
+              style={[
+                styles.progressFill,
+                {
+                  width: `${percent}%`,
+                  backgroundColor:
+                    percent === 100 ? COLORS.GREEN : COLORS.PRIMARY,
+                },
+              ]}
             />
           </View>
           <Text style={styles.progressText}>
-            {item.progress}/{mission.targetValue}
+            {progress}/{target}
           </Text>
         </View>
 
         <View style={styles.missionFooter}>
           <View style={styles.typeBadge}>
             <Calendar size={12} color={COLORS.GRAY} />
-            <Text style={styles.typeText}>{typeLabel}</Text>
+            <Text style={styles.typeText}>{mission.missionType}</Text>
           </View>
-          
-          <TouchableOpacity 
-            style={[
-              styles.completeButton,
-              { 
-                backgroundColor: rewardClaimed ? COLORS.GREEN : canClaim ? color : COLORS.GRAY,
-                opacity: rewardClaimed || !canClaim ? 0.7 : 1
-              }
-            ]}
-            onPress={() => handleClaimReward(item.id)}
-            disabled={rewardClaimed || !canClaim}
-          >
-            {rewardClaimed ? (
-              <>
-                <CheckCircle size={16} color={COLORS.WHITE} />
-                <Text style={styles.completeButtonText}>Đã nhận</Text>
-              </>
-            ) : canClaim ? (
-              <>
-                <Gift size={16} color={COLORS.WHITE} />
-                <Text style={styles.completeButtonText}>Nhận điểm</Text>
-              </>
-            ) : (
-              <>
-                <Clock size={16} color={COLORS.WHITE} />
-                <Text style={styles.completeButtonText}>Chưa hoàn thành</Text>
-              </>
-            )}
-          </TouchableOpacity>
+
+          {canClaim ? (
+            <TouchableOpacity
+              style={[styles.button, styles.claimButton]}
+              onPress={() => handleClaim(mission.id)}
+            >
+              <Text style={styles.buttonText}>Nhận phần thưởng</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[styles.button, styles.disabledButton]}
+              disabled
+            >
+              <Text style={styles.buttonText}>
+                {item.isCompleted ? "Đã nhận" : "Đang tiến trình"}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
-    )
-  }
-
-  const completedCount = missions.filter(m => m.isCompleted).length
-  const claimedCount = missions.filter(m => m.rewardClaimed).length
-  const totalMissions = missions.length
-  const completionRate = totalMissions > 0 ? (completedCount / totalMissions) * 100 : 0
-
-  if (loading && !refreshing) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.PRIMARY} />
-          <Text style={styles.loadingText}>Đang tải...</Text>
-        </View>
-      </SafeAreaView>
-    )
-  }
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
-        <View style={styles.headerContent}>
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <ArrowLeft size={24} color={COLORS.WHITE} />
-          </TouchableOpacity>
-          
-          <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerTitle}>Nhiệm vụ</Text>
-            <Text style={styles.headerSubtitle}>Tích điểm mỗi ngày</Text>
-          </View>
-          
-          <View style={styles.pointsDisplay}>
-            <Star size={20} color={COLORS.YELLOW} />
-            <Text style={styles.pointsValue}>{userPoints}</Text>
-          </View>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <ArrowLeft size={20} color={COLORS.WHITE} />
+        </TouchableOpacity>
+
+        <View style={{ flex: 1, marginLeft: 12 }}>
+          <Text style={styles.headerTitle}>Nhiệm vụ</Text>
+          <Text style={styles.headerSubtitle}>
+            Hoàn thành nhiệm vụ để nhận điểm
+          </Text>
+        </View>
+
+        <View style={styles.pointsDisplay}>
+          <Star size={18} color={COLORS.YELLOW} />
+          <Text style={styles.pointsValue}>{userPoints}</Text>
         </View>
       </View>
 
-      <ScrollView 
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            colors={[COLORS.PRIMARY]}
-            tintColor={COLORS.PRIMARY}
-          />
-        }
-      >
-        {/* Stats Overview */}
-        <View style={styles.statsContainer}>
-          <View style={styles.statCard}>
-            <View style={styles.statIconContainer}>
-              <Target size={24} color={COLORS.BLUE} />
-            </View>
-            <View style={styles.statInfo}>
-              <Text style={styles.statNumber}>{completedCount}/{totalMissions}</Text>
-              <Text style={styles.statLabel}>Nhiệm vụ hoàn thành</Text>
-            </View>
-          </View>
-          
-          <View style={styles.statCard}>
-            <View style={styles.statIconContainer}>
-              <TrendingUp size={24} color={COLORS.GREEN} />
-            </View>
-            <View style={styles.statInfo}>
-              <Text style={styles.statNumber}>{Math.round(completionRate)}%</Text>
-              <Text style={styles.statLabel}>Tỷ lệ hoàn thành</Text>
-            </View>
-          </View>
-        </View>
+      <View style={styles.tabRow}>
+        <TouchableOpacity
+          style={[styles.tabButton, tab === "available" && styles.tabActive]}
+          onPress={() => setTab("available")}
+        >
+          <Text
+            style={[
+              styles.tabText,
+              tab === "available" && styles.tabTextActive,
+            ]}
+          >
+            Sẵn có
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tabButton, tab === "my" && styles.tabActive]}
+          onPress={() => setTab("my")}
+        >
+          <Text style={[styles.tabText, tab === "my" && styles.tabTextActive]}>
+            Của tôi
+          </Text>
+        </TouchableOpacity>
+      </View>
 
-        {/* Progress Overview */}
-        <View style={styles.progressOverview}>
-          <View style={styles.progressHeader}>
-            <Text style={styles.progressTitle}>Tiến độ hôm nay</Text>
-            <Text style={styles.progressSubtitle}>
-              {completedCount}/{totalMissions} nhiệm vụ hoàn thành
-            </Text>
-          </View>
-          <View style={styles.overallProgressBar}>
-            <View 
-              style={[
-                styles.overallProgressFill, 
-                { width: `${completionRate}%` }
-              ]} 
-            />
-          </View>
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.PRIMARY} />
         </View>
-
-        {/* Missions List */}
-        <View style={styles.missionsSection}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Nhiệm vụ</Text>
-            <Text style={styles.sectionSubtitle}>
-              Hoàn thành để tích điểm và nhận phần thưởng
-            </Text>
-          </View>
-          
-          {missions.length > 0 ? (
-            <FlatList
-              data={missions}
-              renderItem={renderMissionCard}
-              keyExtractor={(item) => item.id.toString()}
-              scrollEnabled={false}
-              contentContainerStyle={styles.missionsList}
+      ) : (
+        <FlatList
+          data={tab === "available" ? availableMissions : myMissions}
+          keyExtractor={(item) =>
+            item.id ? String(item.id) : String(item.mission?.id)
+          }
+          renderItem={tab === "available" ? renderAvailable : renderMy}
+          contentContainerStyle={{ padding: 16 }}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[COLORS.PRIMARY]}
             />
-          ) : (
-            <View style={styles.emptyContainer}>
-              <Target size={64} color={COLORS.GRAY_LIGHT} />
-              <Text style={styles.emptyText}>Chưa có nhiệm vụ nào</Text>
+          }
+          ListEmptyComponent={() => (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyTitle}>Không có nhiệm vụ</Text>
+              <Text style={styles.emptySubtitle}>Vui lòng thử lại sau</Text>
             </View>
           )}
-        </View>
-
-        {/* Rewards Section */}
-        <View style={styles.rewardsSection}>
-          <View style={styles.rewardsHeader}>
-            <Gift size={24} color={COLORS.PRIMARY} />
-            <Text style={styles.rewardsTitle}>Phần thưởng đặc biệt</Text>
-          </View>
-          <Text style={styles.rewardsSubtitle}>
-            Hoàn thành tất cả nhiệm vụ để nhận phần thưởng bất ngờ!
-          </Text>
-          
-          <View style={styles.rewardCard}>
-            <View style={styles.rewardIconContainer}>
-              <Award size={32} color={COLORS.YELLOW} />
-            </View>
-            <View style={styles.rewardInfo}>
-              <Text style={styles.rewardTitle}>Voucher 50k</Text>
-              <Text style={styles.rewardDescription}>
-                Đổi ngay voucher tại các cửa hàng đối tác
-              </Text>
-            </View>
-            <View style={styles.rewardPoints}>
-              <Text style={styles.rewardPointsText}>500</Text>
-              <Text style={styles.rewardPointsLabel}>điểm</Text>
-            </View>
-          </View>
-        </View>
-      </ScrollView>
+        />
+      )}
     </SafeAreaView>
-  )
-}
+  );
+};
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.BG,
-  },
+  container: { flex: 1, backgroundColor: COLORS.BG },
   header: {
     backgroundColor: COLORS.PRIMARY,
     paddingHorizontal: 16,
-    paddingTop: 20,
-    paddingBottom: 20,
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    paddingVertical: 18,
+    flexDirection: "row",
+    alignItems: "center",
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.WHITE + '20',
-    justifyContent: 'center',
-    alignItems: 'center',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.WHITE + "20",
+    justifyContent: "center",
+    alignItems: "center",
   },
-  headerTitleContainer: {
-    flex: 1,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: COLORS.WHITE,
-    marginBottom: 2,
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: COLORS.WHITE,
-    opacity: 0.8,
-  },
+  headerTitle: { color: COLORS.WHITE, fontSize: 18, fontWeight: "700" },
+  headerSubtitle: { color: COLORS.WHITE + "CC", fontSize: 12 },
   pointsDisplay: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.WHITE + '20',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.WHITE + "20",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
   },
-  pointsValue: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.WHITE,
-    marginLeft: 6,
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingTop: 24,
-    gap: 12,
-  },
-  statCard: {
+  pointsValue: { color: COLORS.WHITE, fontWeight: "700", marginLeft: 8 },
+  tabRow: { flexDirection: "row", padding: 12, backgroundColor: COLORS.BG },
+  tabButton: {
     flex: 1,
+    paddingVertical: 10,
+    alignItems: "center",
+    borderRadius: 8,
     backgroundColor: COLORS.WHITE,
-    borderRadius: 12,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    shadowColor: COLORS.BLUE,
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: COLORS.BLUE + '30',
   },
-  statIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.BLUE + '20',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  statInfo: {
-    flex: 1,
-  },
-  statNumber: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: COLORS.BLACK,
-    marginBottom: 2,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: COLORS.GRAY,
-  },
-  progressOverview: {
-    backgroundColor: COLORS.WHITE,
-    marginHorizontal: 16,
-    marginTop: 16,
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: COLORS.BLUE,
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: COLORS.BLUE + '30',
-  },
-  progressHeader: {
-    marginBottom: 12,
-  },
-  progressTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.BLACK,
-    marginBottom: 4,
-  },
-  progressSubtitle: {
-    fontSize: 14,
-    color: COLORS.GRAY,
-  },
-  overallProgressBar: {
-    height: 8,
-    backgroundColor: COLORS.GRAY_LIGHT,
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  overallProgressFill: {
-    height: '100%',
-    backgroundColor: COLORS.GREEN,
-    borderRadius: 4,
-  },
-  missionsSection: {
-    paddingHorizontal: 16,
-    paddingTop: 24,
-  },
-  sectionHeader: {
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: COLORS.BLACK,
-    marginBottom: 4,
-  },
-  sectionSubtitle: {
-    fontSize: 14,
-    color: COLORS.GRAY,
-  },
-  missionsList: {
-    gap: 12,
-  },
+  tabActive: { backgroundColor: COLORS.PRIMARY },
+  tabText: { fontWeight: "700", color: COLORS.GRAY },
+  tabTextActive: { color: COLORS.WHITE },
   missionCard: {
     backgroundColor: COLORS.WHITE,
     borderRadius: 12,
-    padding: 16,
-    shadowColor: COLORS.BLUE,
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: COLORS.BLUE + '30',
+    padding: 12,
+    marginBottom: 12,
+    shadowColor: COLORS.BLACK,
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
   },
   missionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
   },
   iconContainer: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginRight: 12,
   },
-  missionInfo: {
-    flex: 1,
-  },
-  missionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.BLACK,
-    marginBottom: 2,
-  },
-  missionDescription: {
-    fontSize: 14,
-    color: COLORS.GRAY,
-  },
-  pointsContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.YELLOW + '20',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  pointsText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.ORANGE_DARK,
-    marginRight: 4,
-  },
+  missionInfo: { flex: 1 },
+  missionTitle: { fontSize: 16, fontWeight: "700", color: COLORS.BLACK },
+  missionDescription: { color: COLORS.GRAY, marginTop: 2 },
+  pointsContainer: { flexDirection: "row", alignItems: "center", gap: 6 },
+  pointsText: { fontWeight: "700", color: COLORS.PRIMARY, marginRight: 6 },
   progressContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
   },
   progressBar: {
     flex: 1,
-    height: 6,
+    height: 8,
     backgroundColor: COLORS.GRAY_LIGHT,
-    borderRadius: 3,
-    overflow: 'hidden',
-    marginRight: 12,
+    borderRadius: 8,
+    overflow: "hidden",
+    marginRight: 8,
   },
-  progressFill: {
-    height: '100%',
-    borderRadius: 3,
-  },
-  progressText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.GRAY,
-  },
+  progressFill: { height: "100%" },
+  progressText: { fontSize: 12, color: COLORS.GRAY },
   missionFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   typeBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: COLORS.GRAY_LIGHT,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
   },
-  typeText: {
-    fontSize: 12,
-    color: COLORS.GRAY,
-    marginLeft: 4,
-  },
-  completeButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  completeButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.WHITE,
-    marginLeft: 6,
-  },
-  rewardsSection: {
-    paddingHorizontal: 16,
-    paddingTop: 24,
-    paddingBottom: 32,
-    
-  },
-  rewardsHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  rewardsTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: COLORS.BLACK,
-    marginLeft: 8,
-  },
-  rewardsSubtitle: {
-    fontSize: 14,
-    color: COLORS.GRAY,
-    marginBottom: 16,
-  },
-  rewardCard: {
-    backgroundColor: COLORS.WHITE,
-    borderRadius: 12,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    shadowColor: COLORS.BLUE,
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: COLORS.BLUE + '30',
-  },
-  rewardIconContainer: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: COLORS.YELLOW + '20',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  rewardInfo: {
-    flex: 1,
-  },
-  rewardTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.BLACK,
-    marginBottom: 2,
-  },
-  rewardDescription: {
-    fontSize: 14,
-    color: COLORS.GRAY,
-  },
-  rewardPoints: {
-    alignItems: 'center',
-  },
-  rewardPointsText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: COLORS.PRIMARY,
-  },
-  rewardPointsLabel: {
-    fontSize: 12,
-    color: COLORS.GRAY,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: COLORS.GRAY,
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 60,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: COLORS.GRAY,
-    marginTop: 16,
-  },
-})
+  typeText: { marginLeft: 6, color: COLORS.GRAY },
+  button: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 },
+  acceptButton: { backgroundColor: COLORS.PRIMARY },
+  claimButton: { backgroundColor: COLORS.GREEN },
+  disabledButton: { backgroundColor: COLORS.GRAY_LIGHT },
+  buttonText: { color: COLORS.WHITE, fontWeight: "700" },
+  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
+  emptyState: { paddingTop: 60, alignItems: "center" },
+  emptyTitle: { fontSize: 16, fontWeight: "700", color: COLORS.GRAY },
+  emptySubtitle: { color: COLORS.GRAY, marginTop: 8 },
+});
 
-export default Mission
+export default Mission;

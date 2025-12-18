@@ -174,6 +174,7 @@ const DriverRideScreen = ({ navigation, route }) => {
   const [routeInfo, setRouteInfo] = useState(null);
   const [routePath, setRoutePath] = useState([]);
   const [isLoadingDirections, setIsLoadingDirections] = useState(false);
+  const [isGettingLocation, setIsGettingLocation] = useState(false);
   const [isScheduleModalVisible, setIsScheduleModalVisible] = useState(false);
   const [scheduleTime, setScheduleTime] = useState("");
   const [scheduleFromText, setScheduleFromText] = useState("");
@@ -456,11 +457,47 @@ const DriverRideScreen = ({ navigation, route }) => {
 
   const handleGetCurrentLocation = async (type) => {
     try {
-      const currentLocation = await getCurrentLocation();
-      const address = await reverseGeocode(
-        currentLocation.latitude,
-        currentLocation.longitude
-      );
+      setIsGettingLocation(true);
+
+      // First, try to get current location with longer timeout (20 seconds)
+      let currentLocation;
+      try {
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Location timeout")), 20000)
+        );
+
+        currentLocation = await Promise.race([
+          getCurrentLocation(),
+          timeoutPromise,
+        ]);
+      } catch (locationError) {
+        console.error("❌ Failed to get location:", locationError.message);
+        Alert.alert(
+          "Lỗi",
+          locationError.message === "Location timeout"
+            ? "Lấy vị trí quá lâu. Vui lòng thử lại hoặc nhập địa chỉ thủ công."
+            : "Không thể lấy vị trí hiện tại. Vui lòng kiểm tra quyền truy cập vị trí."
+        );
+        return;
+      }
+
+      // Then, reverse geocode to get address
+      let address = "Vị trí hiện tại";
+      try {
+        const reverseGeoResult = await reverseGeocode(
+          currentLocation.latitude,
+          currentLocation.longitude
+        );
+        if (reverseGeoResult) {
+          address = reverseGeoResult;
+        }
+      } catch (geocodeError) {
+        console.warn("⚠️ Geocode failed, using coordinates:", geocodeError);
+        // Use coordinates if geocoding fails
+        address = `${currentLocation.latitude.toFixed(
+          4
+        )}, ${currentLocation.longitude.toFixed(4)}`;
+      }
 
       if (type === "from") {
         setFromLocation(address);
@@ -470,12 +507,12 @@ const DriverRideScreen = ({ navigation, route }) => {
         setDestinationCoordinate(currentLocation);
       }
 
-      Alert.alert("Thành công", `Đã lấy vị trí hiện tại: ${address}`);
+      Alert.alert("Thành công", `Đã lấy vị trí: ${address}`);
     } catch (error) {
-      Alert.alert(
-        "Lỗi",
-        "Không thể lấy vị trí hiện tại. Vui lòng kiểm tra quyền truy cập vị trí."
-      );
+      console.error("❌ Unexpected error:", error);
+      Alert.alert("Lỗi", "Có lỗi xảy ra. Vui lòng thử lại.");
+    } finally {
+      setIsGettingLocation(false);
     }
   };
 
@@ -741,13 +778,20 @@ const DriverRideScreen = ({ navigation, route }) => {
                   <TouchableOpacity
                     style={styles.currentLocationBtn}
                     onPress={() => handleGetCurrentLocation("from")}
+                    disabled={isGettingLocation}
                   >
-                    <MaterialIcons
-                      name="my-location"
-                      size={16}
-                      color={COLORS.WHITE}
-                    />
-                    <Text style={styles.currentLocationText}>Hiện tại</Text>
+                    {isGettingLocation ? (
+                      <ActivityIndicator size="small" color={COLORS.WHITE} />
+                    ) : (
+                      <>
+                        <MaterialIcons
+                          name="my-location"
+                          size={16}
+                          color={COLORS.WHITE}
+                        />
+                        <Text style={styles.currentLocationText}>Hiện tại</Text>
+                      </>
+                    )}
                   </TouchableOpacity>
                 </View>
                 <View style={styles.locationRowTo}>
@@ -1139,18 +1183,18 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    zIndex: 100,
+    zIndex: 9999,
     justifyContent: "space-between",
   },
   topControls: {
     paddingHorizontal: 15,
     paddingTop: 10,
-    zIndex: 3000,
+    zIndex: 10000,
   },
   bottomControls: {
     paddingHorizontal: 15,
     paddingBottom: 15,
-    zIndex: 100,
+    zIndex: 9998,
   },
   inputContainerWrapper: {
     position: "relative",

@@ -16,6 +16,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
 import COLORS from "../../constant/colors";
 import SCREENS from "../../screens";
+import { clearTokens } from "../../utils/storage";
+import { chatClient } from "../../utils/StreamClient";
 
 const initialProfile = {
   fullName: "Quản trị viên RideMate",
@@ -73,7 +75,11 @@ const AdminProfile = () => {
   };
 
   const handleChangePassword = () => {
-    if (!passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword) {
+    if (
+      !passwordData.currentPassword ||
+      !passwordData.newPassword ||
+      !passwordData.confirmPassword
+    ) {
       Alert.alert("Lỗi", "Vui lòng điền đầy đủ thông tin");
       return;
     }
@@ -95,38 +101,44 @@ const AdminProfile = () => {
   };
 
   const handleLogout = () => {
-    Alert.alert(
-      "Đăng xuất",
-      "Bạn có chắc chắn muốn đăng xuất?",
-      [
-        {
-          text: "Hủy",
-          style: "cancel",
-        },
-        {
-          text: "Đăng xuất",
-          style: "destructive",
-          onPress: async () => {
+    Alert.alert("Đăng xuất", "Bạn có chắc chắn muốn đăng xuất?", [
+      {
+        text: "Hủy",
+        style: "cancel",
+      },
+      {
+        text: "Đăng xuất",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            // Disconnect from Stream Chat
             try {
-              // Clear AsyncStorage
-              await AsyncStorage.clear();
-              // Navigate to Login screen
-              navigation.reset({
-                index: 0,
-                routes: [{ name: SCREENS.LOGIN }],
-              });
-            } catch (error) {
-              console.error("Logout error:", error);
-              Alert.alert("Lỗi", "Có lỗi xảy ra khi đăng xuất");
+              await chatClient.disconnectUser();
+              console.log("💬 Disconnected from Stream Chat");
+            } catch (streamError) {
+              console.log("⚠️  Stream disconnect failed:", streamError.message);
             }
-          },
+
+            // Clear all authentication data
+            await clearTokens(); // Clears tokens, userType, userData
+            await AsyncStorage.clear(); // Clear onboarding flag
+
+            // Navigate to Login screen
+            navigation.reset({
+              index: 0,
+              routes: [{ name: SCREENS.LOGIN }],
+            });
+          } catch (error) {
+            console.error("Logout error:", error);
+            Alert.alert("Lỗi", "Có lỗi xảy ra khi đăng xuất");
+          }
         },
-      ]
-    );
+      },
+    ]);
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
+    <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Hồ sơ quản trị</Text>
@@ -234,7 +246,9 @@ const AdminProfile = () => {
               <TextInput
                 style={styles.passwordInput}
                 value={passwordData.currentPassword}
-                onChangeText={(value) => handlePasswordChange("currentPassword", value)}
+                onChangeText={(value) =>
+                  handlePasswordChange("currentPassword", value)
+                }
                 secureTextEntry={!showPasswords.currentPassword}
                 placeholder="Nhập mật khẩu hiện tại"
               />
@@ -261,7 +275,9 @@ const AdminProfile = () => {
               <TextInput
                 style={styles.passwordInput}
                 value={passwordData.newPassword}
-                onChangeText={(value) => handlePasswordChange("newPassword", value)}
+                onChangeText={(value) =>
+                  handlePasswordChange("newPassword", value)
+                }
                 secureTextEntry={!showPasswords.newPassword}
                 placeholder="Nhập mật khẩu mới"
               />
@@ -288,7 +304,9 @@ const AdminProfile = () => {
               <TextInput
                 style={styles.passwordInput}
                 value={passwordData.confirmPassword}
-                onChangeText={(value) => handlePasswordChange("confirmPassword", value)}
+                onChangeText={(value) =>
+                  handlePasswordChange("confirmPassword", value)
+                }
                 secureTextEntry={!showPasswords.confirmPassword}
                 placeholder="Nhập lại mật khẩu mới"
               />
@@ -318,10 +336,7 @@ const AdminProfile = () => {
         </View>
 
         <View style={styles.logoutSection}>
-          <TouchableOpacity
-            style={styles.logoutButton}
-            onPress={handleLogout}
-          >
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
             <Ionicons name="log-out-outline" size={20} color={COLORS.WHITE} />
             <Text style={styles.logoutLabel}>Đăng xuất</Text>
           </TouchableOpacity>
@@ -334,7 +349,7 @@ const AdminProfile = () => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.BG,
+    backgroundColor: COLORS.WHITE,
   },
   contentContainer: {
     padding: 20,
@@ -552,4 +567,3 @@ const styles = StyleSheet.create({
 });
 
 export default AdminProfile;
-

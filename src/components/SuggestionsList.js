@@ -1,4 +1,4 @@
-import React from 'react'
+import React from "react";
 import {
   View,
   Text,
@@ -6,9 +6,9 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-} from 'react-native'
-import { MaterialIcons } from '@expo/vector-icons'
-import COLORS from '../constant/colors'
+} from "react-native";
+import { MaterialIcons } from "@expo/vector-icons";
+import COLORS from "../constant/colors";
 
 const SuggestionsList = ({
   suggestions = [],
@@ -16,10 +16,10 @@ const SuggestionsList = ({
   isLoading = false,
   visible = false,
   maxHeight = 200,
-  containerWidth = '100%', // Thêm prop để điều chỉnh chiều rộng
+  containerWidth = "100%", // Thêm prop để điều chỉnh chiều rộng
 }) => {
   if (!visible || (!isLoading && suggestions.length === 0)) {
-    return null
+    return null;
   }
 
   const renderSuggestion = ({ item, index }) => (
@@ -29,15 +29,15 @@ const SuggestionsList = ({
         index === suggestions.length - 1 && styles.lastSuggestionItem,
       ]}
       onPress={() => {
-        onSelectSuggestion(item)
+        onSelectSuggestion(item);
         // Tự động ẩn suggestions sau khi chọn
       }}
       activeOpacity={0.7}
     >
-      <MaterialIcons 
-        name="place" 
-        size={20} 
-        color={COLORS.PRIMARY} 
+      <MaterialIcons
+        name="place"
+        size={20}
+        color={COLORS.PRIMARY}
         style={styles.placeIcon}
       />
       <View style={styles.suggestionContent}>
@@ -48,23 +48,30 @@ const SuggestionsList = ({
           {parseFloat(item.lat).toFixed(4)}, {parseFloat(item.lon).toFixed(4)}
         </Text>
       </View>
-      <MaterialIcons 
-        name="arrow-forward-ios" 
-        size={16} 
-        color={COLORS.GRAY} 
-      />
+      <MaterialIcons name="arrow-forward-ios" size={16} color={COLORS.GRAY} />
     </TouchableOpacity>
-  )
+  );
 
   const renderLoading = () => (
     <View style={styles.loadingContainer}>
       <ActivityIndicator size="small" color={COLORS.PRIMARY} />
       <Text style={styles.loadingText}>Đang tìm kiếm...</Text>
     </View>
-  )
+  );
 
   return (
-    <View style={[styles.container, { maxHeight, width: typeof containerWidth === 'number' ? containerWidth : containerWidth }]}>
+    <View
+      style={[
+        styles.container,
+        {
+          maxHeight,
+          width:
+            typeof containerWidth === "number"
+              ? containerWidth
+              : containerWidth,
+        },
+      ]}
+    >
       <View style={styles.suggestionsContainer}>
         {isLoading ? (
           renderLoading()
@@ -80,34 +87,36 @@ const SuggestionsList = ({
         )}
       </View>
     </View>
-  )
-}
+  );
+};
 
 const styles = StyleSheet.create({
   container: {
-    position: 'absolute',
-    top: '100%',
+    position: "absolute",
+    top: "100%",
     left: 0,
     backgroundColor: COLORS.WHITE,
-    borderRadius: 10,
-    marginTop: 4,
-    elevation: 5,
+    borderRadius: 0,
+    marginTop: 0,
+    borderBottomLeftRadius: 10,
+    borderBottomRightRadius: 10,
+    elevation: 10,
     shadowColor: COLORS.BLACK,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    zIndex: 1000,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    zIndex: 9999,
   },
   suggestionsContainer: {
     borderRadius: 10,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   list: {
     maxHeight: 200,
   },
   suggestionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 12,
     backgroundColor: COLORS.WHITE,
@@ -126,7 +135,7 @@ const styles = StyleSheet.create({
   },
   mainText: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: "500",
     color: COLORS.BLACK,
     marginBottom: 2,
     lineHeight: 18,
@@ -134,12 +143,12 @@ const styles = StyleSheet.create({
   coordsText: {
     fontSize: 11,
     color: COLORS.GRAY,
-    fontStyle: 'italic',
+    fontStyle: "italic",
   },
   loadingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 16,
     paddingHorizontal: 16,
   },
@@ -148,6 +157,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.GRAY,
   },
-})
+});
 
-export default SuggestionsList
+export default SuggestionsList;

@@ -52,6 +52,67 @@ const MatchedRideScreen = ({ navigation, route }) => {
   const [rating, setRating] = useState(0);
   const maxStars = 5;
 
+  // Vehicle tracking state - Khởi tạo từ matchedRideData ngay từ đầu
+  const initialDriverLocation = useMemo(() => {
+    const pickupPoint = matchedRideData.originCoordinate || {
+      latitude: 21.0285,
+      longitude: 105.8542,
+    };
+
+    // Lấy vị trí thực của tài xế từ params, nếu không có thì tính toán mặc định
+    return (
+      matchedRideData.driverLocation || {
+        latitude: pickupPoint.latitude - 0.008, // ~0.8km về phía nam (fallback)
+        longitude: pickupPoint.longitude - 0.006, // ~0.5km về phía tây (fallback)
+      }
+    );
+  }, [matchedRideData.driverLocation, matchedRideData.originCoordinate]);
+
+  const [vehicleLocation, setVehicleLocation] = useState(initialDriverLocation);
+  const [driverETA, setDriverETA] = useState("7 phút");
+  const [driverDistance, setDriverDistance] = useState("2.3 km");
+
+  // Don't need dynamicRoutePath - MapViewDirections will handle routing
+  // Just pass origin and destination to MapViewDirections component
+
+  // Calculate distance and ETA between two points
+  const calculateDistanceAndETA = (from, to) => {
+    const distanceKm = Math.sqrt(
+      Math.pow((to.latitude - from.latitude) * 111, 2) +
+        Math.pow((to.longitude - from.longitude) * 85, 2)
+    );
+
+    const durationMin = Math.ceil(distanceKm * 3); // ~3 min per km
+    setDriverETA(`${Math.max(1, durationMin)} phút`);
+    setDriverDistance(`${distanceKm.toFixed(1)} km`);
+  };
+
+  // 🎯 Tính toán khoảng cách và ETA khi mount
+  useEffect(() => {
+    const pickupPoint = originCoordinate;
+    console.log(
+      "🚗 Vehicle initialized at driver's real location:",
+      initialDriverLocation
+    );
+    calculateDistanceAndETA(initialDriverLocation, pickupPoint);
+  }, []); // CHỈ chạy 1 lần khi mount
+
+  // 🎯 Callback khi tài xế đến điểm đón
+  const handleDriverArrived = () => {
+    console.log("🏁 Driver arrived at pickup location!");
+
+    // 🎯 CHỈ thông báo, TỰ ĐỘNG chuyển sang ongoing sau 2 giây
+    Alert.alert("✅ Tài xế đã đến điểm đón", "Chuyến đi sẽ bắt đầu ngay!", [
+      { text: "OK" },
+    ]);
+
+    // Tự động chuyển sau 2 giây
+    setTimeout(() => {
+      setRideStatus("ongoing");
+      console.log("🚀 Ride status changed to: ongoing");
+    }, 2000);
+  };
+
   const handlePress = (value) => {
     setRating(value);
   };
@@ -183,21 +244,23 @@ const MatchedRideScreen = ({ navigation, route }) => {
   );
 
   const originCoordinate = useMemo(
-    () => ({
-      latitude: 21.0285,
-      longitude: 105.8542,
-      description: rideDetails.from,
-    }),
-    [rideDetails.from]
+    () =>
+      matchedRideData.originCoordinate || {
+        latitude: 21.0285,
+        longitude: 105.8542,
+        description: rideDetails.from,
+      },
+    [matchedRideData.originCoordinate, rideDetails.from]
   );
 
   const destinationCoordinate = useMemo(
-    () => ({
-      latitude: 21.0152,
-      longitude: 105.8415,
-      description: rideDetails.to,
-    }),
-    [rideDetails.to]
+    () =>
+      matchedRideData.destinationCoordinate || {
+        latitude: 21.0152,
+        longitude: 105.8415,
+        description: rideDetails.to,
+      },
+    [matchedRideData.destinationCoordinate, rideDetails.to]
   );
 
   const handleSend = async () => {
@@ -285,7 +348,15 @@ const MatchedRideScreen = ({ navigation, route }) => {
             showRoute={true}
             fullScreen={false}
             rideStatus={rideStatus}
-            path={path}
+            driverLocation={vehicleLocation}
+            pickupLocation={originCoordinate}
+            showCheckpoints={true}
+            useMapViewDirections={true}
+            showVehicle={true}
+            startAnimation={
+              rideStatus === "matched" || rideStatus === "ongoing"
+            }
+            onDriverArrived={handleDriverArrived}
           />
         </View>
 
@@ -311,61 +382,143 @@ const MatchedRideScreen = ({ navigation, route }) => {
             </View>
           </View>
 
-          {/* Driver/Passenger Info Card */}
+          {/* Driver/Passenger Info Card - Redesigned */}
           <View style={styles.personInfoCard}>
-            <View style={styles.personHeader}>
+            {/* Driver Avatar, Name & Vehicle */}
+            <View style={styles.driverMainInfo}>
               <Image
                 source={{ uri: otherPerson.avatar }}
                 style={styles.personAvatar}
               />
-              <View style={styles.personInfo}>
+              <View style={styles.driverTextInfo}>
                 <Text style={styles.personName}>{otherPerson.name}</Text>
-                {!matchedRideData.isDriver && otherPerson.rating && (
-                  <View style={styles.ratingRow}>
-                    <MaterialIcons
-                      name="star"
-                      size={16}
-                      color={COLORS.ORANGE_DARK}
-                    />
-                    <Text style={styles.ratingText}>{otherPerson.rating}</Text>
-                  </View>
-                )}
+                <Text style={styles.driverRole}>Driver</Text>
               </View>
-
-              {/* Vehicle Info (only for passenger view) - inline with avatar and name */}
               {!matchedRideData.isDriver && (
-                <View style={styles.vehicleInfo}>
-                  <Text style={styles.licensePlate}>
-                    {otherPerson.licensePlate}
-                  </Text>
+                <View style={styles.vehicleInfoBox}>
                   <Text style={styles.vehicleModel}>
-                    {otherPerson.vehicleModel}
+                    {otherPerson.vehicleModel || "Toyota Avanza, Black"}
+                  </Text>
+                  <Text style={styles.licensePlate}>
+                    {otherPerson.licensePlate || "B 1233 YH"}
                   </Text>
                 </View>
               )}
             </View>
+
+            {/* Rating Stars */}
+            {!matchedRideData.isDriver && (
+              <View style={styles.ratingSection}>
+                <Text style={styles.ratingSectionLabel}>Rating</Text>
+                <View style={styles.starsRow}>
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <MaterialIcons
+                      key={star}
+                      name="star"
+                      size={18}
+                      color="#FFD700"
+                    />
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {/* Two Column Info: Payment Method | Travel Duration */}
+            <View style={styles.threeColumnInfo}>
+              <View style={styles.infoColumn}>
+                <Text style={styles.infoColumnLabel}>Payment Method</Text>
+                <Text style={styles.infoColumnValue}>e-Wallet</Text>
+              </View>
+              <View style={styles.infoColumnDivider} />
+              <View style={styles.infoColumn}>
+                <Text style={styles.infoColumnLabel}>Travel Duration</Text>
+                <Text style={styles.infoColumnValue}>
+                  {rideDetails.duration || "30 Minutes"}
+                </Text>
+              </View>
+            </View>
           </View>
 
           {/* Ride Action Buttons */}
-          <View style={{ paddingHorizontal: 16, marginTop: 10 }}>
+          <View
+            style={{ paddingHorizontal: 16, marginTop: 8, marginBottom: 12 }}
+          >
+            {/* 🎯 Giai đoạn matched: Chờ tài xế đến (tự động chuyển sang ongoing) */}
             {rideStatus === "matched" && (
-              <TouchableOpacity
-                style={[styles.actionBtn, { backgroundColor: COLORS.PRIMARY }]}
-                onPress={() => setRideStatus("ongoing")}
-              >
-                <Text style={styles.actionBtnText}>🚗 Bắt đầu chuyến đi</Text>
-              </TouchableOpacity>
+              <View style={styles.waitingSection}>
+                <ActivityIndicator size="small" color={COLORS.PRIMARY} />
+                <Text style={styles.waitingText}>
+                  Đang chờ tài xế đến điểm đón...
+                </Text>
+                <Text style={styles.waitingSubtext}>
+                  ETA: {driverETA} • Khoảng cách: {driverDistance}
+                </Text>
+              </View>
             )}
 
+            {/* 🎯 Giai đoạn ongoing: Đang trên đường đến đích */}
             {rideStatus === "ongoing" && (
-              <TouchableOpacity
-                style={[styles.actionBtn, { backgroundColor: COLORS.GREEN }]}
-                onPress={() => handleCompleteRide()}
-              >
-                <Text style={styles.actionBtnText}>
-                  🏁 Hoàn thành chuyến đi
-                </Text>
-              </TouchableOpacity>
+              <>
+                {/* Driver Coming Info */}
+                <View style={styles.driverComingSection}>
+                  <View style={styles.driverComingHeader}>
+                    <View>
+                      <Text style={styles.driverComingTitle}>
+                        Tài xế đang đến
+                      </Text>
+                      <Text style={styles.driverComingSubtitle}>
+                        Cách bạn {driverDistance}
+                      </Text>
+                    </View>
+                    <View style={styles.etaBox}>
+                      <MaterialIcons
+                        name="schedule"
+                        size={20}
+                        color={COLORS.PRIMARY}
+                      />
+                      <Text style={styles.etaText}>{driverETA}</Text>
+                    </View>
+                  </View>
+
+                  {/* Progress Bar */}
+                  <View style={styles.progressContainer}>
+                    <View style={styles.progressBar} />
+                  </View>
+
+                  {/* Location Info */}
+                  <View style={styles.locationInfoRow}>
+                    <View style={styles.locationInfoItem}>
+                      <MaterialIcons
+                        name="radio-button-checked"
+                        size={14}
+                        color={COLORS.GREEN}
+                      />
+                      <Text style={styles.locationInfoText}>
+                        {rideDetails.from}
+                      </Text>
+                    </View>
+                    <View style={styles.locationInfoItem}>
+                      <MaterialIcons
+                        name="place"
+                        size={14}
+                        color={COLORS.RED}
+                      />
+                      <Text style={styles.locationInfoText}>
+                        {rideDetails.to}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  style={[styles.actionBtn, { backgroundColor: COLORS.GREEN }]}
+                  onPress={() => handleCompleteRide()}
+                >
+                  <Text style={styles.actionBtnText}>
+                    🏁 Hoàn thành chuyến đi
+                  </Text>
+                </TouchableOpacity>
+              </>
             )}
           </View>
 
@@ -580,8 +733,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 8,
+    paddingTop: 12,
+    paddingBottom: 12,
   },
   backBtn: {
     padding: 4,
@@ -600,98 +753,160 @@ const styles = StyleSheet.create({
   },
   infoPanel: {
     backgroundColor: COLORS.WHITE,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingTop: 12,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 16,
     shadowColor: COLORS.BLACK,
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 8,
   },
   routeInfoSection: {
     paddingHorizontal: 16,
-    paddingBottom: 12,
+    paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.GRAY_LIGHT,
   },
   locationRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 6,
+    marginBottom: 10,
   },
   locationText: {
     fontSize: 14,
     color: COLORS.BLACK,
-    marginLeft: 8,
+    marginLeft: 12,
     flex: 1,
+    fontWeight: "500",
   },
   personInfoCard: {
-    margin: 10,
+    margin: 16,
     backgroundColor: COLORS.WHITE,
-    borderRadius: 12,
-    padding: 10,
+    borderRadius: 16,
+    padding: 18,
     shadowColor: COLORS.BLACK,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
     borderWidth: 1,
-    borderColor: COLORS.GRAY_LIGHT,
+    borderColor: "#f0f0f0",
+  },
+  driverMainInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+  },
+  personAvatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: COLORS.GRAY_LIGHT,
+  },
+  driverTextInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  personName: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: COLORS.BLACK,
+    marginBottom: 2,
+  },
+  driverRole: {
+    fontSize: 12,
+    color: COLORS.GRAY,
+    fontWeight: "500",
+  },
+  vehicleInfoBox: {
+    alignItems: "flex-end",
+  },
+  vehicleModel: {
+    fontSize: 12,
+    color: COLORS.BLACK,
+    fontWeight: "600",
+    marginBottom: 2,
+  },
+  licensePlate: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: COLORS.BLACK,
+    backgroundColor: "#f5f5f5",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+  },
+  ratingSection: {
+    marginBottom: 16,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+  },
+  ratingSectionLabel: {
+    fontSize: 12,
+    color: COLORS.GRAY,
+    fontWeight: "600",
+    marginBottom: 6,
+  },
+  starsRow: {
+    flexDirection: "row",
+    gap: 4,
+  },
+  threeColumnInfo: {
+    flexDirection: "row",
+    marginBottom: 16,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+  },
+  infoColumn: {
+    flex: 1,
+  },
+  infoColumnDivider: {
+    width: 1,
+    backgroundColor: "#e0e0e0",
+    marginHorizontal: 12,
+  },
+  infoColumnLabel: {
+    fontSize: 11,
+    color: COLORS.GRAY,
+    fontWeight: "600",
+    marginBottom: 6,
+  },
+  infoColumnValue: {
+    fontSize: 13,
+    color: COLORS.BLACK,
+    fontWeight: "700",
   },
   personHeader: {
     flexDirection: "row",
     alignItems: "center",
   },
-  personAvatar: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: COLORS.GRAY_LIGHT,
-    marginRight: 10,
-  },
   personInfo: {
     flex: 1,
   },
   personName: {
-    fontSize: 15,
-    fontWeight: "600",
+    fontSize: 16,
+    fontWeight: "700",
     color: COLORS.BLACK,
     marginBottom: 2,
   },
-  ratingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  ratingText: {
-    fontSize: 13,
-    color: COLORS.BLACK,
-    marginLeft: 4,
-    fontWeight: "500",
-  },
   callBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     backgroundColor: COLORS.GREEN,
     justifyContent: "center",
     alignItems: "center",
-  },
-  vehicleInfo: {
-    flexDirection: "column",
-    alignItems: "flex-start",
-    marginLeft: 10,
-    justifyContent: "center",
-  },
-  licensePlate: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: COLORS.BLACK,
-    marginBottom: 2,
-  },
-  vehicleModel: {
-    fontSize: 11,
-    color: COLORS.GRAY,
+    shadowColor: COLORS.BLACK,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
   },
   messagesContainer: {
     maxHeight: 200,
@@ -717,7 +932,7 @@ const styles = StyleSheet.create({
     color: COLORS.GRAY,
   },
   messageRow: {
-    marginBottom: 8,
+    marginBottom: 10,
     flexDirection: "row",
     justifyContent: "flex-start",
   },
@@ -725,13 +940,16 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   messageBubble: {
-    backgroundColor: COLORS.BLUE_LIGHT,
+    backgroundColor: "#e8f0fe",
     padding: 12,
-    borderRadius: 12,
+    borderRadius: 14,
     maxWidth: "80%",
+    borderBottomLeftRadius: 4,
   },
   messageBubbleOwn: {
     backgroundColor: COLORS.PRIMARY,
+    borderBottomLeftRadius: 14,
+    borderBottomRightRadius: 4,
   },
   messageText: {
     fontSize: 14,
@@ -752,86 +970,208 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 8,
     borderTopWidth: 1,
-    minHeight: 44,
+    minHeight: 52,
     borderTopColor: COLORS.GRAY_LIGHT,
     backgroundColor: COLORS.WHITE,
-    gap: 6,
+    gap: 8,
   },
   inputField: {
     flex: 1,
-    backgroundColor: COLORS.GRAY_BG,
-    borderRadius: 22,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    backgroundColor: "#f5f5f5",
+    borderRadius: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     fontSize: 14,
-    minHeight: 32,
+    minHeight: 36,
     maxHeight: 100,
     lineHeight: 20,
+    color: COLORS.BLACK,
   },
   sendButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: COLORS.PRIMARY,
     justifyContent: "center",
     alignItems: "center",
+    shadowColor: COLORS.BLACK,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
   },
   callButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: COLORS.GREEN,
     justifyContent: "center",
     alignItems: "center",
+    shadowColor: COLORS.BLACK,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
   },
   actionBtn: {
-    borderRadius: 10,
-    paddingVertical: 12,
+    borderRadius: 12,
+    paddingVertical: 13,
     alignItems: "center",
-    marginBottom: 8,
+    justifyContent: "center",
+    marginBottom: 10,
+    shadowColor: COLORS.BLACK,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 4,
   },
   actionBtnText: {
     color: COLORS.WHITE,
-    fontWeight: "600",
+    fontWeight: "700",
     fontSize: 15,
+    letterSpacing: 0.3,
+  },
+  waitingSection: {
+    backgroundColor: "#FFF8E1",
+    borderRadius: 12,
+    padding: 16,
+    alignItems: "center",
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#FFD54F",
+  },
+  waitingText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: COLORS.BLACK,
+    marginTop: 8,
+    textAlign: "center",
+  },
+  waitingSubtext: {
+    fontSize: 13,
+    color: COLORS.GRAY,
+    marginTop: 4,
+    textAlign: "center",
+  },
+  driverComingSection: {
+    backgroundColor: "#f0fef9",
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#d4f4ea",
+    shadowColor: COLORS.GREEN,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  driverComingHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 12,
+  },
+  driverComingTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: COLORS.BLACK,
+    marginBottom: 4,
+  },
+  driverComingSubtitle: {
+    fontSize: 13,
+    color: COLORS.GRAY,
+    fontWeight: "500",
+  },
+  etaBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.WHITE,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    gap: 6,
+    shadowColor: COLORS.BLACK,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  etaText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: COLORS.PRIMARY,
+  },
+  progressContainer: {
+    height: 4,
+    backgroundColor: "#e0e0e0",
+    borderRadius: 2,
+    marginBottom: 12,
+    overflow: "hidden",
+  },
+  progressBar: {
+    height: "100%",
+    width: "45%",
+    backgroundColor: COLORS.GREEN,
+    borderRadius: 2,
+  },
+  locationInfoRow: {
+    gap: 10,
+  },
+  locationInfoItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 6,
+  },
+  locationInfoText: {
+    fontSize: 13,
+    color: COLORS.BLACK,
+    fontWeight: "500",
+    flex: 1,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
+    backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
   },
   modalBox: {
     backgroundColor: COLORS.WHITE,
-    borderRadius: 12,
-    padding: 20,
+    borderRadius: 20,
+    padding: 24,
     width: "90%",
+    shadowColor: COLORS.BLACK,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
   },
   modalTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "700",
     textAlign: "center",
-    marginBottom: 6,
+    marginBottom: 8,
     color: COLORS.BLACK,
   },
   modalSubtitle: {
     textAlign: "center",
-    fontSize: 14,
+    fontSize: 15,
     color: COLORS.GRAY,
-    marginBottom: 10,
+    marginBottom: 16,
   },
   commentInput: {
     borderWidth: 1,
     borderColor: COLORS.GRAY_LIGHT,
-    borderRadius: 8,
-    padding: 10,
+    borderRadius: 12,
+    padding: 12,
     fontSize: 14,
     color: COLORS.BLACK,
-    marginTop: 10,
-    minHeight: 60,
+    marginTop: 12,
+    minHeight: 80,
   },
   starsContainer: {
     flexDirection: "row",
@@ -843,8 +1183,8 @@ const styles = StyleSheet.create({
   reviewText: {
     marginTop: 10,
     fontSize: 18,
-    fontWeight: "500",
-    color: "#333",
+    fontWeight: "600",
+    color: COLORS.BLACK,
   },
 });
 

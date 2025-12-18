@@ -13,10 +13,22 @@ const axiosClient = axios.create({
   timeout: 15000,
 });
 
+console.log("🔧 AxiosClient initialized with baseURL:", API_BASE_URL);
+console.log("⏱️  Timeout set to: 15000ms");
+
 axiosClient.interceptors.request.use(async (config) => {
+  console.log(
+    `📤 API Request: ${config.method?.toUpperCase()} ${config.baseURL}${
+      config.url
+    }`
+  );
+
   const token = await getToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+    console.log("🔐 Authorization header added");
+  } else {
+    console.log("⚠️  No token found");
   }
 
   // Detect FormData for React Native
@@ -28,6 +40,7 @@ axiosClient.interceptors.request.use(async (config) => {
   // If FormData → DO NOT set Content-Type
   if (isFormData) {
     delete config.headers["Content-Type"];
+    console.log("📎 FormData detected, Content-Type removed");
   } else {
     // JSON request → set JSON type
     if (!config.headers["Content-Type"]) {
@@ -51,6 +64,11 @@ const processQueue = (error, token = null) => {
 
 axiosClient.interceptors.response.use(
   (response) => {
+    console.log(
+      `✅ API Response: ${
+        response.status
+      } ${response.config.method?.toUpperCase()} ${response.config.url}`
+    );
     // Return full response, not response.data
     return response;
   },
@@ -58,6 +76,15 @@ axiosClient.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
     const status = error.response?.status;
+
+    console.error(`❌ API Error:`, {
+      message: error.message,
+      code: error.code,
+      status: status,
+      url: originalRequest?.url,
+      method: originalRequest?.method?.toUpperCase(),
+      timeout: error.config?.timeout,
+    });
 
     if (status === 401 && !originalRequest._retry) {
       if (isRefreshing) {
@@ -82,10 +109,9 @@ axiosClient.interceptors.response.use(
           return Promise.reject(error);
         }
 
-        const resp = await axios.post(
-          `${API_BASE_URL}/auth/refresh-token`,
-          { refreshToken }
-        );
+        const resp = await axios.post(`${API_BASE_URL}/auth/refresh-token`, {
+          refreshToken,
+        });
 
         const newTokens = resp.data?.data;
         if (!newTokens?.accessToken) {

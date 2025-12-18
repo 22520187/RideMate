@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -10,11 +10,19 @@ import {
   ScrollView,
   Image,
   Alert,
+  ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import COLORS from "../../constant/colors";
+import {
+  getVouchers,
+  createVoucher,
+  updateVoucher,
+  deleteVoucher,
+} from "../../services/adminService";
 
 const initialRewards = [
   {
@@ -25,7 +33,8 @@ const initialRewards = [
     stock: 45,
     status: "active",
     branch: "Family Mart",
-    image: "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400&h=200&fit=crop",
+    image:
+      "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400&h=200&fit=crop",
   },
   {
     id: "REW-3002",
@@ -35,7 +44,8 @@ const initialRewards = [
     stock: "Không giới hạn",
     status: "active",
     branch: "Circle K",
-    image: "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400&h=200&fit=crop",
+    image:
+      "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400&h=200&fit=crop",
   },
   {
     id: "REW-3003",
@@ -45,7 +55,8 @@ const initialRewards = [
     stock: 12,
     status: "paused",
     branch: "7-Eleven",
-    image: "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400&h=200&fit=crop",
+    image:
+      "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400&h=200&fit=crop",
   },
 ];
 
@@ -60,48 +71,107 @@ const branchList = [
 ];
 
 const RewardManagement = () => {
-  const [rewards, setRewards] = useState(initialRewards);
+  const [rewards, setRewards] = useState([]); // Initialize as empty array
   const [selectedReward, setSelectedReward] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [branchDropdownVisible, setBranchDropdownVisible] = useState(false);
-  const [formState, setFormState] = useState({ 
-    title: "", 
+  const [loading, setLoading] = useState(true); // Start with loading true
+  const [refreshing, setRefreshing] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [formState, setFormState] = useState({
+    voucherCode: "",
     description: "",
-    points: "", 
-    stock: "",
-    branch: "",
-    image: "",
+    voucherType: "DISCOUNT_PERCENTAGE",
+    cost: "",
+    expiryDate: "",
+    isActive: true,
   });
 
+  // Fetch vouchers from API
+  const fetchVouchers = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await getVouchers();
+
+      if (response?.data) {
+        // Ensure response.data is an array
+        const vouchersData = Array.isArray(response.data)
+          ? response.data
+          : Array.isArray(response.data.content)
+          ? response.data.content
+          : [];
+        setRewards(vouchersData);
+      } else {
+        setRewards([]);
+      }
+    } catch (error) {
+      console.error("Error fetching vouchers:", error);
+      setRewards([]); // Set empty array on error
+      Alert.alert("Lỗi", "Không thể tải danh sách voucher. Vui lòng thử lại.");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  // Initial load
+  useEffect(() => {
+    fetchVouchers();
+  }, [fetchVouchers]);
+
+  // Pull to refresh
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchVouchers();
+  }, [fetchVouchers]);
+
   const activeCount = useMemo(
-    () => rewards.filter((reward) => reward.status === "active").length,
+    () =>
+      Array.isArray(rewards)
+        ? rewards.filter((reward) => reward.isActive).length
+        : 0,
     [rewards]
   );
 
-  const handleToggleStatus = (rewardId) => {
-    setRewards((prev) =>
-      prev.map((reward) =>
-        reward.id === rewardId
-          ? {
-              ...reward,
-              status: reward.status === "active" ? "paused" : "active",
-            }
-          : reward
-      )
-    );
+  const handleToggleStatus = async (reward) => {
+    try {
+      const updatedData = {
+        ...reward,
+        isActive: !reward.isActive,
+      };
+
+      await updateVoucher(reward.id, updatedData);
+
+      // Update local state
+      setRewards((prev) =>
+        prev.map((r) =>
+          r.id === reward.id ? { ...r, isActive: !r.isActive } : r
+        )
+      );
+
+      Alert.alert(
+        "Thành công",
+        `Đã ${!reward.isActive ? "kích hoạt" : "tạm dừng"} voucher`
+      );
+    } catch (error) {
+      console.error("Error toggling voucher status:", error);
+      Alert.alert("Lỗi", "Không thể cập nhật trạng thái voucher.");
+    }
   };
 
   const handleOpenEdit = (reward) => {
     setSelectedReward(reward);
     setIsCreating(false);
     setFormState({
-      title: reward.title,
+      voucherCode: reward.voucherCode,
       description: reward.description || "",
-      points: String(reward.points),
-      stock: String(reward.stock),
-      branch: reward.branch || "",
-      image: reward.image || "",
+      voucherType: reward.voucherType || "DISCOUNT_PERCENTAGE",
+      cost: String(reward.cost || 0),
+      expiryDate: reward.expiryDate
+        ? new Date(reward.expiryDate).toISOString().split("T")[0]
+        : "",
+      isActive: reward.isActive !== undefined ? reward.isActive : true,
     });
     setModalVisible(true);
   };
@@ -110,59 +180,87 @@ const RewardManagement = () => {
     setSelectedReward(null);
     setIsCreating(true);
     setFormState({
-      title: "",
+      voucherCode: "",
       description: "",
-      points: "",
-      stock: "",
-      branch: "",
-      image: "",
+      voucherType: "DISCOUNT_PERCENTAGE",
+      cost: "",
+      expiryDate: "",
+      isActive: true,
     });
     setModalVisible(true);
   };
 
-  const generateRewardId = () => {
-    const maxId = rewards.reduce((max, reward) => {
-      const num = parseInt(reward.id.split("-")[1]);
-      return num > max ? num : max;
-    }, 3000);
-    return `REW-${maxId + 1}`;
-  };
-
-  const handleSaveReward = () => {
-    if (!formState.title.trim()) {
+  const handleSaveReward = async () => {
+    if (!formState.voucherCode.trim()) {
+      Alert.alert("Lỗi", "Vui lòng nhập mã voucher");
       return;
     }
 
-    if (isCreating) {
-      const newReward = {
-        id: generateRewardId(),
-        title: formState.title.trim(),
-        description: formState.description.trim(),
-        points: Number(formState.points) || 0,
-        stock: formState.stock === "Không giới hạn" ? formState.stock : Number(formState.stock) || 0,
-        status: "active",
-        branch: formState.branch.trim() || "Tất cả",
-        image: formState.image.trim() || "",
-      };
-      setRewards((prev) => [...prev, newReward]);
-    } else {
-      setRewards((prev) =>
-        prev.map((reward) =>
-          reward.id === selectedReward.id
-            ? {
-                ...reward,
-                title: formState.title.trim(),
-                description: formState.description.trim(),
-                points: Number(formState.points) || 0,
-                stock: formState.stock === "Không giới hạn" ? formState.stock : Number(formState.stock) || 0,
-                branch: formState.branch.trim() || "Tất cả",
-                image: formState.image.trim() || "",
-              }
-            : reward
-        )
-      );
+    if (!formState.cost || Number(formState.cost) < 0) {
+      Alert.alert("Lỗi", "Vui lòng nhập giá trị hợp lệ");
+      return;
     }
-    handleCloseModal();
+
+    try {
+      setSubmitting(true);
+
+      const voucherData = {
+        voucherCode: formState.voucherCode.trim(),
+        description: formState.description.trim(),
+        voucherType: formState.voucherType,
+        cost: Number(formState.cost),
+        expiryDate: formState.expiryDate
+          ? new Date(formState.expiryDate).toISOString()
+          : null,
+        isActive: formState.isActive,
+      };
+
+      if (isCreating) {
+        await createVoucher(voucherData);
+        Alert.alert("Thành công", "Đã tạo voucher mới");
+      } else {
+        await updateVoucher(selectedReward.id, voucherData);
+        Alert.alert("Thành công", "Đã cập nhật voucher");
+      }
+
+      // Refresh list
+      await fetchVouchers();
+      handleCloseModal();
+    } catch (error) {
+      console.error("Error saving voucher:", error);
+      Alert.alert(
+        "Lỗi",
+        `Không thể ${
+          isCreating ? "tạo" : "cập nhật"
+        } voucher. Vui lòng thử lại.`
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeleteReward = async (reward) => {
+    Alert.alert(
+      "Xác nhận xóa",
+      `Bạn có chắc muốn xóa voucher "${reward.voucherCode}"?`,
+      [
+        { text: "Hủy", style: "cancel" },
+        {
+          text: "Xóa",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteVoucher(reward.id);
+              Alert.alert("Thành công", "Đã xóa voucher");
+              await fetchVouchers();
+            } catch (error) {
+              console.error("Error deleting voucher:", error);
+              Alert.alert("Lỗi", "Không thể xóa voucher. Vui lòng thử lại.");
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleCloseModal = () => {
@@ -197,58 +295,70 @@ const RewardManagement = () => {
   };
 
   const renderRewardItem = ({ item }) => {
+    // Format date
+    const formatDate = (dateStr) => {
+      if (!dateStr) return "Không giới hạn";
+      const date = new Date(dateStr);
+      return date.toLocaleDateString("vi-VN");
+    };
+
+    // Map voucher type to Vietnamese
+    const getVoucherTypeLabel = (type) => {
+      const typeMap = {
+        DISCOUNT_PERCENTAGE: "Giảm %",
+        DISCOUNT_AMOUNT: "Giảm tiền",
+        FREE_RIDE: "Miễn phí",
+      };
+      return typeMap[type] || type;
+    };
+
     return (
       <View style={styles.card}>
-        {item.image ? (
-          <Image
-            source={{ uri: item.image }}
-            style={styles.rewardImage}
-            resizeMode="cover"
-          />
-        ) : (
-          <View style={styles.rewardImagePlaceholder}>
-            <Ionicons name="image-outline" size={40} color={COLORS.GRAY} />
-            <Text style={styles.placeholderText}>Chưa có hình ảnh</Text>
-          </View>
-        )}
         <View style={styles.headerRow}>
-          <View>
-            <Text style={styles.rewardTitle}>{item.title}</Text>
-            <Text style={styles.rewardId}>{item.id}</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.rewardTitle}>{item.voucherCode}</Text>
+            <Text style={styles.rewardId}>#{item.id}</Text>
           </View>
           <View
             style={[
               styles.statusBadge,
               {
-                backgroundColor:
-                  item.status === "active" ? COLORS.GREEN_LIGHT : COLORS.ORANGE_LIGHT,
+                backgroundColor: item.isActive
+                  ? COLORS.GREEN_LIGHT
+                  : COLORS.ORANGE_LIGHT,
               },
             ]}
           >
             <Text
               style={[
                 styles.statusLabel,
-                { color: item.status === "active" ? COLORS.GREEN : COLORS.ORANGE_DARK },
+                { color: item.isActive ? COLORS.GREEN : COLORS.ORANGE_DARK },
               ]}
             >
-              {item.status === "active" ? "Đang áp dụng" : "Tạm dừng"}
+              {item.isActive ? "Đang áp dụng" : "Tạm dừng"}
             </Text>
           </View>
         </View>
 
-        <Text style={styles.description}>{item.description}</Text>
+        {item.description && (
+          <Text style={styles.description}>{item.description}</Text>
+        )}
 
         <View style={styles.metaRow}>
-          <Ionicons name="star-outline" size={16} color={COLORS.GRAY} />
-          <Text style={styles.metaText}>Điểm yêu cầu: {item.points}</Text>
+          <Ionicons name="pricetag-outline" size={16} color={COLORS.GRAY} />
+          <Text style={styles.metaText}>
+            Loại: {getVoucherTypeLabel(item.voucherType)}
+          </Text>
         </View>
         <View style={styles.metaRow}>
-          <Ionicons name="cube-outline" size={16} color={COLORS.GRAY} />
-          <Text style={styles.metaText}>Số lượng: {item.stock}</Text>
+          <Ionicons name="cash-outline" size={16} color={COLORS.GRAY} />
+          <Text style={styles.metaText}>Giá trị: {item.cost}</Text>
         </View>
         <View style={styles.metaRow}>
-          <Ionicons name="location-outline" size={16} color={COLORS.GRAY} />
-          <Text style={styles.metaText}>Chi nhánh: {item.branch || "Tất cả"}</Text>
+          <Ionicons name="calendar-outline" size={16} color={COLORS.GRAY} />
+          <Text style={styles.metaText}>
+            Hạn sử dụng: {formatDate(item.expiryDate)}
+          </Text>
         </View>
 
         <View style={styles.actionRow}>
@@ -261,16 +371,23 @@ const RewardManagement = () => {
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.actionButton, styles.toggleButton]}
-            onPress={() => handleToggleStatus(item.id)}
+            onPress={() => handleToggleStatus(item)}
           >
             <Ionicons
-              name={item.status === "active" ? "pause-outline" : "play-outline"}
+              name={item.isActive ? "pause-outline" : "play-outline"}
               size={18}
               color={COLORS.WHITE}
             />
             <Text style={styles.actionLabel}>
-              {item.status === "active" ? "Tạm dừng" : "Kích hoạt"}
+              {item.isActive ? "Tạm dừng" : "Kích hoạt"}
             </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.actionButton, styles.deleteButton]}
+            onPress={() => handleDeleteReward(item)}
+          >
+            <Ionicons name="trash-outline" size={18} color={COLORS.WHITE} />
+            <Text style={styles.actionLabel}>Xóa</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -278,7 +395,7 @@ const RewardManagement = () => {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
+    <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Quản lý đổi thưởng</Text>
@@ -305,22 +422,43 @@ const RewardManagement = () => {
       </View>
 
       <View style={styles.addButtonContainer}>
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={handleOpenCreate}
-        >
+        <TouchableOpacity style={styles.addButton} onPress={handleOpenCreate}>
           <Ionicons name="add-circle-outline" size={20} color={COLORS.WHITE} />
           <Text style={styles.addButtonText}>Thêm ưu đãi mới</Text>
         </TouchableOpacity>
       </View>
 
-      <FlatList
-        data={rewards}
-        keyExtractor={(item) => item.id}
-        renderItem={renderRewardItem}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-      />
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.PRIMARY} />
+          <Text style={styles.loadingText}>Đang tải voucher...</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={rewards}
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={renderRewardItem}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[COLORS.PRIMARY]}
+              tintColor={COLORS.PRIMARY}
+            />
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <Ionicons name="gift-outline" size={48} color={COLORS.GRAY} />
+              <Text style={styles.emptyTitle}>Chưa có voucher nào</Text>
+              <Text style={styles.emptyDescription}>
+                Nhấn "Thêm ưu đãi mới" để tạo voucher.
+              </Text>
+            </View>
+          }
+        />
+      )}
 
       <Modal
         transparent
@@ -331,149 +469,108 @@ const RewardManagement = () => {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>
-              {isCreating ? "Tạo ưu đãi mới" : "Chỉnh sửa ưu đãi"}
+              {isCreating ? "Tạo voucher mới" : "Chỉnh sửa voucher"}
             </Text>
             <ScrollView showsVerticalScrollIndicator={false}>
               <TextInput
                 style={styles.input}
-                placeholder="Tên ưu đãi *"
-                value={formState.title}
-                onChangeText={(value) => setFormState((prev) => ({ ...prev, title: value }))}
+                placeholder="Mã voucher *"
+                value={formState.voucherCode}
+                onChangeText={(value) =>
+                  setFormState((prev) => ({ ...prev, voucherCode: value }))
+                }
               />
               <TextInput
                 style={[styles.input, styles.textArea]}
                 placeholder="Mô tả"
                 value={formState.description}
-                onChangeText={(value) => setFormState((prev) => ({ ...prev, description: value }))}
+                onChangeText={(value) =>
+                  setFormState((prev) => ({ ...prev, description: value }))
+                }
                 multiline
                 numberOfLines={3}
               />
-              <TextInput
-                style={styles.input}
-                placeholder="Điểm yêu cầu"
-                keyboardType="numeric"
-                value={formState.points}
-                onChangeText={(value) => setFormState((prev) => ({ ...prev, points: value }))}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="Số lượng (hoặc 'Không giới hạn')"
-                value={formState.stock}
-                onChangeText={(value) => setFormState((prev) => ({ ...prev, stock: value }))}
-              />
-              <View style={styles.formGroup}>
-                <Text style={styles.label}>Hình ảnh voucher</Text>
-                {formState.image ? (
-                  <View style={styles.imagePreviewContainer}>
-                    <Image
-                      source={{ uri: formState.image }}
-                      style={styles.imagePreview}
-                      resizeMode="cover"
-                    />
+
+              <Text style={styles.label}>Loại voucher *</Text>
+              <View style={styles.typeSelector}>
+                {["DISCOUNT_PERCENTAGE", "DISCOUNT_AMOUNT", "FREE_RIDE"].map(
+                  (type) => (
                     <TouchableOpacity
-                      style={styles.removeImageButton}
-                      onPress={() => setFormState((prev) => ({ ...prev, image: "" }))}
+                      key={type}
+                      style={[
+                        styles.typeButton,
+                        formState.voucherType === type &&
+                          styles.typeButtonActive,
+                      ]}
+                      onPress={() =>
+                        setFormState((prev) => ({ ...prev, voucherType: type }))
+                      }
                     >
-                      <Ionicons name="close-circle" size={24} color={COLORS.RED} />
+                      <Text
+                        style={[
+                          styles.typeButtonText,
+                          formState.voucherType === type &&
+                            styles.typeButtonTextActive,
+                        ]}
+                      >
+                        {type === "DISCOUNT_PERCENTAGE"
+                          ? "Giảm %"
+                          : type === "DISCOUNT_AMOUNT"
+                          ? "Giảm tiền"
+                          : "Miễn phí"}
+                      </Text>
                     </TouchableOpacity>
-                  </View>
-                ) : null}
-                <View style={styles.imageInputRow}>
-                  <TextInput
-                    style={[styles.input, styles.imageUrlInput]}
-                    placeholder="Nhập URL hình ảnh"
-                    value={formState.image}
-                    onChangeText={(value) => setFormState((prev) => ({ ...prev, image: value }))}
-                  />
-                  <TouchableOpacity
-                    style={styles.pickImageButton}
-                    onPress={pickImage}
-                  >
-                    <Ionicons name="image-outline" size={20} color={COLORS.PRIMARY} />
-                    <Text style={styles.pickImageText}>Chọn ảnh</Text>
-                  </TouchableOpacity>
-                </View>
+                  )
+                )}
               </View>
-              <View style={styles.formGroup}>
-                <Text style={styles.label}>Chi nhánh</Text>
-                <TouchableOpacity
-                  style={styles.dropdownButton}
-                  onPress={() => setBranchDropdownVisible(true)}
-                >
-                  <Text
-                    style={[
-                      styles.dropdownButtonText,
-                      !formState.branch && styles.dropdownButtonTextPlaceholder,
-                    ]}
-                  >
-                    {formState.branch || "Chọn chi nhánh"}
-                  </Text>
-                  <Ionicons name="chevron-down" size={20} color={COLORS.GRAY} />
-                </TouchableOpacity>
-              </View>
+
+              <TextInput
+                style={styles.input}
+                placeholder="Giá trị *"
+                keyboardType="numeric"
+                value={formState.cost}
+                onChangeText={(value) =>
+                  setFormState((prev) => ({ ...prev, cost: value }))
+                }
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Ngày hết hạn (YYYY-MM-DD)"
+                value={formState.expiryDate}
+                onChangeText={(value) =>
+                  setFormState((prev) => ({ ...prev, expiryDate: value }))
+                }
+              />
             </ScrollView>
 
             <View style={styles.modalActions}>
               <TouchableOpacity
                 style={[styles.modalButton, styles.cancelButton]}
                 onPress={handleCloseModal}
+                disabled={submitting}
               >
                 <Text style={styles.modalButtonText}>Hủy</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modalButton, styles.saveButton]}
+                style={[
+                  styles.modalButton,
+                  styles.saveButton,
+                  submitting && styles.saveButtonDisabled,
+                ]}
                 onPress={handleSaveReward}
+                disabled={submitting}
               >
-                <Text style={styles.modalButtonText}>
-                  {isCreating ? "Tạo mới" : "Lưu thay đổi"}
-                </Text>
+                {submitting ? (
+                  <ActivityIndicator size="small" color={COLORS.WHITE} />
+                ) : (
+                  <Text style={styles.modalButtonText}>
+                    {isCreating ? "Tạo mới" : "Lưu thay đổi"}
+                  </Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
         </View>
-      </Modal>
-
-      {/* Branch Dropdown Modal */}
-      <Modal
-        transparent
-        visible={branchDropdownVisible}
-        animationType="fade"
-        onRequestClose={() => setBranchDropdownVisible(false)}
-      >
-        <TouchableOpacity
-          style={styles.dropdownOverlay}
-          activeOpacity={1}
-          onPress={() => setBranchDropdownVisible(false)}
-        >
-          <View style={styles.dropdownContainer}>
-            <Text style={styles.dropdownTitle}>Chọn chi nhánh</Text>
-            <FlatList
-              data={branchList}
-              keyExtractor={(item) => item}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={[
-                    styles.dropdownItem,
-                    formState.branch === item && styles.dropdownItemActive,
-                  ]}
-                  onPress={() => handleSelectBranch(item)}
-                >
-                  <Text
-                    style={[
-                      styles.dropdownItemText,
-                      formState.branch === item && styles.dropdownItemTextActive,
-                    ]}
-                  >
-                    {item}
-                  </Text>
-                  {formState.branch === item && (
-                    <Ionicons name="checkmark" size={20} color={COLORS.PRIMARY} />
-                  )}
-                </TouchableOpacity>
-              )}
-            />
-          </View>
-        </TouchableOpacity>
       </Modal>
     </SafeAreaView>
   );
@@ -829,6 +926,65 @@ const styles = StyleSheet.create({
   saveButton: {
     backgroundColor: COLORS.BLUE,
   },
+  saveButtonDisabled: {
+    backgroundColor: COLORS.GRAY,
+    opacity: 0.6,
+  },
+  deleteButton: {
+    backgroundColor: COLORS.RED,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 40,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: COLORS.GRAY,
+  },
+  emptyState: {
+    paddingVertical: 60,
+    alignItems: "center",
+    gap: 12,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: COLORS.BLACK,
+  },
+  emptyDescription: {
+    fontSize: 13,
+    color: COLORS.GRAY,
+    textAlign: "center",
+    paddingHorizontal: 32,
+    lineHeight: 18,
+  },
+  typeSelector: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 16,
+  },
+  typeButton: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: COLORS.GRAY_LIGHT,
+    alignItems: "center",
+  },
+  typeButtonActive: {
+    backgroundColor: COLORS.PRIMARY,
+  },
+  typeButtonText: {
+    fontSize: 14,
+    color: COLORS.GRAY,
+    fontWeight: "600",
+  },
+  typeButtonTextActive: {
+    color: COLORS.WHITE,
+  },
   modalButtonText: {
     fontSize: 14,
     fontWeight: "600",
@@ -837,4 +993,3 @@ const styles = StyleSheet.create({
 });
 
 export default RewardManagement;
-

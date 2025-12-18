@@ -9,6 +9,8 @@ import {
   TextInput,
   ScrollView,
   Switch,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -214,7 +216,9 @@ const MembershipManagement = ({ navigation }) => {
                 styles.statusLabel,
                 {
                   color:
-                    item.status === "active" ? COLORS.GREEN : COLORS.ORANGE_DARK,
+                    item.status === "active"
+                      ? COLORS.GREEN
+                      : COLORS.ORANGE_DARK,
                 },
               ]}
             >
@@ -342,10 +346,7 @@ const MembershipManagement = ({ navigation }) => {
       </View>
 
       <View style={styles.addButtonContainer}>
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={handleOpenAdd}
-        >
+        <TouchableOpacity style={styles.addButton} onPress={handleOpenAdd}>
           <Ionicons name="add-circle-outline" size={20} color={COLORS.WHITE} />
           <Text style={styles.addButtonText}>Thêm gói mới</Text>
         </TouchableOpacity>
@@ -365,7 +366,10 @@ const MembershipManagement = ({ navigation }) => {
         animationType="slide"
         onRequestClose={() => setModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.modalOverlay}
+        >
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
@@ -376,7 +380,10 @@ const MembershipManagement = ({ navigation }) => {
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
               <View style={styles.formGroup}>
                 <Text style={styles.label}>Tên gói *</Text>
                 <TextInput
@@ -464,7 +471,9 @@ const MembershipManagement = ({ navigation }) => {
               </View>
 
               <View style={styles.formGroup}>
-                <Text style={styles.label}>Quyền lợi (mỗi dòng một quyền lợi) *</Text>
+                <Text style={styles.label}>
+                  Quyền lợi (mỗi dòng một quyền lợi) *
+                </Text>
                 <TextInput
                   style={[styles.input, styles.textArea]}
                   placeholder="Giảm 10% mọi chuyến đi&#10;Tích điểm x2&#10;Ưu tiên đặt chỗ"
@@ -520,7 +529,7 @@ const MembershipManagement = ({ navigation }) => {
               </View>
             </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
@@ -813,4 +822,3 @@ const styles = StyleSheet.create({
 });
 
 export default MembershipManagement;
-

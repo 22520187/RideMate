@@ -7,10 +7,16 @@ import endpoints from "../api/endpoints";
  */
 export const getAllVouchers = async () => {
   try {
+    console.log("🎁 Calling getAllVouchers API...", endpoints.vouchers.list);
     const response = await axiosClient.get(endpoints.vouchers.list);
+    console.log(
+      "✅ getAllVouchers success:",
+      response?.data?.length,
+      "vouchers"
+    );
     return response; // Interceptor already returned response.data (array of vouchers)
   } catch (error) {
-    console.error("Error getting vouchers:", error);
+    console.error("❌ Error getting vouchers:", error.message, error.code);
     throw error;
   }
 };
@@ -21,10 +27,19 @@ export const getAllVouchers = async () => {
  */
 export const getMyVouchers = async () => {
   try {
+    console.log(
+      "👤 Calling getMyVouchers API...",
+      endpoints.vouchers.myVouchers
+    );
     const response = await axiosClient.get(endpoints.vouchers.myVouchers);
+    console.log(
+      "✅ getMyVouchers success:",
+      response?.data?.length,
+      "vouchers"
+    );
     return response; // Interceptor already returned response.data (array of user vouchers)
   } catch (error) {
-    console.error("Error getting my vouchers:", error);
+    console.error("❌ Error getting my vouchers:", error.message, error.code);
     throw error;
   }
 };
@@ -36,10 +51,17 @@ export const getMyVouchers = async () => {
  */
 export const redeemVoucher = async (voucherId) => {
   try {
-    const response = await axiosClient.post(endpoints.vouchers.redeem(voucherId));
+    console.log(
+      "🎉 Calling redeemVoucher API...",
+      endpoints.vouchers.redeem(voucherId)
+    );
+    const response = await axiosClient.post(
+      endpoints.vouchers.redeem(voucherId)
+    );
+    console.log("✅ redeemVoucher success");
     return response; // Interceptor already returned response.data
   } catch (error) {
-    console.error("Error redeeming voucher:", error);
+    console.error("❌ Error redeeming voucher:", error.message, error.code);
     throw error;
   }
 };
@@ -51,11 +73,15 @@ export const redeemVoucher = async (voucherId) => {
  */
 export const createVoucher = async (voucherData) => {
   try {
-    const response = await axiosClient.post(endpoints.vouchers.create, voucherData);
+    console.log("✨ Calling createVoucher API...", endpoints.vouchers.create);
+    const response = await axiosClient.post(
+      endpoints.vouchers.create,
+      voucherData
+    );
+    console.log("✅ createVoucher success");
     return response; // Interceptor already returned response.data
   } catch (error) {
-    console.error("Error creating voucher:", error);
+    console.error("❌ Error creating voucher:", error.message, error.code);
     throw error;
   }
 };
-
