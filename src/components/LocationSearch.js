@@ -1,6 +1,15 @@
 import React, { useState, useEffect } from "react";
-import { View, TextInput, StyleSheet, TouchableOpacity } from "react-native";
+import {
+  View,
+  TextInput,
+  StyleSheet,
+  TouchableOpacity,
+  Text,
+  ActivityIndicator,
+  Alert,
+} from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
+import * as Location from "expo-location";
 import COLORS from "../constant/colors";
 import SuggestionsList from "./SuggestionsList";
 import { useDebounce } from "../hooks/useDebounce";
@@ -13,19 +22,20 @@ const LocationSearch = ({
   onLocationSelect = () => {},
   iconName = "place",
   showSuggestions = true,
-  containerWidth = "100%", // Thêm prop để truyền chiều rộng
-  forceHideSuggestions = false, // Thêm prop để force ẩn suggestions
-  showClearButton = true, // Prop mới để hiển thị/ẩn button clear
+  containerWidth = "100%",
+  forceHideSuggestions = false,
+  onGetCurrentLocation = () => {},
+  showCurrentLocationButton = false,
+  showClearButton = true,
 }) => {
   const [isFocused, setIsFocused] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showSuggestionsList, setShowSuggestionsList] = useState(false);
+  const [isGettingLocation, setIsGettingLocation] = useState(false);
 
-  // Debounce giá trị input với delay 2 giây
-  const debouncedValue = useDebounce(value, 2000);
+  const debouncedValue = useDebounce(value, 1000);
 
-  // Effect để gọi API khi debounced value thay đổi
   useEffect(() => {
     const performSearch = async () => {
       if (
@@ -41,14 +51,10 @@ const LocationSearch = ({
 
       setIsLoading(true);
       try {
-        console.log("🔍 Searching for:", debouncedValue);
         const results = await searchPlaces(debouncedValue);
-        console.log("📦 Search results:", results.length, "places found");
-
         setSuggestions(results);
         setShowSuggestionsList(true);
       } catch (error) {
-        console.error("❌ Search error:", error);
         setSuggestions([]);
       } finally {
         setIsLoading(false);
@@ -58,7 +64,6 @@ const LocationSearch = ({
     performSearch();
   }, [debouncedValue, forceHideSuggestions]);
 
-  // Effect để ẩn suggestions khi forceHideSuggestions = true
   useEffect(() => {
     if (forceHideSuggestions) {
       setSuggestions([]);
@@ -69,8 +74,6 @@ const LocationSearch = ({
 
   const handleTextChange = (text) => {
     onChangeText(text);
-
-    // Hiển thị loading ngay khi người dùng nhập (chỉ khi không force hide)
     if (text.length >= 2 && !forceHideSuggestions) {
       setIsLoading(true);
       setShowSuggestionsList(true);
@@ -88,15 +91,12 @@ const LocationSearch = ({
       longitude: parseFloat(suggestion.lon),
       placeId: suggestion.place_id,
     };
-
     onChangeText(suggestion.display_name);
     onLocationSelect(locationData);
-
-    // Tự động ẩn suggestions sau khi chọn
     setSuggestions([]);
     setShowSuggestionsList(false);
     setIsLoading(false);
-    setIsFocused(false); // Đảm bảo input không còn focused để đóng suggestions
+    setIsFocused(false);
   };
 
   const handleFocus = () => {
@@ -108,10 +108,7 @@ const LocationSearch = ({
 
   const handleBlur = () => {
     setIsFocused(false);
-    // Delay để cho phép người dùng click vào suggestion
-    setTimeout(() => {
-      setShowSuggestionsList(false);
-    }, 200);
+    setTimeout(() => setShowSuggestionsList(false), 200);
   };
 
   const clearSearch = () => {
@@ -119,6 +116,37 @@ const LocationSearch = ({
     setSuggestions([]);
     setShowSuggestionsList(false);
     setIsLoading(false);
+  };
+
+  const handleGetCurrentLocation = async () => {
+    try {
+      setIsGettingLocation(true);
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Lỗi", "Vui lòng cấp quyền truy cập vị trí");
+        return;
+      }
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Low,
+        maximumAge: 10000,
+        timeout: 5000,
+      });
+      const { latitude, longitude } = location.coords;
+      const description = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+      const locationData = {
+        description: description,
+        latitude,
+        longitude,
+        placeId: `current-${Date.now()}`,
+      };
+      onChangeText(description);
+      onLocationSelect(locationData);
+      onGetCurrentLocation(locationData);
+    } catch (error) {
+      Alert.alert("Lỗi", "Không thể lấy vị trí hiện tại");
+    } finally {
+      setIsGettingLocation(false);
+    }
   };
 
   return (
@@ -129,7 +157,9 @@ const LocationSearch = ({
           isFocused && styles.inputContainerFocused,
         ]}
       >
-        <MaterialIcons name={iconName} size={18} color={COLORS.PRIMARY} />
+        {iconName ? (
+          <MaterialIcons name={iconName} size={18} color={COLORS.PRIMARY} />
+        ) : null}
         <TextInput
           style={styles.input}
           placeholder={placeholder}
@@ -138,19 +168,43 @@ const LocationSearch = ({
           placeholderTextColor={COLORS.PLACEHOLDER_COLOR}
           onFocus={handleFocus}
           onBlur={handleBlur}
+          ellipsizeMode="head"
+          numberOfLines={1}
         />
-        {value.length > 0 && showClearButton && (
+        {value.length > 0 && showClearButton ? (
           <TouchableOpacity onPress={clearSearch} style={styles.clearButton}>
             <MaterialIcons name="clear" size={18} color={COLORS.GRAY} />
           </TouchableOpacity>
+        ) : (
+          showCurrentLocationButton && (
+            <TouchableOpacity
+              onPress={handleGetCurrentLocation}
+              disabled={isGettingLocation}
+              style={styles.locationButton}
+            >
+              {isGettingLocation ? (
+                <ActivityIndicator size="small" color={COLORS.PRIMARY} />
+              ) : (
+                <View style={styles.locationIconWrapper}>
+                  <MaterialIcons
+                    name="my-location"
+                    size={18}
+                    color={COLORS.PRIMARY}
+                  />
+                  <Text style={styles.locationButtonLabel}>
+                    Vị trí hiện tại
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          )
         )}
-        {isLoading && (
+        {isLoading && !value.length && (
           <View style={styles.loadingIndicator}>
             <MaterialIcons name="search" size={18} color={COLORS.PRIMARY} />
           </View>
         )}
       </View>
-
       {showSuggestions && !forceHideSuggestions && (
         <SuggestionsList
           suggestions={suggestions}
@@ -167,7 +221,7 @@ const LocationSearch = ({
 const styles = StyleSheet.create({
   container: {
     position: "relative",
-    zIndex: 9999,
+    zIndex: 1000,
   },
   inputContainer: {
     flexDirection: "row",
@@ -179,11 +233,11 @@ const styles = StyleSheet.create({
     marginVertical: 2,
     borderWidth: 1,
     borderColor: COLORS.GRAY_LIGHT,
-    elevation: 10,
+    elevation: 2,
     shadowColor: COLORS.BLACK,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   inputContainerFocused: {
     borderColor: COLORS.PRIMARY,
@@ -199,6 +253,21 @@ const styles = StyleSheet.create({
   clearButton: {
     padding: 4,
     marginLeft: 8,
+  },
+  locationButton: {
+    padding: 4,
+    marginLeft: 8,
+  },
+  locationIconWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  locationButtonLabel: {
+    fontSize: 11,
+    color: COLORS.PRIMARY,
+    fontWeight: "500",
+    marginLeft: 4,
   },
   loadingIndicator: {
     padding: 4,

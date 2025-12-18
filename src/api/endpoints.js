@@ -74,6 +74,7 @@ export default {
     reports: "/admin/reports",
     reportById: (id) => `/admin/reports/${id}`,
     updateReportStatus: (id) => `/admin/reports/${id}/status`,
+    reportStats: "/admin/reports/statistics",
 
     // Mission management (Admin)
     missions: "/admin/missions",

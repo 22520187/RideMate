@@ -1,26 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
-import { View, StyleSheet, Text, Animated, Dimensions } from "react-native";
+import { View, StyleSheet, Text, Dimensions } from "react-native";
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
 import polyline from "@mapbox/polyline";
+import COLORS from "../constant/colors";
 
 const { width, height } = Dimensions.get("window");
-
-// --- HÀM TÍNH GÓC QUAY (Bearing) ---
-const getBearing = (startLat, startLng, destLat, destLng) => {
-  const startLatRad = (startLat * Math.PI) / 180;
-  const startLngRad = (startLng * Math.PI) / 180;
-  const destLatRad = (destLat * Math.PI) / 180;
-  const destLngRad = (destLng * Math.PI) / 180;
-
-  const y = Math.sin(destLngRad - startLngRad) * Math.cos(destLatRad);
-  const x =
-    Math.cos(startLatRad) * Math.sin(destLatRad) -
-    Math.sin(startLatRad) *
-      Math.cos(destLatRad) *
-      Math.cos(destLngRad - startLngRad);
-  const brng = Math.atan2(y, x);
-  return ((brng * 180) / Math.PI + 360) % 360;
-};
 
 const RouteMap = ({
   // Thứ tự ưu tiên: vehicleLocation/pickupLocation > origin/destination > default HCM
@@ -28,91 +12,84 @@ const RouteMap = ({
   destination = null,
   vehicleLocation = null,
   pickupLocation = null,
+  driverLocation = null, // Vị trí ban đầu của tài xế
   height = 200,
   showRoute = true,
   fullScreen = false,
   rideStatus = "matched",
-  startAnimation = true, // Prop mới để kiểm soát animation
+  startAnimation = false, // Changed to false by default - only animate when explicitly set
+  showVehicle = false, // New prop to control vehicle visibility
+  onDriverArrived = null, // Callback khi tài xế đến điểm đón
 }) => {
-  // Default coordinates
-  const DEFAULT_START = { latitude: 10.77254, longitude: 106.69763 };
-  const DEFAULT_END = { latitude: 10.77699, longitude: 106.69532 };
+  // Default coordinates - only used as fallback for map center
+  const DEFAULT_CENTER = { latitude: 10.77254, longitude: 106.69763 };
 
-  // Xác định start/end: ưu tiên vehicleLocation/pickupLocation
-  const start =
-    vehicleLocation && vehicleLocation.latitude
-      ? vehicleLocation
-      : origin && origin.latitude
-      ? origin
-      : DEFAULT_START;
-  const end =
-    pickupLocation && pickupLocation.latitude
-      ? pickupLocation
-      : destination && destination.latitude
-      ? destination
-      : DEFAULT_END;
+  // Xác định start/end: KHÔNG dùng default nếu không có origin/destination
+  const start = origin && origin.latitude ? origin : null;
+  const end = destination && destination.latitude ? destination : null;
 
   // Định nghĩa pickupPoint và destinationPoint từ các props
   const pickupPoint = start;
   const destinationPoint = end;
 
+  // State quản lý giai đoạn: 'to_pickup' (đến điểm đón) hoặc 'to_destination' (đến đích)
+  const [phase, setPhase] = useState("to_pickup");
+
   const mapRef = useRef(null);
 
   // State quản lý đường đi và vị trí xe
   const [osmRoute, setOsmRoute] = useState([]);
-  const [carPosition, setCarPosition] = useState(pickupPoint); // Xe bắt đầu từ điểm đón
-  const [carRotation, setCarRotation] = useState(0);
+  const [remainingRoute, setRemainingRoute] = useState([]); // Path còn lại từ xe đến đích
+  const [carPosition, setCarPosition] = useState(null); // Start as null
 
-  // Ref quản lý vòng lặp animation (Quan trọng để fix lỗi closure)
+  // Ref quản lý vòng lặp animation
   const indexRef = useRef(0);
   const routeRef = useRef([]); // Lưu route vào ref để truy cập trong setInterval
+  const hasNotifiedArrival = useRef(false); // Ref để tránh gọi callback nhiều lần
 
-  // 1. Fetch OSRM Route
+  // 1. Fetch OSRM Route - hỗ trợ 2 giai đoạn
   const fetchRoute = async () => {
     try {
-      // Check null trước
+      let startPoint, endPoint;
+
+      // TRƯỜNG HỢP 1: Chưa có driver (chỉ preview route) - VẼ TRỰC TIẾP pickup → destination
+      if (!driverLocation || !showVehicle) {
+        startPoint = pickupPoint;
+        endPoint = destinationPoint;
+        console.log("📍 Simple Route: Pickup → Destination (no driver yet)");
+      }
+      // TRƯỜNG HỢP 2: Đã có driver - VẼ 2 GIAI ĐOẠN
+      else if (phase === "to_pickup") {
+        // Giai đoạn 1: Từ vị trí tài xế đến điểm đón
+        startPoint = driverLocation;
+        endPoint = pickupPoint;
+        console.log("🚗 Phase 1: Driver → Pickup");
+      } else {
+        // Giai đoạn 2: Từ điểm đón đến điểm đích
+        startPoint = pickupPoint;
+        endPoint = destinationPoint;
+        console.log("🚗 Phase 2: Pickup → Destination");
+      }
+
+      // Check null trước - nếu thiếu toạ độ thì KHÔNG vẽ gì cả
       if (
-        !pickupPoint ||
-        !pickupPoint.latitude ||
-        !destinationPoint ||
-        !destinationPoint.latitude
+        !startPoint ||
+        !startPoint.latitude ||
+        !endPoint ||
+        !endPoint.latitude
       ) {
-        console.log(
-          "⚠️ Missing coordinates. Pickup:",
-          pickupPoint,
-          "Destination:",
-          destinationPoint
-        );
-        // Fallback: Tạo route đơn giản từ pickup đến destination
-        const fallbackRoute = [];
-        if (pickupPoint && destinationPoint) {
-          for (let i = 0; i <= 20; i++) {
-            const t = i / 20;
-            fallbackRoute.push({
-              latitude:
-                pickupPoint.latitude +
-                (destinationPoint.latitude - pickupPoint.latitude) * t,
-              longitude:
-                pickupPoint.longitude +
-                (destinationPoint.longitude - pickupPoint.longitude) * t,
-            });
-          }
-          setOsmRoute(fallbackRoute);
-          routeRef.current = fallbackRoute;
-        }
+        console.log("⚠️ Missing coordinates. Not drawing any route.");
+        // Clear route if coordinates are missing
+        setOsmRoute([]);
+        routeRef.current = [];
         return;
       }
 
       // Log kiểm tra tọa độ đầu vào
-      console.log(
-        "📍 Fetching route from:",
-        pickupPoint,
-        "to:",
-        destinationPoint
-      );
+      console.log("📍 Fetching route from:", startPoint, "to:", endPoint);
 
-      const startStr = `${pickupPoint.longitude},${pickupPoint.latitude}`;
-      const endStr = `${destinationPoint.longitude},${destinationPoint.latitude}`;
+      const startStr = `${startPoint.longitude},${startPoint.latitude}`;
+      const endStr = `${endPoint.longitude},${endPoint.latitude}`;
 
       // QUAN TRỌNG: Dùng HTTPS
       const url = `https://router.project-osrm.org/route/v1/driving/${startStr};${endStr}?overview=full&geometries=polyline`;
@@ -155,6 +132,10 @@ const RouteMap = ({
         console.warn("⚠️ API không trả về đường đi nào.", json);
         // Fallback to straight line
         const fallbackRoute = [];
+        const start =
+          phase === "to_pickup" ? driverLocation || pickupPoint : pickupPoint;
+        const end = phase === "to_pickup" ? pickupPoint : destinationPoint;
+
         for (let i = 0; i <= 20; i++) {
           const t = i / 20;
           fallbackRoute.push({
@@ -169,16 +150,26 @@ const RouteMap = ({
       console.error("❌ Lỗi gọi API OSRM:", error.message);
       // Fallback to straight line route khi API fail
       const fallbackRoute = [];
-      if (pickupPoint && destinationPoint) {
+
+      let start, end;
+      // Xác định start/end giống như logic ở trên
+      if (!driverLocation || !showVehicle) {
+        start = pickupPoint;
+        end = destinationPoint;
+      } else if (phase === "to_pickup") {
+        start = driverLocation;
+        end = pickupPoint;
+      } else {
+        start = pickupPoint;
+        end = destinationPoint;
+      }
+
+      if (start && end) {
         for (let i = 0; i <= 20; i++) {
           const t = i / 20;
           fallbackRoute.push({
-            latitude:
-              pickupPoint.latitude +
-              (destinationPoint.latitude - pickupPoint.latitude) * t,
-            longitude:
-              pickupPoint.longitude +
-              (destinationPoint.longitude - pickupPoint.longitude) * t,
+            latitude: start.latitude + (end.latitude - start.latitude) * t,
+            longitude: start.longitude + (end.longitude - start.longitude) * t,
           });
         }
         setOsmRoute(fallbackRoute);
@@ -192,68 +183,173 @@ const RouteMap = ({
   useEffect(() => {
     fetchRoute();
   }, [
+    showVehicle, // Thêm dependency này để biết khi nào có driver
+    phase,
+    driverLocation?.latitude,
+    driverLocation?.longitude,
     pickupPoint?.latitude,
     pickupPoint?.longitude,
     destinationPoint?.latitude,
     destinationPoint?.longitude,
   ]);
 
-  // 2. Logic Animation xe chạy (Fix lỗi đứng yên)
+  // 2. Logic Animation xe chạy MỀM MẠI (chỉ khi showVehicle = true)
   useEffect(() => {
-    // Nếu chưa có đường thì không chạy
-    if (osmRoute.length === 0) return;
+    // Chỉ chạy animation khi:
+    // 1. showVehicle = true (ví dụ: sau khi matching)
+    // 2. startAnimation = true
+    // 3. Có đường đi
+    if (!showVehicle || !startAnimation || osmRoute.length === 0) {
+      return;
+    }
 
-    // Nếu startAnimation = false thì không chạy animation
-    if (!startAnimation) return;
+    // 🎯 FIX 1: Reset vị trí xe về điểm HIỆN TẠI của tài xế (vehicleLocation), không phải pickup point
+    // Điều này đảm bảo xe xuất hiện ở vị trí thực tế của tài xế khi tìm thấy
+    let startPosition;
+    if (phase === "to_pickup") {
+      // Giai đoạn 1: Xe bắt đầu từ vị trí hiện tại của tài xế
+      startPosition = driverLocation; // 🎯 LẤY VỊ TRÍ HIỆN TẠI CỦA TÀI XẾ
+    } else {
+      // Giai đoạn 2: Xe bắt đầu từ pickup point
+      startPosition = pickupPoint;
+    }
+
+    if (startPosition) {
+      setCarPosition(startPosition);
+      indexRef.current = 0;
+      setRemainingRoute(osmRoute);
+      hasNotifiedArrival.current = false;
+    }
+
+    // ✨ SMOOTH INTERPOLATION - Tối ưu cho animation mượt
+    let progressRef = 0;
+
+    // 🎯 OPTIMAL SETTINGS: 3 giây giữa các waypoints
+    // 100ms interval × 30 steps = 3000ms (3 giây)
+    const ANIMATION_INTERVAL = 100; // ms - update mỗi 100ms
+    const PROGRESS_STEP = 1 / 30; // ~0.033 - 30 steps để đi từ waypoint này sang waypoint kế (3s)
 
     const interval = setInterval(() => {
       const currentRoute = routeRef.current;
       const currentIndex = indexRef.current;
 
-      // Kiểm tra xem còn điểm tiếp theo không
-      if (currentIndex < currentRoute.length - 1) {
-        const nextIndex = currentIndex + 1;
-        const currentPoint = currentRoute[currentIndex];
-        const nextPoint = currentRoute[nextIndex];
-
-        // Guard: Check null
-        if (
-          !currentPoint ||
-          !nextPoint ||
-          !currentPoint.latitude ||
-          !nextPoint.latitude
-        ) {
-          console.warn("⚠️ Invalid route point at index", currentIndex);
-          return;
-        }
-
-        // 1. Cập nhật vị trí xe
-        setCarPosition(nextPoint);
-
-        // 2. Tính góc quay
-        try {
-          const angle = getBearing(
-            currentPoint.latitude,
-            currentPoint.longitude,
-            nextPoint.latitude,
-            nextPoint.longitude
-          );
-          setCarRotation(angle);
-        } catch (e) {
-          console.error("❌ Error calculating bearing:", e);
-        }
-
-        // 3. Tăng index
-        indexRef.current = nextIndex;
-      } else {
-        // Đến đích -> Dừng hoặc Lặp lại (ở đây mình cho dừng)
+      // Check đã đến cuối chưa
+      if (currentIndex >= currentRoute.length - 1) {
         clearInterval(interval);
-        console.log("🏁 Đã đến đích!");
+        setRemainingRoute([]);
+
+        if (phase === "to_pickup") {
+          console.log("🏁 Tài xế đã đến điểm đón!");
+
+          if (onDriverArrived && !hasNotifiedArrival.current) {
+            hasNotifiedArrival.current = true;
+            onDriverArrived();
+          }
+
+          setTimeout(() => {
+            console.log("🚀 Bắt đầu giai đoạn 2: Đi đến đích");
+            setPhase("to_destination");
+          }, 2000);
+        } else {
+          console.log("🏁 Xe đã đến điểm đến cuối cùng!");
+        }
+        return;
       }
-    }, 100); // Tốc độ 100ms mỗi bước nhảy
+
+      const currentPoint = currentRoute[currentIndex];
+      const nextPoint = currentRoute[currentIndex + 1];
+
+      // Guard: Check null
+      if (
+        !currentPoint ||
+        !nextPoint ||
+        !currentPoint.latitude ||
+        !nextPoint.latitude
+      ) {
+        console.warn("⚠️ Invalid route point at index", currentIndex);
+        return;
+      }
+
+      // ✨ SMOOTH INTERPOLATION: Di chuyển từ từ giữa 2 waypoints
+      progressRef += PROGRESS_STEP;
+
+      if (progressRef >= 1.0) {
+        progressRef = 0;
+        indexRef.current = currentIndex + 1;
+      }
+
+      // Linear interpolation giữa currentPoint và nextPoint
+      const lat =
+        currentPoint.latitude +
+        (nextPoint.latitude - currentPoint.latitude) * progressRef;
+      const lng =
+        currentPoint.longitude +
+        (nextPoint.longitude - currentPoint.longitude) * progressRef;
+
+      // 1. Cập nhật vị trí xe (smooth)
+      setCarPosition({ latitude: lat, longitude: lng });
+
+      // 2. Cập nhật path còn lại
+      const remaining = currentRoute.slice(currentIndex + 1);
+      setRemainingRoute(remaining);
+    }, ANIMATION_INTERVAL);
 
     return () => clearInterval(interval);
-  }, [osmRoute]); // Chỉ chạy lại effect khi osmRoute thay đổi
+  }, [
+    showVehicle,
+    startAnimation,
+    osmRoute,
+    phase,
+    driverLocation,
+    pickupPoint,
+  ]); // Thêm phase vào dependencies
+
+  // 3. Auto focus camera - CHỈ khi animation bắt đầu, KHÔNG follow liên tục
+  useEffect(() => {
+    if (
+      showVehicle &&
+      startAnimation &&
+      osmRoute.length > 0 &&
+      mapRef.current
+    ) {
+      // Chỉ fit camera 1 lần duy nhất khi bắt đầu animation
+      // Điều này giúp camera KHÔNG giật khi xe di chuyển
+
+      const coordinates = [];
+
+      // 🎯 FIX: Focus theo từng giai đoạn
+      if (phase === "to_pickup") {
+        // Giai đoạn 1: Focus vào route từ driver → pickup
+        if (driverLocation) coordinates.push(driverLocation);
+        if (pickupPoint) coordinates.push(pickupPoint);
+        console.log("📸 Camera focus: Driver → Pickup");
+      } else {
+        // Giai đoạn 2: Focus vào route từ pickup → destination
+        if (pickupPoint) coordinates.push(pickupPoint);
+        if (destinationPoint) coordinates.push(destinationPoint);
+        console.log("📸 Camera focus: Pickup → Destination");
+      }
+
+      if (coordinates.length > 0) {
+        setTimeout(() => {
+          mapRef.current.fitToCoordinates(coordinates, {
+            edgePadding: { top: 120, right: 120, bottom: 120, left: 120 },
+            animated: true,
+          });
+        }, 300); // Delay nhẹ để map render xong
+      }
+    }
+  }, [
+    showVehicle,
+    startAnimation,
+    phase,
+    driverLocation,
+    pickupPoint,
+    destinationPoint,
+  ]); // CHỈ trigger khi bắt đầu animation hoặc đổi phase
+
+  // Determine map region - use first available coordinate or default
+  const mapRegion = start || end || DEFAULT_CENTER;
 
   return (
     <View style={styles.container}>
@@ -262,43 +358,57 @@ const RouteMap = ({
         style={styles.map}
         provider={PROVIDER_GOOGLE}
         initialRegion={{
-          latitude: start.latitude,
-          longitude: start.longitude,
-          latitudeDelta: 0.01,
-          longitudeDelta: 0.01,
+          latitude: mapRegion.latitude,
+          longitude: mapRegion.longitude,
+          latitudeDelta: 0.05,
+          longitudeDelta: 0.05,
         }}
       >
-        {/* Đường màu xanh (Path) */}
-        {osmRoute.length > 0 && (
+        {/* Đường màu primary (Path) */}
+        {/* Nếu vehicle đang chạy, hiển thị remaining path, nếu không hiển thị full path */}
+        {(showVehicle && remainingRoute.length > 0 ? remainingRoute : osmRoute)
+          .length > 0 && (
           <Polyline
-            coordinates={osmRoute}
-            strokeWidth={5}
-            strokeColor="#007AFF" // Xanh dương đậm
+            coordinates={
+              showVehicle && remainingRoute.length > 0
+                ? remainingRoute
+                : osmRoute
+            }
+            strokeWidth={6}
+            strokeColor={COLORS.PRIMARY} // Primary color của app
+            strokeLinecap="round"
+            strokeLinejoin="round"
             zIndex={10} // Đảm bảo nổi lên trên
           />
         )}
 
-        {/* Điểm đón (A) */}
-        <Marker coordinate={start} title="Điểm đón" pinColor="green" />
+        {/* Điểm xuất phát (marker xanh) - LUÔN hiển thị */}
+        {start && (
+          <Marker
+            coordinate={start}
+            title={
+              !driverLocation || !showVehicle
+                ? "Điểm xuất phát"
+                : phase === "to_pickup"
+                ? "Điểm đón khách"
+                : "Điểm xuất phát"
+            }
+            pinColor="green"
+          />
+        )}
 
-        {/* Điểm đến (B) */}
-        <Marker coordinate={end} title="Điểm đến" pinColor="red" />
+        {/* Điểm đến (marker đỏ) */}
+        {/* Hiển thị khi: KHÔNG có driver (preview) HOẶC đang ở giai đoạn 2 */}
+        {end &&
+          (!driverLocation || !showVehicle || phase === "to_destination") && (
+            <Marker coordinate={end} title="Điểm đến" pinColor="red" />
+          )}
 
-        {/* Xe Máy Di Chuyển */}
-        {carPosition && (
+        {/* Xe Máy Di Chuyển - CHỈ hiển thị khi showVehicle = true */}
+        {showVehicle && carPosition && (
           <Marker coordinate={carPosition} anchor={{ x: 0.5, y: 0.5 }}>
-            <View
-              style={{
-                transform: [{ rotate: `${carRotation}deg` }],
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              {/* Icon xe máy */}
-              <View style={styles.carIcon}>
-                <Text style={{ fontSize: 20 }}>🏍️</Text>
-              </View>
-            </View>
+            {/* Icon xe - cố định, không xoay theo hướng di chuyển */}
+            <Text style={{ fontSize: 28 }}>🏍️</Text>
           </Marker>
         )}
       </MapView>
@@ -306,7 +416,10 @@ const RouteMap = ({
       {/* Panel thông tin debug (Hiển thị góc dưới để biết app có chạy ko) */}
       <View style={styles.debugPanel}>
         <Text>Points: {osmRoute.length}</Text>
-        <Text>Lat: {carPosition?.latitude.toFixed(5)}</Text>
+        <Text>Vehicle: {showVehicle ? "Yes" : "No"}</Text>
+        <Text>
+          Phase: {phase === "to_pickup" ? "Đến điểm đón" : "Đến đích"}
+        </Text>
       </View>
     </View>
   );
@@ -320,18 +433,6 @@ const styles = StyleSheet.create({
   },
   map: {
     flex: 1,
-  },
-  carIcon: {
-    backgroundColor: "white",
-    borderRadius: 15,
-    padding: 5,
-    borderWidth: 2,
-    borderColor: "#004553",
-    elevation: 5,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 2,
   },
   debugPanel: {
     position: "absolute",
