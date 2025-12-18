@@ -11,7 +11,7 @@ import {
   Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { MaterialIcons } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import COLORS from "../../../constant/colors";
@@ -195,33 +195,13 @@ export const HomeSearch = () => {
         </Text>
       </View>
       <TouchableOpacity
-        style={styles.historyItem}
-        onPress={() => handleHistorySelect(item)}
-        activeOpacity={0.7}
+        onPress={() => handleRemoveHistoryItem(item.placeId)}
+        style={styles.removeButton}
       >
-        <MaterialIcons 
-          name="history" 
-          size={20} 
-          color={COLORS.GRAY} 
-          style={styles.historyIcon}
-        />
-        <View style={styles.historyContent}>
-          <Text style={styles.historyText} numberOfLines={1}>
-            {item.description}
-          </Text>
-          <Text style={styles.historyCoords}>
-            {item.latitude.toFixed(4)}, {item.longitude.toFixed(4)}
-          </Text>
-        </View>
-        <TouchableOpacity
-          onPress={() => handleRemoveHistoryItem(item.placeId)}
-          style={styles.removeButton}
-        >
-          <MaterialIcons name="close" size={16} color={COLORS.GRAY} />
-        </TouchableOpacity>
+        <MaterialIcons name="close" size={16} color={COLORS.GRAY} />
       </TouchableOpacity>
-    );
-  };
+    </TouchableOpacity>
+  );
 
   const renderSuggestionItem = ({ item }) => (
     <TouchableOpacity

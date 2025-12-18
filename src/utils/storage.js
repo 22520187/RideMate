@@ -3,6 +3,7 @@ import * as SecureStore from "expo-secure-store";
 // Access token helpers (for backward compatibility expose saveToken/getToken)
 const ACCESS_TOKEN_KEY = "accessToken";
 const REFRESH_TOKEN_KEY = "refreshToken";
+const CHAT_TOKEN_KEY = "chatToken";
 
 // Lưu access token
 export async function saveToken(token) {
@@ -40,6 +41,26 @@ export async function getRefreshToken() {
     return token;
   } catch (error) {
     console.error("Error getting refresh token:", error);
+    return null;
+  }
+}
+
+// Lưu chat token (Stream token)
+export async function saveChatToken(token) {
+  try {
+    await SecureStore.setItemAsync(CHAT_TOKEN_KEY, token);
+  } catch (error) {
+    console.error("Error saving chat token:", error);
+  }
+}
+
+// Lấy chat token (Stream token)
+export async function getChatToken() {
+  try {
+    const token = await SecureStore.getItemAsync(CHAT_TOKEN_KEY);
+    return token;
+  } catch (error) {
+    console.error("Error getting chat token:", error);
     return null;
   }
 }
@@ -102,6 +123,7 @@ export async function clearTokens() {
   try {
     await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
     await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+    await SecureStore.deleteItemAsync(CHAT_TOKEN_KEY);
     await SecureStore.deleteItemAsync(USER_TYPE_KEY);
     await SecureStore.deleteItemAsync(USER_DATA_KEY);
   } catch (error) {

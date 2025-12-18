@@ -12,7 +12,13 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import COLORS from "../../constant/colors";
 import Toast from "react-native-toast-message";
 import { completeRegistration } from "../../services/authService";
-import { saveToken, saveRefreshToken } from "../../utils/storage";
+import {
+  saveToken,
+  saveRefreshToken,
+  saveChatToken,
+  saveUserData,
+  saveUserType,
+} from "../../utils/storage";
 import { chatClient } from "../../utils/StreamClient";
 
 const RegisterComplete = ({ navigation, route }) => {
@@ -67,6 +73,11 @@ const RegisterComplete = ({ navigation, route }) => {
       // Save tokens
       await saveToken(authData.accessToken);
       if (authData.refreshToken) await saveRefreshToken(authData.refreshToken);
+      if (authData.chatToken) await saveChatToken(authData.chatToken);
+      if (authData?.user) {
+        await saveUserData(authData.user);
+        if (authData.user.userType) await saveUserType(authData.user.userType);
+      }
       // Connect to chat client using chatToken
       if (authData?.chatToken && authData?.user) {
         await chatClient.connectUser(

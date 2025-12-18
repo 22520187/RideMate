@@ -28,6 +28,7 @@ import {
   claimMissionReward,
   getMissionStats,
 } from "../../services/missionService";
+import { getProfile } from "../../services/userService";
 
 const Mission = ({ navigation }) => {
   const [userPoints, setUserPoints] = useState(0);
@@ -41,21 +42,39 @@ const Mission = ({ navigation }) => {
   const loadAll = useCallback(async () => {
     try {
       setLoading(true);
-      const [availRes, myRes, statsRes] = await Promise.all([
+      const [availRes, myRes, statsRes, profileRes] = await Promise.all([
         getAvailableMissions(),
         getMyMissions(),
         getMissionStats(),
+        getProfile(),
       ]);
 
       if (availRes?.data) setAvailableMissions(availRes.data);
       if (myRes?.data) {
         // myRes.data expected to be array of UserMissionDto
         setMyMissions(myRes.data);
-        // derive user points from response if provided (optional)
-        if (myRes.data.userPoints !== undefined)
-          setUserPoints(myRes.data.userPoints);
       }
-      if (statsRes?.data) setStats(statsRes.data);
+
+      if (statsRes?.data) {
+        setStats(statsRes.data);
+        // Some APIs may include points in mission stats
+        const statsPoints =
+          statsRes?.data?.userPoints ??
+          statsRes?.data?.coins ??
+          statsRes?.data?.currentPoints ??
+          statsRes?.data?.points;
+        if (typeof statsPoints === "number") setUserPoints(statsPoints);
+      }
+
+      // Prefer the canonical user profile points (used across the app as `coins`)
+      const profilePayload =
+        profileRes?.data?.data ?? profileRes?.data ?? profileRes;
+      const profilePoints =
+        profilePayload?.coins ??
+        profilePayload?.userPoints ??
+        profilePayload?.currentPoints ??
+        profilePayload?.points;
+      if (typeof profilePoints === "number") setUserPoints(profilePoints);
     } catch (err) {
       console.error("Failed to load missions", err);
       Alert.alert("Lỗi", "Không thể tải nhiệm vụ. Vui lòng thử lại.");

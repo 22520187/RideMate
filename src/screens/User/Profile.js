@@ -77,7 +77,9 @@ const Profile = () => {
 
       // Fetch user profile
       const profileResp = await getProfile();
-      const userData = profileResp?.data;
+      // Some endpoints return UserDto directly in response.data,
+      // others return ApiResponse { statusCode, message, data } in response.data.data
+      const userData = profileResp?.data?.data ?? profileResp?.data;
       setProfile(userData);
 
       // Initialize edit form
@@ -92,7 +94,7 @@ const Profile = () => {
       // Fetch vehicle info
       try {
         const vehicleResp = await getMyVehicle();
-        const vehicleData = vehicleResp?.data;
+        const vehicleData = vehicleResp?.data?.data ?? vehicleResp?.data;
         setVehicle(vehicleData);
       } catch (err) {
         console.log("No vehicle found");
@@ -336,7 +338,7 @@ const Profile = () => {
               <Text style={styles.profilePhone}>
                 {profile?.phoneNumber || "Chưa cập nhật"}
               </Text>
-              {profile?.rating && (
+              {profile?.rating !== null && (
                 <View style={styles.ratingContainer}>
                   <Star size={14} color="#FFC107" fill="#FFC107" />
                   <Text style={styles.ratingText}>
