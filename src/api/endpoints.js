@@ -30,9 +30,17 @@ export default {
   },
 
   matches: {
+    book: "/matches/book",
+    accept: (id) => `/matches/${id}/accept`,
+    cancel: (id) => `/matches/${id}/cancel`,
+    status: (id) => `/matches/${id}/status`,
+    detail: (id) => `/matches/${id}`,
     history: "/matches/history",
-    byId: (id) => `/matches/${id}`,
     waiting: "/matches/waiting",
+    broadcastDriver: "/matches/broadcast/driver",
+    broadcastPassenger: "/matches/broadcast/passenger",
+    findMatches: "/matches/find",
+    byId: (id) => `/matches/${id}`,
   },
 
   vouchers: {

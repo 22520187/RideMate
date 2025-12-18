@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { View, ActivityIndicator, StyleSheet } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { getToken } from "../../utils/storage";
+import { getToken, getChatToken, getUserData } from "../../utils/storage";
+import { chatClient } from "../../utils/StreamClient";
 
 const InitialScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
@@ -24,6 +25,28 @@ const InitialScreen = ({ navigation }) => {
         // First time user - show onboarding
         navigation.replace("Onboarding");
       } else if (token) {
+        // Best-effort reconnect Stream Chat so Message tab won't crash after app restart
+        try {
+          if (!chatClient.userID) {
+            const [userData, chatToken] = await Promise.all([
+              getUserData(),
+              getChatToken(),
+            ]);
+            if (userData?.id != null && chatToken) {
+              await chatClient.connectUser(
+                {
+                  id: userData.id.toString(),
+                  name: userData.fullName,
+                  image: userData.profilePictureUrl,
+                },
+                chatToken
+              );
+            }
+          }
+        } catch (streamError) {
+          console.log("⚠️ Stream reconnect failed:", streamError?.message);
+          // Do not block app navigation
+        }
         // User is logged in - go to main app
         navigation.replace("MainTabs");
       } else {

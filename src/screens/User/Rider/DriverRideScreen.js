@@ -12,6 +12,7 @@ import {
   ScrollView,
   AppState,
   Image,
+  ActivityIndicator,
 } from "react-native";
 import {
   SafeAreaView,

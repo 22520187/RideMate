@@ -112,6 +112,9 @@ const Award = () => {
       const [vouchersResponse, myVouchersResponse, profileResponse] =
         await Promise.all([getAllVouchers(), getMyVouchers(), getProfile()]);
 
+   
+      const unwrapApiPayload = (resp) => resp?.data?.data ?? resp?.data ?? resp;
+
       console.log(
         "📦 Vouchers Response:",
         JSON.stringify(vouchersResponse, null, 2)
@@ -125,36 +128,42 @@ const Award = () => {
         JSON.stringify(profileResponse, null, 2)
       );
 
-      // All APIs now return {statusCode, message, data}
-      if (vouchersResponse?.data && Array.isArray(vouchersResponse.data)) {
+      const vouchersPayload = unwrapApiPayload(vouchersResponse);
+      const myVouchersPayload = unwrapApiPayload(myVouchersResponse);
+      const profilePayload = unwrapApiPayload(profileResponse);
+
+      // Vouchers list
+      if (Array.isArray(vouchersPayload)) {
         console.log(
           "✅ Setting promos:",
-          vouchersResponse.data.length,
+          vouchersPayload.length,
           "vouchers"
         );
-        setPromos(vouchersResponse.data);
+        setPromos(vouchersPayload);
       } else {
         console.log("❌ Vouchers response has no data array");
       }
 
-      if (myVouchersResponse?.data && Array.isArray(myVouchersResponse.data)) {
+      // My vouchers list
+      if (Array.isArray(myVouchersPayload)) {
         console.log(
           "✅ Setting my vouchers:",
-          myVouchersResponse.data.length,
+          myVouchersPayload.length,
           "vouchers"
         );
-        setMyVouchers(myVouchersResponse.data);
+        setMyVouchers(myVouchersPayload);
       } else {
         console.log("❌ My vouchers response has no data array");
         // Empty array is still valid
-        if (myVouchersResponse?.data) {
+        if (myVouchersResponse?.data || myVouchersResponse) {
           setMyVouchers([]);
         }
       }
 
-      if (profileResponse?.data) {
-        console.log("✅ Setting points:", profileResponse.data.coins);
-        setPoints(profileResponse.data.coins || 0);
+      // Profile
+      if (profilePayload) {
+        console.log("✅ Setting points:", profilePayload.coins);
+        setPoints(profilePayload.coins || 0);
       } else {
         console.log("❌ Profile response has no data field");
       }
@@ -259,16 +268,21 @@ const Award = () => {
 
       const response = await redeemVoucher(selectedPromo.id);
 
-      // Check if redeem was successful (statusCode 200 or has data)
-      if (response?.statusCode === 200 || response?.data) {
+      const unwrapApiPayload = (resp) => resp?.data?.data ?? resp?.data ?? resp;
+      const unwrapApiMessage = (resp) => resp?.data?.message ?? resp?.message;
+      const redeemPayload = unwrapApiPayload(response);
+      const redeemMessage = unwrapApiMessage(response);
+
+      // Check if redeem was successful (payload exists or statusCode 200)
+      if (response?.data?.statusCode === 200 || redeemPayload) {
         Alert.alert(
           "Thành công",
-          response?.message || "Đổi voucher thành công!"
+          redeemMessage || "Đổi voucher thành công!"
         );
         // Reload data
         await loadData();
       } else {
-        Alert.alert("Lỗi", response?.message || "Không thể đổi voucher.");
+        Alert.alert("Lỗi", redeemMessage || "Không thể đổi voucher.");
       }
     } catch (error) {
       console.error("Redeem error:", error);

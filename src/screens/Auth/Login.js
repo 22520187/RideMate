@@ -29,6 +29,7 @@ import {
   saveRefreshToken,
   saveUserType,
   saveUserData,
+  saveChatToken,
 } from "../../utils/storage";
 import endpoints from "../../api/endpoints";
 import axiosClient from "../../api/axiosClient";
@@ -98,6 +99,9 @@ const Login = ({ navigation }) => {
       if (refreshToken) {
         await saveRefreshToken(refreshToken);
       }
+      if (chatToken) {
+        await saveChatToken(chatToken);
+      }
 
       // Save user type and data
       if (user) {
@@ -107,14 +111,16 @@ const Login = ({ navigation }) => {
 
       // Kết nối user lên Stream
       try {
-        await chatClient.connectUser(
-          {
-            id: user.id.toString(),
-            name: user.fullName,
-            image: user.profilePictureUrl,
-          },
-          chatToken
-        );
+        if (chatToken && user?.id != null) {
+          await chatClient.connectUser(
+            {
+              id: user.id.toString(),
+              name: user.fullName,
+              image: user.profilePictureUrl,
+            },
+            chatToken
+          );
+        }
         console.log("💬 Stream connect successful");
       } catch (streamError) {
         console.log("⚠️  Stream connect failed:", streamError.message);
