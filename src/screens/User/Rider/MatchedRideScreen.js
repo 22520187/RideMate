@@ -51,8 +51,23 @@ const MatchedRideScreen = ({ navigation, route }) => {
   const [rating, setRating] = useState(0);
   const maxStars = 5;
 
-  // Vehicle tracking state
-  const [vehicleLocation, setVehicleLocation] = useState(null);
+  // Vehicle tracking state - Khởi tạo từ matchedRideData ngay từ đầu
+  const initialDriverLocation = useMemo(() => {
+    const pickupPoint = matchedRideData.originCoordinate || {
+      latitude: 21.0285,
+      longitude: 105.8542,
+    };
+
+    // Lấy vị trí thực của tài xế từ params, nếu không có thì tính toán mặc định
+    return (
+      matchedRideData.driverLocation || {
+        latitude: pickupPoint.latitude - 0.008, // ~0.8km về phía nam (fallback)
+        longitude: pickupPoint.longitude - 0.006, // ~0.5km về phía tây (fallback)
+      }
+    );
+  }, [matchedRideData.driverLocation, matchedRideData.originCoordinate]);
+
+  const [vehicleLocation, setVehicleLocation] = useState(initialDriverLocation);
   const [driverETA, setDriverETA] = useState("7 phút");
   const [driverDistance, setDriverDistance] = useState("2.3 km");
 
@@ -71,64 +86,31 @@ const MatchedRideScreen = ({ navigation, route }) => {
     setDriverDistance(`${distanceKm.toFixed(1)} km`);
   };
 
-  // Simulate vehicle movement
+  // 🎯 Tính toán khoảng cách và ETA khi mount
   useEffect(() => {
-    // Show vehicle immediately when screen loads (for demo)
-    const initialLocation = {
-      latitude: 21.0285 - 0.005, // Start 0.5km away from pickup
-      longitude: 105.8542 - 0.003,
-    };
-    setVehicleLocation(initialLocation);
-    console.log("🚗 Vehicle initialized on mount:", initialLocation);
+    const pickupPoint = originCoordinate;
+    console.log(
+      "🚗 Vehicle initialized at driver's real location:",
+      initialDriverLocation
+    );
+    calculateDistanceAndETA(initialDriverLocation, pickupPoint);
+  }, []); // CHỈ chạy 1 lần khi mount
 
-    // Calculate initial distance/ETA
-    const pickupPoint = { latitude: 21.0285, longitude: 105.8542 };
-    calculateDistanceAndETA(initialLocation, pickupPoint);
+  // 🎯 Callback khi tài xế đến điểm đón
+  const handleDriverArrived = () => {
+    console.log("🏁 Driver arrived at pickup location!");
 
-    if (rideStatus === "ongoing") {
-      // Update vehicle location every 3 seconds when ride is ongoing
-      const interval = setInterval(() => {
-        setVehicleLocation((prev) => {
-          if (!prev) return null;
+    // 🎯 CHỈ thông báo, TỰ ĐỘNG chuyển sang ongoing sau 2 giây
+    Alert.alert("✅ Tài xế đã đến điểm đón", "Chuyến đi sẽ bắt đầu ngay!", [
+      { text: "OK" },
+    ]);
 
-          // Move vehicle closer to pickup point
-          const targetLat = 21.0285;
-          const targetLng = 105.8542;
-
-          // Calculate simple movement (move 10% closer each update)
-          const newLat = prev.latitude + (targetLat - prev.latitude) * 0.1;
-          const newLng = prev.longitude + (targetLng - prev.longitude) * 0.1;
-
-          const newPosition = { latitude: newLat, longitude: newLng };
-
-          // Calculate distance
-          const distanceKm = Math.sqrt(
-            Math.pow((targetLat - newLat) * 111, 2) +
-              Math.pow((targetLng - newLng) * 85, 2)
-          );
-
-          console.log("🚗 Vehicle moving:", { newLat, newLng, distanceKm });
-
-          // Update distance/ETA
-          calculateDistanceAndETA(newPosition, {
-            latitude: targetLat,
-            longitude: targetLng,
-          });
-
-          // Stop when very close
-          if (distanceKm < 0.1) {
-            clearInterval(interval);
-            Alert.alert("Thông báo", "Tài xế đã đến điểm đón!");
-            return { latitude: targetLat, longitude: targetLng };
-          }
-
-          return newPosition;
-        });
-      }, 3000);
-
-      return () => clearInterval(interval);
-    }
-  }, [rideStatus]);
+    // Tự động chuyển sau 2 giây
+    setTimeout(() => {
+      setRideStatus("ongoing");
+      console.log("🚀 Ride status changed to: ongoing");
+    }, 2000);
+  };
 
   const handlePress = (value) => {
     setRating(value);
@@ -256,21 +238,23 @@ const MatchedRideScreen = ({ navigation, route }) => {
   );
 
   const originCoordinate = useMemo(
-    () => ({
-      latitude: 21.0285,
-      longitude: 105.8542,
-      description: rideDetails.from,
-    }),
-    [rideDetails.from]
+    () =>
+      matchedRideData.originCoordinate || {
+        latitude: 21.0285,
+        longitude: 105.8542,
+        description: rideDetails.from,
+      },
+    [matchedRideData.originCoordinate, rideDetails.from]
   );
 
   const destinationCoordinate = useMemo(
-    () => ({
-      latitude: 21.0152,
-      longitude: 105.8415,
-      description: rideDetails.to,
-    }),
-    [rideDetails.to]
+    () =>
+      matchedRideData.destinationCoordinate || {
+        latitude: 21.0152,
+        longitude: 105.8415,
+        description: rideDetails.to,
+      },
+    [matchedRideData.destinationCoordinate, rideDetails.to]
   );
 
   const handleSend = async () => {
@@ -358,10 +342,15 @@ const MatchedRideScreen = ({ navigation, route }) => {
             showRoute={true}
             fullScreen={false}
             rideStatus={rideStatus}
-            vehicleLocation={vehicleLocation}
+            driverLocation={vehicleLocation}
             pickupLocation={originCoordinate}
             showCheckpoints={true}
             useMapViewDirections={true}
+            showVehicle={true}
+            startAnimation={
+              rideStatus === "matched" || rideStatus === "ongoing"
+            }
+            onDriverArrived={handleDriverArrived}
           />
         </View>
 
@@ -448,15 +437,20 @@ const MatchedRideScreen = ({ navigation, route }) => {
           <View
             style={{ paddingHorizontal: 16, marginTop: 8, marginBottom: 12 }}
           >
+            {/* 🎯 Giai đoạn matched: Chờ tài xế đến (tự động chuyển sang ongoing) */}
             {rideStatus === "matched" && (
-              <TouchableOpacity
-                style={[styles.actionBtn, { backgroundColor: COLORS.PRIMARY }]}
-                onPress={() => setRideStatus("ongoing")}
-              >
-                <Text style={styles.actionBtnText}>🚗 Bắt đầu chuyến đi</Text>
-              </TouchableOpacity>
+              <View style={styles.waitingSection}>
+                <ActivityIndicator size="small" color={COLORS.PRIMARY} />
+                <Text style={styles.waitingText}>
+                  Đang chờ tài xế đến điểm đón...
+                </Text>
+                <Text style={styles.waitingSubtext}>
+                  ETA: {driverETA} • Khoảng cách: {driverDistance}
+                </Text>
+              </View>
             )}
 
+            {/* 🎯 Giai đoạn ongoing: Đang trên đường đến đích */}
             {rideStatus === "ongoing" && (
               <>
                 {/* Driver Coming Info */}
@@ -1032,6 +1026,28 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontSize: 15,
     letterSpacing: 0.3,
+  },
+  waitingSection: {
+    backgroundColor: "#FFF8E1",
+    borderRadius: 12,
+    padding: 16,
+    alignItems: "center",
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#FFD54F",
+  },
+  waitingText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: COLORS.BLACK,
+    marginTop: 8,
+    textAlign: "center",
+  },
+  waitingSubtext: {
+    fontSize: 13,
+    color: COLORS.GRAY,
+    marginTop: 4,
+    textAlign: "center",
   },
   driverComingSection: {
     backgroundColor: "#f0fef9",
