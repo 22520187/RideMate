@@ -34,6 +34,7 @@ import COLORS from "../../constant/colors";
 import { getProfile, updateProfile } from "../../services/userService";
 import { getMyVehicle } from "../../services/vehicleService";
 import { uploadImage } from "../../services/uploadService";
+import { logout } from "../../services/authService";
 import { clearTokens } from "../../utils/storage";
 import { chatClient } from "../../utils/StreamClient";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -236,12 +237,29 @@ const Profile = () => {
         style: "destructive",
         onPress: async () => {
           try {
+            // 1) Call backend logout (best-effort)
+            try {
+              await logout();
+            } catch (apiErr) {
+              console.log("⚠️ Logout API failed (continuing local logout):", apiErr?.message);
+            }
+
+            // 2) Disconnect chat + clear local auth
             await chatClient.disconnectUser();
             await clearTokens();
-            navigation.reset({
-              index: 0,
-              routes: [{ name: "Initial" }],
-            });
+
+            // 3) Inform user then navigate to Login
+            Alert.alert("Thành công", "Đăng xuất thành công", [
+              {
+                text: "OK",
+                onPress: () => {
+                  navigation.reset({
+                    index: 0,
+                    routes: [{ name: "Login" }],
+                  });
+                },
+              },
+            ]);
           } catch (err) {
             console.error("Logout error:", err);
           }

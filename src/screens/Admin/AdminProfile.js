@@ -16,6 +16,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
 import COLORS from "../../constant/colors";
 import SCREENS from "../../screens";
+import { logout } from "../../services/authService";
 import { clearTokens } from "../../utils/storage";
 import { chatClient } from "../../utils/StreamClient";
 
@@ -111,6 +112,13 @@ const AdminProfile = () => {
         style: "destructive",
         onPress: async () => {
           try {
+            // 1) Call backend logout (best-effort)
+            try {
+              await logout();
+            } catch (apiErr) {
+              console.log("⚠️ Logout API failed (continuing local logout):", apiErr?.message);
+            }
+
             // Disconnect from Stream Chat
             try {
               await chatClient.disconnectUser();
@@ -123,11 +131,18 @@ const AdminProfile = () => {
             await clearTokens(); // Clears tokens, userType, userData
             await AsyncStorage.clear(); // Clear onboarding flag
 
-            // Navigate to Login screen
-            navigation.reset({
-              index: 0,
-              routes: [{ name: SCREENS.LOGIN }],
-            });
+            // Inform user then navigate to Login screen
+            Alert.alert("Thành công", "Đăng xuất thành công", [
+              {
+                text: "OK",
+                onPress: () => {
+                  navigation.reset({
+                    index: 0,
+                    routes: [{ name: SCREENS.LOGIN }],
+                  });
+                },
+              },
+            ]);
           } catch (error) {
             console.error("Logout error:", error);
             Alert.alert("Lỗi", "Có lỗi xảy ra khi đăng xuất");

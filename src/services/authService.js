@@ -28,3 +28,7 @@ export const completeRegistration = (data) => {
 export const refreshToken = () => {
   return axiosClient.post(endpoints.auth.refresh);
 };
+
+export const logout = () => {
+  return axiosClient.post(endpoints.auth.logout);
+};
