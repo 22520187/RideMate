@@ -8,6 +8,10 @@ import {
   clearTokens,
 } from "../utils/storage";
 
+// Debug: Check what value we're getting from @env
+console.log("🔍 Debug @env API_BASE_URL:", API_BASE_URL);
+console.log("🔍 Expected: http://186.186.24.83:8080/api");
+
 const axiosClient = axios.create({
   baseURL: API_BASE_URL,
   timeout: 15000,
