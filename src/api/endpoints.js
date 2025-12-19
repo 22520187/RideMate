@@ -1,6 +1,7 @@
 export default {
   auth: {
     login: "/auth/login",
+    logout: "/auth/logout",
     register: "/auth/register",
     sendOtp: "/auth/send-otp",
     verifyOtp: "/auth/verify-otp",
