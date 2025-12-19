@@ -34,7 +34,6 @@ export const uploadImage = async (formData) => {
     const response = await axios.post(url, formData, {
       timeout: 60000,
       headers: {
-        'Content-Type': 'multipart/form-data',
         ...(token && { Authorization: `Bearer ${token}` }),
       },
       transformRequest: (data, headers) => {

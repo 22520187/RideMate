@@ -23,7 +23,7 @@ const COLORS = {
     GREEN_LIGHT: '#E8F5E8',
     ORANGE_LIGHT: '#FFF4E6',
     ORANGE_DARK: '#D68910',
-    PRIMARY: '#50bbf5',
+    PRIMARY: '#004553',
     SECONDARY: '#5069f5',
   };
   

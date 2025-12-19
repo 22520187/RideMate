@@ -22,7 +22,7 @@ export const getProfile = () => {
 export const updateProfile = (data) => {
   console.log("✏️  Calling updateProfile API...", endpoints.user.update);
   return axiosClient
-    .put(endpoints.user.update, data)
+    .patch(endpoints.user.update, data)
     .then((response) => {
       console.log("✅ updateProfile success");
       return response;

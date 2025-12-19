@@ -83,8 +83,11 @@ const Home = ({ navigation }) => {
 
   const loadUserData = async () => {
     try {
+      console.log("🔄 Home: Loading user data...");
       const profileResp = await getProfile();
-      const profile = profileResp?.data;
+      console.log("✅ Home: Profile response:", profileResp);
+      const profile = profileResp?.data?.data; // Fix: nested data
+      console.log("👤 Home: Profile data:", profile);
       setUserProfile(profile);
 
       if (
@@ -94,13 +97,15 @@ const Home = ({ navigation }) => {
         try {
           const vehicleResp = await getMyVehicle();
           const vehicle = vehicleResp?.data;
+          console.log("🚗 Home: Vehicle status:", vehicle?.status);
           setVehicleStatus(vehicle?.status || null);
         } catch (err) {
+          console.warn("⚠️ Home: No vehicle found:", err.message);
           setVehicleStatus(null);
         }
       }
     } catch (err) {
-      console.warn("Failed to load user data:", err);
+      console.error("❌ Home: Failed to load user data:", err);
     }
   };
 
@@ -288,17 +293,13 @@ const Home = ({ navigation }) => {
       }}
     >
       <Image source={{ uri: item.image }} style={styles.promotionImage} />
-      <View style={styles.promotionOverlay}>
-        <View style={styles.promotionContent}>
-          <View style={styles.promotionTextContainer}>
-            <Text style={styles.promotionTitle}>{item.title}</Text>
-            <Text style={styles.promotionSubtitle}>{item.subtitle}</Text>
-            <View style={styles.promotionBadge}>
-              <Star size={12} color={COLORS.YELLOW} />
-              <Text style={styles.badgeText}>{item.badge}</Text>
-            </View>
-          </View>
+      <View style={styles.promotionContent}>
+        <View style={styles.promotionBadge}>
+          <Star size={12} color={COLORS.YELLOW} />
+          <Text style={styles.badgeText}>{item.badge}</Text>
         </View>
+        <Text style={styles.promotionTitle} numberOfLines={2}>{item.title}</Text>
+        <Text style={styles.promotionSubtitle} numberOfLines={1}>{item.subtitle}</Text>
       </View>
     </TouchableOpacity>
   );
@@ -360,7 +361,7 @@ const Home = ({ navigation }) => {
               <View>
                 <Text style={styles.greetingText}>Xin chào,</Text>
                 <Text style={styles.userName}>
-                  {userProfile?.fullName || "Rider"}
+                  {userProfile?.fullName || userProfile?.phoneNumber || "Rider"}
                 </Text>
               </View>
             </View>
@@ -391,52 +392,20 @@ const Home = ({ navigation }) => {
           </TouchableOpacity>
         </View>
 
-        {/* Hero Banner */}
-        <View style={styles.heroBanner}>
-          <View style={styles.heroGradient}>
-            <View style={styles.heroContent}>
-              <View style={styles.heroTextContainer}>
-                <Text style={styles.heroTitle}>
-                  Đi cùng nhau, vui hơn gấp bội!
-                </Text>
-                <Text style={styles.heroSubtitle}>
-                  Tiết kiệm chi phí, kết bạn mới
-                </Text>
-                <TouchableOpacity style={styles.heroButton}>
-                  <Text style={styles.heroButtonText}>Khám phá ngay</Text>
-                  <ChevronRight size={16} color="#fff" />
-                </TouchableOpacity>
-              </View>
-              <Image
-                source={{
-                  uri: "https://cdn-icons-png.flaticon.com/512/3448/3448650.png",
-                }}
-                style={styles.heroImage}
-              />
-            </View>
-          </View>
-        </View>
-
-        {/* Quick Actions */}
+        {/* Quick Actions - 2 Large Cards */}
         <View style={styles.quickActionsSection}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Bắt đầu nào!</Text>
-          </View>
-
           <View style={styles.quickActionsRow}>
             <TouchableOpacity
               style={styles.quickActionCard}
               onPress={handleCreateRide}
               activeOpacity={0.85}
             >
-              <View style={styles.quickActionGradient}>
+              <View style={[styles.quickActionGradient, { backgroundColor: '#004553' }]}>
                 <View style={styles.quickActionEmoji}>
-                  <Text style={styles.emojiText}>🚙</Text>
+                  <Text style={styles.emojiText}>🚗</Text>
                 </View>
                 <Text style={styles.quickActionTitle}>Tạo chuyến</Text>
-                <Text style={styles.quickActionSubtitle}>
-                  Lái xe & kiếm tiền
-                </Text>
+                <Text style={styles.quickActionSubtitle}>Lái xe & kiếm tiền</Text>
               </View>
             </TouchableOpacity>
 
@@ -445,7 +414,7 @@ const Home = ({ navigation }) => {
               onPress={() => navigation.navigate("PassengerRide")}
               activeOpacity={0.85}
             >
-              <View style={styles.quickActionGradient}>
+              <View style={[styles.quickActionGradient, { backgroundColor: '#2196F3' }]}>
                 <View style={styles.quickActionEmoji}>
                   <Text style={styles.emojiText}>🧑‍🤝‍🧑</Text>
                 </View>
@@ -456,7 +425,27 @@ const Home = ({ navigation }) => {
           </View>
         </View>
 
-        {/* Services */}
+        {/* Points Card */}
+        <View style={styles.pointsCardSection}>
+          <View style={styles.pointsCard}>
+            <View style={styles.pointsLeft}>
+              <View style={styles.activateBadge}>
+                <Text style={styles.activateText}>Kích hoạt</Text>
+              </View>
+              <Text style={styles.pointsLabel}>RideMate Pay</Text>
+            </View>
+            <View style={styles.pointsDivider} />
+            <View style={styles.pointsRight}>
+              <Text style={styles.pointsValueLabel}>Điểm thưởng</Text>
+              <View style={styles.pointsValueRow}>
+                <Star size={16} color="#004553" />
+                <Text style={styles.pointsValue}>{userProfile?.coins || userPoints}</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        {/* Services Section */}
         <View style={styles.servicesSection}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Dịch vụ</Text>
@@ -467,31 +456,27 @@ const Home = ({ navigation }) => {
               style={styles.serviceItem}
               onPress={() => navigation.navigate("Mission")}
             >
-              <View style={styles.serviceIcon}>
+              <View style={[styles.serviceIcon, { backgroundColor: '#F3E5F5' }]}>
                 <Text style={styles.serviceEmoji}>🎁</Text>
               </View>
               <Text style={styles.serviceLabel}>Nhiệm vụ</Text>
-              <View style={styles.pointsBadge}>
-                <Star size={10} color="#004553" />
-                <Text style={styles.pointsText}>{userPoints}</Text>
-              </View>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.serviceItem}
-              onPress={() => navigation.navigate("RideHistory")}
+              onPress={() => navigation.navigate("Voucher")}
             >
-              <View style={styles.serviceIcon}>
-                <Text style={styles.serviceEmoji}>📋</Text>
+              <View style={[styles.serviceIcon, { backgroundColor: '#E0F7FA' }]}>
+                <Text style={styles.serviceEmoji}>🎟️</Text>
               </View>
-              <Text style={styles.serviceLabel}>Lịch sử</Text>
+              <Text style={styles.serviceLabel}>Voucher</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.serviceItem}
               onPress={() => navigation.navigate("Member")}
             >
-              <View style={styles.serviceIcon}>
+              <View style={[styles.serviceIcon, { backgroundColor: '#FFF8E1' }]}>
                 <Text style={styles.serviceEmoji}>👑</Text>
               </View>
               <Text style={styles.serviceLabel}>Hội viên</Text>
@@ -499,29 +484,13 @@ const Home = ({ navigation }) => {
 
             <TouchableOpacity
               style={styles.serviceItem}
-              onPress={() => navigation.navigate("Report")}
+              onPress={() => navigation.navigate("Notification")}
             >
-              <View style={styles.serviceIcon}>
-                <Text style={styles.serviceEmoji}>💬</Text>
+              <View style={[styles.serviceIcon, { backgroundColor: '#FCE4EC' }]}>
+                <Text style={styles.serviceEmoji}>🔔</Text>
               </View>
-              <Text style={styles.serviceLabel}>Hỗ trợ</Text>
+              <Text style={styles.serviceLabel}>Thông báo</Text>
             </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Tips Card */}
-        <View style={styles.tipsSection}>
-          <View style={styles.tipsCard}>
-            <View style={styles.tipsContent}>
-              <Text style={styles.tipsEmoji}>💡</Text>
-              <View style={styles.tipsTextContainer}>
-                <Text style={styles.tipsTitle}>Mẹo hay cho bạn!</Text>
-                <Text style={styles.tipsText}>
-                  Đặt chuyến sớm để có giá tốt nhất nhé~
-                </Text>
-              </View>
-            </View>
-            <Heart size={24} color="rgba(255,255,255,0.5)" />
           </View>
         </View>
 
@@ -625,7 +594,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#004553",
     paddingHorizontal: 20,
     paddingTop: 16,
-    paddingBottom: 24,
+    paddingBottom: 28,
     borderBottomLeftRadius: 0,
     borderBottomRightRadius: 0,
   },
@@ -652,6 +621,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
     color: "#fff",
+    marginTop: 2,
   },
   headerActions: {
     flexDirection: "row",
@@ -696,7 +666,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     backgroundColor: "#fff",
-    borderRadius: 20,
+    borderRadius: 12,
     paddingLeft: 16,
     paddingRight: 6,
     paddingVertical: 6,
@@ -718,9 +688,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   searchIconRight: {
-    width: 40,
-    height: 40,
-    borderRadius: 16,
+    width: 42,
+    height: 42,
+    borderRadius: 10,
     backgroundColor: "#004553",
     justifyContent: "center",
     alignItems: "center",
@@ -729,11 +699,11 @@ const styles = StyleSheet.create({
   // Hero Banner
   heroBanner: {
     paddingHorizontal: 20,
-    marginTop: 20,
+    marginTop: 24,
   },
   heroGradient: {
-    backgroundColor: "rgba(0, 69, 83, 0.05)",
-    borderRadius: 24,
+    backgroundColor: "rgba(0, 69, 83, 0.06)",
+    borderRadius: 16,
     padding: 20,
     overflow: "hidden",
   },
@@ -746,16 +716,16 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   heroTitle: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: "800",
     color: "#004553",
-    marginBottom: 8,
-    lineHeight: 28,
+    marginBottom: 10,
+    lineHeight: 30,
   },
   heroSubtitle: {
     fontSize: 14,
     color: "#004553",
-    marginBottom: 16,
+    marginBottom: 18,
     opacity: 0.7,
   },
   heroButton: {
@@ -764,18 +734,18 @@ const styles = StyleSheet.create({
     backgroundColor: "#004553",
     paddingHorizontal: 16,
     paddingVertical: 10,
-    borderRadius: 14,
+    borderRadius: 8,
     alignSelf: "flex-start",
     gap: 6,
   },
   heroButtonText: {
     color: "#fff",
-    fontSize: 13,
-    fontWeight: "600",
+    fontSize: 14,
+    fontWeight: "700",
   },
   heroImage: {
-    width: 100,
-    height: 100,
+    width: 110,
+    height: 110,
     resizeMode: "contain",
   },
 
@@ -785,88 +755,88 @@ const styles = StyleSheet.create({
     marginTop: 24,
   },
   sectionHeader: {
-    marginBottom: 16,
+    marginBottom: 18,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: "700",
+    fontSize: 22,
+    fontWeight: "800",
     color: "#004553",
   },
   quickActionsRow: {
     flexDirection: "row",
-    gap: 12,
+    gap: 14,
   },
   quickActionCard: {
     flex: 1,
-    borderRadius: 24,
+    borderRadius: 16,
     overflow: "hidden",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 6,
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
   quickActionGradient: {
     backgroundColor: "#004553",
-    padding: 20,
+    padding: 24,
     alignItems: "center",
-    minHeight: 150,
+    minHeight: 160,
+    justifyContent: "center",
   },
   quickActionEmoji: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: "rgba(255,255,255,0.3)",
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "rgba(255,255,255,0.2)",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 16,
   },
   emojiText: {
-    fontSize: 28,
+    fontSize: 32,
   },
   quickActionTitle: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: "700",
     color: "#fff",
-    marginBottom: 4,
+    marginBottom: 6,
     textAlign: "center",
   },
   quickActionSubtitle: {
-    fontSize: 12,
-    color: "rgba(255,255,255,0.85)",
+    fontSize: 13,
+    color: "rgba(255,255,255,0.8)",
     textAlign: "center",
   },
 
   // Services Grid
   servicesSection: {
     paddingHorizontal: 20,
-    marginTop: 28,
+    marginTop: 24,
   },
   servicesGrid: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 16,
+    marginBottom: 16,
   },
   serviceItem: {
     alignItems: "center",
-    width: (width - 80) / 4,
+    width: (width - 40) / 4,
   },
   serviceIcon: {
-    width: 60,
-    height: 60,
-    borderRadius: 20,
-    backgroundColor: "rgba(0, 69, 83, 0.08)",
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 8,
   },
   serviceEmoji: {
-    fontSize: 28,
+    fontSize: 24,
   },
   serviceLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#004553",
+    fontSize: 11,
+    fontWeight: "500",
+    color: "#1C1C1E",
     textAlign: "center",
   },
   pointsBadge: {
@@ -888,7 +858,7 @@ const styles = StyleSheet.create({
   // Tips Card
   tipsSection: {
     paddingHorizontal: 20,
-    marginTop: 24,
+    marginTop: 28,
   },
   tipsCard: {
     flexDirection: "row",
@@ -896,7 +866,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     backgroundColor: "#004553",
     padding: 16,
-    borderRadius: 20,
+    borderRadius: 12,
   },
   tipsContent: {
     flexDirection: "row",
@@ -919,6 +889,72 @@ const styles = StyleSheet.create({
   tipsText: {
     fontSize: 12,
     color: "rgba(255,255,255,0.9)",
+  },
+
+  // Points Card Section - Like Grab's payment card
+  pointsCardSection: {
+    paddingHorizontal: 20,
+    marginTop: 20,
+  },
+  pointsCard: {
+    flexDirection: "row",
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 16,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: "#F0F0F0",
+  },
+  pointsLeft: {
+    flex: 1,
+  },
+  activateBadge: {
+    backgroundColor: "#004553",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 4,
+    alignSelf: "flex-start",
+    marginBottom: 6,
+  },
+  activateText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  pointsLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1C1C1E",
+  },
+  pointsDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: "#E5E5EA",
+    marginHorizontal: 16,
+  },
+  pointsRight: {
+    flex: 1,
+    alignItems: "flex-end",
+  },
+  pointsValueLabel: {
+    fontSize: 12,
+    color: "#8E8E93",
+    marginBottom: 4,
+  },
+  pointsValueRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  pointsValue: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#004553",
   },
 
   // Promotions Section
@@ -946,64 +982,56 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   promotionCard: {
-    width: width * 0.72,
-    height: 160,
-    borderRadius: 24,
+    width: width * 0.8,
+    height: 120,
+    borderRadius: 12,
     marginRight: 16,
     overflow: "hidden",
+    backgroundColor: "#fff",
+    flexDirection: "row",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: "#F0F0F0",
   },
   promotionImage: {
-    width: "100%",
+    width: 120,
     height: "100%",
     resizeMode: "cover",
   },
-  promotionOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "flex-end",
-    padding: 16,
-  },
   promotionContent: {
     flex: 1,
-    justifyContent: "flex-end",
-  },
-  promotionTextContainer: {
-    flex: 1,
-    justifyContent: "flex-end",
+    padding: 14,
+    justifyContent: "center",
   },
   promotionTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "700",
-    color: "#fff",
-    marginBottom: 4,
+    color: "#1C1C1E",
+    marginBottom: 6,
+    lineHeight: 20,
   },
   promotionSubtitle: {
     fontSize: 13,
-    color: "#fff",
-    marginBottom: 10,
-    opacity: 0.9,
+    color: "#6B7280",
+    marginBottom: 0,
   },
   promotionBadge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#fff",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 12,
+    backgroundColor: "rgba(0, 69, 83, 0.08)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
     alignSelf: "flex-start",
     gap: 4,
+    marginBottom: 8,
   },
   badgeText: {
-    fontSize: 11,
+    fontSize: 10,
     color: "#004553",
     fontWeight: "600",
   },
@@ -1024,15 +1052,15 @@ const styles = StyleSheet.create({
   },
   packageCard: {
     width: width * 0.7,
-    height: 200,
-    borderRadius: 24,
+    height: 180,
+    borderRadius: 12,
     marginRight: 16,
     overflow: "hidden",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
   packageImage: {
     width: "100%",
