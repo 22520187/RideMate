@@ -414,7 +414,7 @@ const Home = ({ navigation }) => {
               onPress={() => navigation.navigate("PassengerRide")}
               activeOpacity={0.85}
             >
-              <View style={[styles.quickActionGradient, { backgroundColor: '#2196F3' }]}>
+              <View style={[styles.quickActionGradient, { backgroundColor: '#00796B' }]}>
                 <View style={styles.quickActionEmoji}>
                   <Text style={styles.emojiText}>🧑‍🤝‍🧑</Text>
                 </View>

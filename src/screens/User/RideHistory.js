@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { LineChart } from "react-native-chart-kit";
 import COLORS from "../../constant/colors";
 import axiosClient from "../../api/axiosClient";
 import endpoints from "../../api/endpoints";
@@ -310,29 +311,42 @@ const RideHistory = ({ navigation }) => {
       {/* Chart Section */}
       <View style={styles.chartSection}>
         <Text style={styles.chartTitle}>Thống kê 7 ngày qua</Text>
-        <View style={styles.chartContainer}>
-          {chartData.map((item, index) => (
-            <View key={index} style={styles.chartBar}>
-              <View style={styles.barContainer}>
-                <View 
-                  style={[
-                    styles.bar, 
-                    { 
-                      height: item.count > 0 ? (item.count / maxCount) * 60 : 4,
-                      backgroundColor: item.isToday ? COLORS.PRIMARY : '#E0E0E0',
-                    }
-                  ]} 
-                />
-              </View>
-              <Text style={[
-                styles.chartLabel, 
-                item.isToday && styles.chartLabelActive
-              ]}>
-                {item.day}
-              </Text>
-            </View>
-          ))}
-        </View>
+        <LineChart
+          data={{
+            labels: chartData.map(d => d.day),
+            datasets: [{
+              data: chartData.map(d => d.count),
+            }]
+          }}
+          width={width - 40}
+          height={180}
+          chartConfig={{
+            backgroundColor: "#ffffff",
+            backgroundGradientFrom: "#ffffff",
+            backgroundGradientTo: "#ffffff",
+            decimalPlaces: 0,
+            color: (opacity = 1) => `rgba(0, 69, 83, ${opacity})`,
+            labelColor: (opacity = 1) => `rgba(142, 142, 147, ${opacity})`,
+            style: {
+              borderRadius: 16
+            },
+            propsForDots: {
+              r: "4",
+              strokeWidth: "2",
+              stroke: COLORS.PRIMARY
+            },
+            propsForBackgroundLines: {
+              strokeDasharray: "", // solid lines
+              stroke: "#F0F0F0",
+              strokeWidth: 1,
+            }
+          }}
+          bezier
+          style={{
+            marginVertical: 8,
+            borderRadius: 16
+          }}
+        />
         
         {/* Stats Summary */}
         <View style={styles.statsContainer}>

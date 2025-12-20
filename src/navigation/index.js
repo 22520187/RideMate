@@ -21,6 +21,7 @@ import Member from "../screens/User/Member/Member";
 import Voucher from "../screens/User/Voucher";
 import Mission from "../screens/User/Mission";
 import RideHistory from "../screens/User/RideHistory";
+import RideDetail from "../screens/User/RideDetail";
 import Login from "../screens/Auth/Login";
 import Onboarding from "../screens/Auth/Onboarding";
 import InitialScreen from "../screens/Auth/InitialScreen";
@@ -256,6 +257,8 @@ const MainStackNavigator = () => {
       <Stack.Screen name={SCREENS.VOUCHER} component={Voucher} />
       <Stack.Screen name={SCREENS.MISSION} component={Mission} />
       <Stack.Screen name={SCREENS.RIDE_HISTORY} component={RideHistory} />
+      <Stack.Screen name="RideDetail" component={RideDetail} />
+      <Stack.Screen name="ChatScreen" component={ChatScreen} />
       <Stack.Screen
         name={SCREENS.ADMIN_MEMBERSHIP_MANAGEMENT}
         component={MembershipManagement}
