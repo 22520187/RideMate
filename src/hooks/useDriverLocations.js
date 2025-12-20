@@ -8,6 +8,12 @@ const useDriverLocations = (userLocation, radiusKm = 7) => {
   const subscriptionRef = useRef(null);
 
   useEffect(() => {
+    if (!supabase) {
+      setLoading(false);
+      setError("Supabase is not configured (missing env).");
+      return;
+    }
+
     if (!userLocation?.latitude || !userLocation?.longitude) {
       setLoading(false);
       return;

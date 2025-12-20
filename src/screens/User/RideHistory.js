@@ -14,129 +14,68 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LineChart } from "react-native-chart-kit";
 import COLORS from "../../constant/colors";
-import axiosClient from "../../api/axiosClient";
-import endpoints from "../../api/endpoints";
+import { getMatchHistory } from "../../services/matchService";
 
 const { width } = Dimensions.get("window");
 
-// Mock data for testing
-const MOCK_RIDES = [
-  {
-    id: 1,
-    pickupAddress: "456 Elm Street, Springfield",
-    destinationAddress: "739 Main Street, Springfield",
-    price: 12,
-    distance: 12000,
-    status: "IN_PROGRESS",
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 2,
-    pickupAddress: "123 Oak Avenue, Downtown",
-    destinationAddress: "456 Pine Road, Uptown",
-    price: 25,
-    distance: 8500,
-    status: "PENDING",
-    createdAt: new Date(Date.now() - 3600000).toISOString(), // 1 hour ago
-  },
-  {
-    id: 3,
-    pickupAddress: "789 Maple Drive, Westside",
-    destinationAddress: "321 Cedar Lane, Eastside",
-    price: 18,
-    distance: 15000,
-    status: "COMPLETED",
-    createdAt: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
-  },
-  {
-    id: 4,
-    pickupAddress: "555 Birch Boulevard, North",
-    destinationAddress: "888 Willow Way, South",
-    price: 30,
-    distance: 20000,
-    status: "COMPLETED",
-    createdAt: new Date(Date.now() - 172800000).toISOString(), // 2 days ago
-  },
-  {
-    id: 5,
-    pickupAddress: "222 Spruce Street, Central",
-    destinationAddress: "999 Ash Avenue, Suburb",
-    price: 15,
-    distance: 10000,
-    status: "CANCELLED",
-    createdAt: new Date(Date.now() - 259200000).toISOString(), // 3 days ago
-  },
-  {
-    id: 6,
-    pickupAddress: "111 Cherry Lane, Eastside",
-    destinationAddress: "444 Walnut Street, Westside",
-    price: 22,
-    distance: 18000,
-    status: "COMPLETED",
-    createdAt: new Date(Date.now() - 345600000).toISOString(), // 4 days ago
-  },
-  {
-    id: 7,
-    pickupAddress: "777 Poplar Avenue, Downtown",
-    destinationAddress: "333 Hickory Road, Uptown",
-    price: 28,
-    distance: 22000,
-    status: "COMPLETED",
-    createdAt: new Date(Date.now() - 432000000).toISOString(), // 5 days ago
-  },
-  {
-    id: 8,
-    pickupAddress: "666 Redwood Drive, North",
-    destinationAddress: "222 Sequoia Way, South",
-    price: 35,
-    distance: 25000,
-    status: "COMPLETED",
-    createdAt: new Date(Date.now() - 518400000).toISOString(), // 6 days ago
-  },
-  {
-    id: 9,
-    pickupAddress: "888 Magnolia Boulevard, Central",
-    destinationAddress: "555 Dogwood Lane, Suburb",
-    price: 20,
-    distance: 16000,
-    status: "CANCELLED",
-    createdAt: new Date(Date.now() - 604800000).toISOString(), // 7 days ago
-  },
-  {
-    id: 10,
-    pickupAddress: "999 Sycamore Street, Westside",
-    destinationAddress: "111 Beech Avenue, Eastside",
-    price: 24,
-    distance: 19000,
-    status: "COMPLETED",
-    createdAt: new Date(Date.now() - 691200000).toISOString(), // 8 days ago
-  },
-];
-
 const RideHistory = ({ navigation }) => {
-  const [rides, setRides] = useState(MOCK_RIDES); // Use mock data
+  const [rides, setRides] = useState([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+
+  const normalizeRideItem = (raw) => {
+    if (!raw) return null;
+
+    const id = raw.id ?? raw.matchId ?? raw.rideId;
+    const pickupAddress =
+      raw.pickupAddress ?? raw.pickup_address ?? raw.startLocation ?? raw.from;
+    const destinationAddress =
+      raw.destinationAddress ?? raw.destination_address ?? raw.endLocation ?? raw.to;
+    const status =
+      raw.status ?? raw.matchStatus ?? raw.rideStatus ?? raw.state ?? "UNKNOWN";
+
+    const priceRaw = raw.price ?? raw.estimatedPrice ?? raw.fare ?? 0;
+    const price = typeof priceRaw === "number" ? priceRaw : Number(priceRaw) || 0;
+
+    const distanceRaw = raw.distance ?? raw.distanceMeters ?? raw.distance_meters;
+    const distance =
+      typeof distanceRaw === "number" ? distanceRaw : Number(distanceRaw) || 0;
+
+    const createdAt =
+      raw.createdAt ?? raw.created_at ?? raw.createdDate ?? raw.created_date ?? new Date().toISOString();
+
+    return {
+      id,
+      pickupAddress,
+      destinationAddress,
+      status,
+      price,
+      distance,
+      createdAt,
+    };
+  };
 
   const fetchHistory = useCallback(async () => {
     try {
       setLoading(true);
       console.log("🔄 Fetching ride history...");
-      
-      // Comment out API call to use mock data
-      // const response = await axiosClient.get(endpoints.matches.history);
-      // if (response?.data?.data) {
-      //   setRides(response.data.data);
-      // }
-      
-      // Use mock data instead
-      console.log("✅ Using mock data:", MOCK_RIDES.length, "rides");
-      setRides(MOCK_RIDES);
-      
+
+      const response = await getMatchHistory();
+      const payload = response?.data?.data ?? response?.data ?? [];
+      const list = Array.isArray(payload) ? payload : [];
+      const normalized = list.map(normalizeRideItem).filter(Boolean);
+      // React list keys must be unique + stable. Backend data may contain missing/duplicate ids,
+      // so we generate a separate internal key for rendering purposes.
+      const normalizedWithKey = normalized.map((ride, idx) => ({
+        ...ride,
+        _key: `${ride.id ?? "noid"}-${ride.createdAt ?? "nodate"}-${idx}`,
+      }));
+
+      console.log("✅ Loaded ride history:", normalized.length, "rides");
+      setRides(normalizedWithKey);
     } catch (error) {
       console.error("Failed to load ride history:", error);
-      // Fallback to mock data on error
-      setRides(MOCK_RIDES);
+      // Keep whatever we had; do not overwrite with mock data
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -236,12 +175,16 @@ const RideHistory = ({ navigation }) => {
 
   const formatPrice = (price) => {
     if (!price) return "N/A";
-    return `${price.toLocaleString()}đ`;
+    const num = typeof price === "number" ? price : Number(price);
+    if (!Number.isFinite(num)) return "N/A";
+    return `${num.toLocaleString()}đ`;
   };
 
   const formatDistance = (distance) => {
     if (!distance) return "N/A";
-    return distance >= 1000 ? `${(distance / 1000).toFixed(1)}Km` : `${distance}m`;
+    const num = typeof distance === "number" ? distance : Number(distance);
+    if (!Number.isFinite(num)) return "N/A";
+    return num >= 1000 ? `${(num / 1000).toFixed(1)}Km` : `${Math.round(num)}m`;
   };
 
   // Render chart bar
@@ -376,7 +319,7 @@ const RideHistory = ({ navigation }) => {
             <Text style={styles.sectionTitle}>Active orders</Text>
           </View>
           {activeRides.map((ride) => (
-            <RideCard key={ride.id} item={ride} />
+            <RideCard key={ride._key ?? ride.id} item={ride} />
           ))}
         </>
       )}
@@ -402,7 +345,7 @@ const RideHistory = ({ navigation }) => {
     <SafeAreaView style={styles.container} edges={["top"]}>
       <FlatList
         data={pastRides}
-        keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
+        keyExtractor={(item) => (item._key ?? item.id)?.toString()}
         renderItem={({ item }) => <RideCard item={item} />}
         ListHeaderComponent={renderHeader}
         contentContainerStyle={styles.listContent}
