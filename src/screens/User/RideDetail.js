@@ -13,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import COLORS from "../../constant/colors";
+import { getMatchDetail } from "../../services/matchService";
 
 const RideDetail = ({ route, navigation }) => {
   const { rideId } = route.params;
@@ -20,46 +21,91 @@ const RideDetail = ({ route, navigation }) => {
   const [ride, setRide] = useState(null);
 
   useEffect(() => {
-    // Mock data for now
-    setTimeout(() => {
-      setRide({
-        id: rideId,
-        status: "COMPLETED",
-        pickupAddress: "456 Elm Street, Springfield",
-        destinationAddress: "739 Main Street, Springfield",
-        price: 120000,
-        distance: 12000,
-        duration: 25,
-        createdAt: new Date().toISOString(),
-        driver: {
-          name: "Nguyễn Văn A",
-          phone: "0912345678",
-          avatar: "https://api.dicebear.com/7.x/avataaars/png?seed=driver1",
-          rating: 4.8,
-          vehicle: {
-            brand: "Toyota",
-            model: "Vios",
-            color: "Trắng",
-            licensePlate: "29A-12345",
-          },
-        },
-        messages: [
-          {
-            id: 1,
-            sender: "driver",
-            text: "Xin chào, tôi đang trên đường đến điểm đón",
-            time: "10:30",
-          },
-          {
-            id: 2,
-            sender: "passenger",
-            text: "Vâng, cảm ơn anh!",
-            time: "10:31",
-          },
-        ],
-      });
-      setLoading(false);
-    }, 500);
+    let isMounted = true;
+
+    const normalizeRideDetail = (raw) => {
+      const status =
+        raw?.status ?? raw?.matchStatus ?? raw?.rideStatus ?? raw?.state ?? "UNKNOWN";
+
+      const pickupAddress =
+        raw?.pickupAddress ?? raw?.pickup_address ?? raw?.startLocation ?? raw?.from ??
+        "Điểm đón";
+      const destinationAddress =
+        raw?.destinationAddress ?? raw?.destination_address ?? raw?.endLocation ?? raw?.to ??
+        "Điểm đến";
+
+      const priceRaw = raw?.price ?? raw?.estimatedPrice ?? raw?.fare ?? 0;
+      const price = typeof priceRaw === "number" ? priceRaw : Number(priceRaw) || 0;
+
+      const distanceRaw = raw?.distance ?? raw?.distanceMeters ?? raw?.distance_meters ?? 0;
+      const distance =
+        typeof distanceRaw === "number" ? distanceRaw : Number(distanceRaw) || 0;
+
+      const durationRaw =
+        raw?.duration ?? raw?.durationMinutes ?? raw?.estimatedDuration ?? raw?.estimatedDurationMinutes ?? 0;
+      const duration =
+        typeof durationRaw === "number" ? durationRaw : Number(durationRaw) || 0;
+
+      const createdAt =
+        raw?.createdAt ?? raw?.created_at ?? raw?.createdDate ?? raw?.created_date ??
+        new Date().toISOString();
+
+      const driverRaw = raw?.driver ?? raw?.driverInfo ?? raw?.driverUser ?? null;
+      const vehicleRaw = raw?.vehicle ?? driverRaw?.vehicle ?? raw?.driverVehicle ?? null;
+
+      const driver = driverRaw
+        ? {
+            id: driverRaw?.id ?? driverRaw?.userId,
+            name: driverRaw?.name ?? driverRaw?.fullName ?? raw?.driverName ?? "Tài xế",
+            phone: driverRaw?.phone ?? raw?.driverPhone ?? "",
+            avatar: driverRaw?.avatar ?? raw?.driverAvatar,
+            rating: driverRaw?.rating ?? raw?.driverRating ?? 0,
+            vehicle: vehicleRaw
+              ? {
+                  brand: vehicleRaw?.brand ?? vehicleRaw?.make ?? "",
+                  model: vehicleRaw?.model ?? vehicleRaw?.vehicleModel ?? "",
+                  color: vehicleRaw?.color ?? "",
+                  licensePlate:
+                    vehicleRaw?.licensePlate ?? vehicleRaw?.plate ?? raw?.licensePlate ?? "",
+                }
+              : null,
+          }
+        : null;
+
+      return {
+        id: raw?.id ?? rideId,
+        status,
+        pickupAddress,
+        destinationAddress,
+        price,
+        distance,
+        duration,
+        createdAt,
+        driver,
+        messages: raw?.messages ?? [],
+      };
+    };
+
+    const fetchDetail = async () => {
+      try {
+        setLoading(true);
+        const resp = await getMatchDetail(rideId);
+        const payload = resp?.data?.data ?? resp?.data ?? null;
+        const normalized = normalizeRideDetail(payload);
+        if (isMounted) setRide(normalized);
+      } catch (err) {
+        console.warn("Failed to load ride detail:", err?.message);
+        if (isMounted) setRide(null);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    fetchDetail();
+
+    return () => {
+      isMounted = false;
+    };
   }, [rideId]);
 
   const getStatusColor = (status) => {
@@ -89,10 +135,12 @@ const RideDetail = ({ route, navigation }) => {
   };
 
   const handleCall = (phone) => {
+    if (!phone) return;
     Linking.openURL(`tel:${phone}`);
   };
 
   const handleMessage = () => {
+    if (!ride?.id || !ride?.driver) return;
     navigation.navigate("ChatScreen", {
       rideId: ride.id,
       driver: {
@@ -109,6 +157,26 @@ const RideDetail = ({ route, navigation }) => {
       <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={COLORS.PRIMARY} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!ride) {
+    return (
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Ionicons name="arrow-back" size={24} color="#1C1C1E" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Chi tiết chuyến đi</Text>
+          <View style={{ width: 40 }} />
+        </View>
+        <View style={styles.loadingContainer}>
+          <Text style={{ color: "#8E8E93" }}>Không thể tải chi tiết chuyến đi</Text>
         </View>
       </SafeAreaView>
     );
@@ -164,44 +232,68 @@ const RideDetail = ({ route, navigation }) => {
         {/* Driver Info */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Thông tin tài xế</Text>
-          <View style={styles.driverCard}>
-            <Image
-              source={{ uri: ride.driver.avatar }}
-              style={styles.driverAvatar}
-            />
-            <View style={styles.driverInfo}>
-              <Text style={styles.driverName}>{ride.driver.name}</Text>
-              <View style={styles.ratingRow}>
-                <Ionicons name="star" size={16} color="#FFB800" />
-                <Text style={styles.ratingText}>{ride.driver.rating}</Text>
+          {ride.driver ? (
+            <View style={styles.driverCard}>
+              <Image
+                source={{
+                  uri:
+                    ride.driver.avatar ||
+                    "https://i.pravatar.cc/150?img=14",
+                }}
+                style={styles.driverAvatar}
+              />
+              <View style={styles.driverInfo}>
+                <Text style={styles.driverName}>{ride.driver.name}</Text>
+                <View style={styles.ratingRow}>
+                  <Ionicons name="star" size={16} color="#FFB800" />
+                  <Text style={styles.ratingText}>{ride.driver.rating}</Text>
+                </View>
+                {ride.driver.vehicle ? (
+                  <>
+                    <Text style={styles.vehicleText}>
+                      {ride.driver.vehicle.brand} {ride.driver.vehicle.model} •{" "}
+                      {ride.driver.vehicle.color}
+                    </Text>
+                    <Text style={styles.licensePlate}>
+                      {ride.driver.vehicle.licensePlate}
+                    </Text>
+                  </>
+                ) : (
+                  <Text style={styles.vehicleText}>
+                    Chưa có thông tin xe
+                  </Text>
+                )}
               </View>
-              <Text style={styles.vehicleText}>
-                {ride.driver.vehicle.brand} {ride.driver.vehicle.model} •{" "}
-                {ride.driver.vehicle.color}
-              </Text>
-              <Text style={styles.licensePlate}>
-                {ride.driver.vehicle.licensePlate}
-              </Text>
+              <View style={styles.driverActions}>
+                <TouchableOpacity
+                  style={styles.actionButton}
+                  onPress={() => handleCall(ride.driver.phone)}
+                  disabled={!ride.driver.phone}
+                >
+                  <Ionicons name="call" size={20} color={COLORS.PRIMARY} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.actionButton}
+                  onPress={handleMessage}
+                >
+                  <Ionicons
+                    name="chatbubble"
+                    size={20}
+                    color={COLORS.PRIMARY}
+                  />
+                </TouchableOpacity>
+              </View>
             </View>
-            <View style={styles.driverActions}>
-              <TouchableOpacity
-                style={styles.actionButton}
-                onPress={() => handleCall(ride.driver.phone)}
-              >
-                <Ionicons name="call" size={20} color={COLORS.PRIMARY} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.actionButton}
-                onPress={handleMessage}
-              >
-                <Ionicons
-                  name="chatbubble"
-                  size={20}
-                  color={COLORS.PRIMARY}
-                />
-              </TouchableOpacity>
+          ) : (
+            <View style={styles.driverCard}>
+              <View style={styles.driverInfo}>
+                <Text style={styles.driverName}>Chưa có tài xế</Text>
+                <Text style={styles.vehicleText}>
+                  Hệ thống đang tìm tài xế phù hợp cho chuyến đi này.
+                </Text>
+              </View>
             </View>
-          </View>
+          )}
         </View>
 
         {/* Route Info */}

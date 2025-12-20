@@ -1,30 +1,44 @@
-import { createClient } from '@supabase/supabase-js';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@env';
+import { createClient } from "@supabase/supabase-js";
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "@env";
 
-// Debug: Check what values we're getting
-console.log('🔍 Debug @env values:');
-console.log('  SUPABASE_URL:', SUPABASE_URL);
-console.log('  SUPABASE_ANON_KEY:', SUPABASE_ANON_KEY ? '✅ Exists' : '❌ Missing');
+// Fallbacks: Expo env system (EXPO_PUBLIC_*) and process.env in dev.
+const supabaseUrl =
+  SUPABASE_URL ??
+  process.env.EXPO_PUBLIC_SUPABASE_URL ??
+  process.env.SUPABASE_URL;
 
-const supabaseUrl = SUPABASE_URL;
-const supabaseAnonKey = SUPABASE_ANON_KEY;
+const supabaseAnonKey =
+  SUPABASE_ANON_KEY ??
+  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ??
+  process.env.SUPABASE_ANON_KEY;
+
+// IMPORTANT: Do not crash the app if env is missing.
+// If credentials are missing, export supabase = null and let callers handle it gracefully.
+export const supabase =
+  supabaseUrl && supabaseAnonKey
+    ? createClient(supabaseUrl, supabaseAnonKey, {
+        auth: {
+          persistSession: false,
+        },
+        realtime: {
+          params: {
+            eventsPerSecond: 10,
+          },
+        },
+      })
+    : null;
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('Supabase credentials missing in .env file');
-  console.error('Please add SUPABASE_URL and SUPABASE_ANON_KEY to your .env file');
+  console.error("❌ Supabase env missing at runtime:", {
+    SUPABASE_URL: SUPABASE_URL ? "✅" : "❌",
+    SUPABASE_ANON_KEY: SUPABASE_ANON_KEY ? "✅" : "❌",
+    EXPO_PUBLIC_SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL ? "✅" : "❌",
+    EXPO_PUBLIC_SUPABASE_ANON_KEY: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY
+      ? "✅"
+      : "❌",
+  });
+} else {
+  console.log("✅ Supabase client initialized");
 }
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: false,
-  },
-  realtime: {
-    params: {
-      eventsPerSecond: 10,
-    },
-  },
-});
-
-console.log('Supabase client initialized');
 
 export default supabase;

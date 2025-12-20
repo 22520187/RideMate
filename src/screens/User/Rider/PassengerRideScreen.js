@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Alert,
   FlatList,
+  Modal,
   AppState,
   Dimensions,
   ActivityIndicator,
@@ -26,6 +27,11 @@ import { getCurrentLocation, reverseGeocode } from "../../../config/maps";
 import { searchPlaces as osmSearchPlaces, getRoute } from "../../../utils/api";
 import { getProfile } from "../../../services/userService";
 import useDriverLocations from "../../../hooks/useDriverLocations";
+import {
+  bookRide,
+  cancelMatch,
+  getMatchDetail,
+} from "../../../services/matchService";
 
 const PassengerRideScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
@@ -92,8 +98,57 @@ const PassengerRideScreen = ({ navigation, route }) => {
   const [routeDistance, setRouteDistance] = useState("0");
   const [routeDuration, setRouteDuration] = useState("0");
   const [isSearching, setIsSearching] = useState(false);
+  const [searchTimeLeft, setSearchTimeLeft] = useState(0);
+  const [searchInterval, setSearchInterval] = useState(null);
+  const [activeMatchId, setActiveMatchId] = useState(null);
 
   const { drivers, loading: driversLoading } = useDriverLocations(originCoordinate, 7);
+
+  // Keep pricing consistent with DriverRideScreen
+  const calculatePrice = (distanceKm) => {
+    const basePrice = 15000;
+    const pricePerKm = 3000;
+    return Math.round(basePrice + distanceKm * pricePerKm);
+  };
+
+  // Cleanup polling interval whenever it changes/unmounts
+  useEffect(() => {
+    return () => {
+      if (searchInterval) clearInterval(searchInterval);
+    };
+  }, [searchInterval]);
+
+  const formatVND = (value) => {
+    const numberValue = typeof value === "number" ? value : Number(String(value).replace(/[^\d]/g, ""));
+    if (!Number.isFinite(numberValue)) return String(value ?? "");
+    return new Intl.NumberFormat("vi-VN", {
+      style: "currency",
+      currency: "VND",
+      maximumFractionDigits: 0,
+    }).format(numberValue);
+  };
+
+  const stopSearching = () => {
+    if (searchInterval) {
+      clearInterval(searchInterval);
+      setSearchInterval(null);
+    }
+    setIsSearching(false);
+    setSearchTimeLeft(0);
+  };
+
+  const handleCancelSearch = async () => {
+    try {
+      if (activeMatchId) {
+        await cancelMatch(activeMatchId);
+      }
+    } catch (err) {
+      console.warn("Cancel match failed:", err?.message);
+    } finally {
+      setActiveMatchId(null);
+      stopSearching();
+    }
+  };
 
   // Xử lý destination từ params
   useEffect(() => {
@@ -182,31 +237,8 @@ const PassengerRideScreen = ({ navigation, route }) => {
   const screenWidth = Dimensions.get("window").width;
   const suggestionsWidth = screenWidth - 30 - 80; // 30px padding, 80px cho button "Hiện tại"
 
-  // Mock data cho demo
-  const availableRides = [
-    {
-      id: 1,
-      driverName: "Trần Văn X",
-      rating: 4.9,
-      carModel: "Toyota Vios",
-      departureTime: "14:30",
-      price: "25,000đ",
-      availableSeats: 2,
-      fromLocation: "Trường Đại học",
-      toLocation: "Vincom Plaza",
-    },
-    {
-      id: 2,
-      driverName: "Nguyễn Thị Y",
-      rating: 4.7,
-      carModel: "Honda City",
-      departureTime: "15:00",
-      price: "30,000đ",
-      availableSeats: 1,
-      fromLocation: "Nhà ga",
-      toLocation: "Sân bay",
-    },
-  ];
+  // NOTE: Previously this screen used mock availableRides + setTimeout.
+  // It now uses matchService (broadcastAsPassenger + findMatches) like DriverRideScreen.
 
   const searchPlacesAPI = async (query) => {
     try {
@@ -371,66 +403,106 @@ const PassengerRideScreen = ({ navigation, route }) => {
       return;
     }
 
-    // Bắt đầu tìm kiếm - hiển thị radar animation
-    setIsSearching(true);
+    const distanceKm = Number(routeDistance);
+    const estimatedPrice = calculatePrice(Number.isFinite(distanceKm) ? distanceKm : 0);
 
-    // Giả lập tìm kiếm trong 3-5 giây
-    const searchTimeout = setTimeout(() => {
-      // Auto-match với chuyến đầu tiên sau khi tìm thấy
-      const matchedRide = availableRides[0]; // Lấy chuyến đầu tiên
-
-      if (matchedRide) {
-        setIsSearching(false);
-
-        // Hiển thị thông báo tìm thấy
-        Alert.alert(
-          "🎉 Tìm thấy tài xế!",
-          `${matchedRide.driverName} đang di chuyển đến điểm đón của bạn...`,
-          [
-            {
-              text: "OK",
-              onPress: () => {
-                // Navigate to MatchedRideScreen
-                navigation.navigate("MatchedRide", {
-                  isDriver: false,
-                  driverName: matchedRide.driverName,
-                  driverPhone: "0901234569",
-                  driverAvatar: `https://i.pravatar.cc/150?img=${
-                    matchedRide.id + 10
-                  }`,
-                  vehicleModel: matchedRide.carModel,
-                  licensePlate: `30A-${12345 + matchedRide.id}`,
-                  from: fromLocation,
-                  to: toLocation,
-                  // Truyền tọa độ thực tế đã chọn
-                  originCoordinate: originCoordinate,
-                  destinationCoordinate: destinationCoordinate,
-                  // Truyền vị trí thực của tài xế (giả lập cách pickup 0.5-1km)
-                  driverLocation: {
-                    latitude: originCoordinate.latitude - 0.008, // ~0.8km về phía nam
-                    longitude: originCoordinate.longitude - 0.006, // ~0.5km về phía tây
-                  },
-                  departureTime: matchedRide.departureTime,
-                  price: matchedRide.price,
-                  duration: `${routeDuration} phút`,
-                  distance: `${routeDistance} km`,
-                  rideId: matchedRide.id,
-                });
-              },
-            },
-          ]
-        );
-      } else {
-        setIsSearching(false);
-        Alert.alert(
-          "Thông báo",
-          `Không tìm thấy chuyến đi phù hợp từ ${fromLocation} đến ${toLocation}`
-        );
+    try {
+      const bookingResp = await bookRide({
+        pickupAddress: fromLocation,
+        destinationAddress: toLocation,
+        pickupLatitude: originCoordinate.latitude,
+        pickupLongitude: originCoordinate.longitude,
+        destinationLatitude: destinationCoordinate.latitude,
+        destinationLongitude: destinationCoordinate.longitude,
+        vehicleType: "MOTORBIKE",
+      });
+      const matchId = bookingResp?.data?.data?.id;
+      if (!matchId) {
+        Alert.alert("Lỗi", "Không thể tạo yêu cầu chuyến đi (thiếu matchId).");
+        return;
       }
-    }, 3000); // 3 giây tìm kiếm
+      setActiveMatchId(matchId);
+    } catch (error) {
+      console.error("Book ride error:", error);
+      Alert.alert("Lỗi", "Không thể tạo yêu cầu chuyến đi");
+      return;
+    }
 
-    // Cleanup nếu component unmount
-    return () => clearTimeout(searchTimeout);
+    setIsSearching(true);
+    setSearchTimeLeft(60);
+
+    if (searchInterval) clearInterval(searchInterval);
+
+    const interval = setInterval(async () => {
+      setSearchTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          setIsSearching(false);
+          setActiveMatchId(null);
+          Alert.alert("Thông báo", "Không tìm thấy tài xế nào trong thời gian quy định");
+          return 0;
+        }
+        return prev - 1;
+      });
+
+      try {
+        if (!activeMatchId) return;
+        const detailResp = await getMatchDetail(activeMatchId);
+        const detail = detailResp?.data?.data;
+
+        const status = (detail?.status || detail?.matchStatus || "").toString().toUpperCase();
+        const driverId =
+          detail?.driverId ??
+          detail?.driver?.id ??
+          detail?.driver?.userId ??
+          detail?.driver_user_id;
+
+        const isMatched =
+          Boolean(driverId) ||
+          ["MATCHED", "ACCEPTED", "ONGOING", "IN_PROGRESS"].includes(status);
+
+        if (isMatched) {
+          clearInterval(interval);
+          setSearchInterval(null);
+          setIsSearching(false);
+
+          const driver = detail?.driver || detail?.driverInfo || {};
+          const fallbackDriverLocation = originCoordinate
+            ? {
+                latitude: originCoordinate.latitude - 0.008,
+                longitude: originCoordinate.longitude - 0.006,
+              }
+            : undefined;
+
+          navigation.navigate("MatchedRide", {
+            isDriver: false,
+            driverId: driverId,
+            driverName: driver?.name ?? detail?.driverName ?? "Tài xế",
+            driverPhone: driver?.phone ?? detail?.driverPhone ?? "",
+            driverAvatar: driver?.avatar ?? detail?.driverAvatar,
+            vehicleModel: driver?.vehicleModel ?? detail?.vehicleModel,
+            licensePlate: driver?.licensePlate ?? detail?.licensePlate,
+            from: fromLocation,
+            to: toLocation,
+            originCoordinate,
+            destinationCoordinate,
+            driverLocation: detail?.driverLocation ?? fallbackDriverLocation,
+            departureTime: new Date().toLocaleTimeString("vi-VN", {
+              hour: "2-digit",
+              minute: "2-digit",
+            }),
+            price: formatVND(detail?.estimatedPrice ?? estimatedPrice),
+            duration: `${routeDuration} phút`,
+            distance: `${routeDistance} km`,
+            rideId: detail?.id ?? activeMatchId,
+          });
+        }
+      } catch (error) {
+        console.error("Get match detail error:", error);
+      }
+    }, 2000);
+
+    setSearchInterval(interval);
   };
 
   return (
@@ -482,8 +554,14 @@ const PassengerRideScreen = ({ navigation, route }) => {
               <RadarScanning size={250} />
               <Text style={styles.searchingText}>Đang tìm tài xế...</Text>
               <Text style={styles.searchingSubtext}>
-                Vui lòng chờ trong giây lát
+                Vui lòng chờ trong giây lát{searchTimeLeft ? ` (${searchTimeLeft}s)` : ""}
               </Text>
+              <TouchableOpacity
+                style={styles.cancelSearchBtn}
+                onPress={handleCancelSearch}
+              >
+                <Text style={styles.cancelSearchBtnText}>Hủy tìm</Text>
+              </TouchableOpacity>
             </View>
           </View>
         )}
@@ -629,212 +707,6 @@ const PassengerRideScreen = ({ navigation, route }) => {
         </View>
       </View>
 
-      {/* Driver Selection Modal */}
-      <Modal
-        visible={isDriverModalVisible}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => {
-          if (searchInterval) {
-            clearInterval(searchInterval);
-            setSearchInterval(null);
-          }
-          setIsDriverModalVisible(false);
-          setIsSearching(false);
-        }}
-      >
-        <View style={styles.modalBackdrop}>
-          <TouchableOpacity
-            style={styles.modalBackdrop}
-            activeOpacity={1}
-            onPress={() => {
-              if (searchInterval) {
-                clearInterval(searchInterval);
-                setSearchInterval(null);
-              }
-              setIsDriverModalVisible(false);
-              setIsSearching(false);
-            }}
-          />
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Chọn tài xế</Text>
-              <TouchableOpacity
-                onPress={() => {
-                  if (searchInterval) {
-                    clearInterval(searchInterval);
-                    setSearchInterval(null);
-                  }
-                  setIsDriverModalVisible(false);
-                  setIsSearching(false);
-                }}
-              >
-                <MaterialIcons name="close" size={24} color={COLORS.BLACK} />
-              </TouchableOpacity>
-            </View>
-
-            <Text style={styles.modalSubtitle}>
-              {isSearching
-                ? `Đang tìm kiếm... (${searchTimeLeft}s)`
-                : `${availableDrivers.length} tài xế đang tìm hành khách từ ${fromLocation} đến ${toLocation}`}
-            </Text>
-
-            <FlatList
-              data={availableDrivers}
-              keyExtractor={(item) => item.id.toString()}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={styles.driverCard}
-                  onPress={() => handleSelectDriver(item)}
-                >
-                  <Image
-                    source={{ uri: item.driverAvatar }}
-                    style={styles.driverAvatar}
-                  />
-                  <View style={styles.driverInfo}>
-                    <Text style={styles.driverName}>{item.driverName}</Text>
-                    <View style={styles.driverDetails}>
-                      <MaterialIcons
-                        name="phone"
-                        size={14}
-                        color={COLORS.GRAY}
-                      />
-                      <Text style={styles.driverPhone}>{item.driverPhone}</Text>
-                    </View>
-                    <View style={styles.driverDetails}>
-                      <MaterialIcons
-                        name="star"
-                        size={14}
-                        color={COLORS.ORANGE_DARK}
-                      />
-                      <Text style={styles.driverRating}>{item.rating}</Text>
-                      <Text style={styles.driverReviews}>(10 đánh giá)</Text>
-                    </View>
-                    <Text style={styles.carInfo}>
-                      {item.carModel} - {item.licensePlate}
-                    </Text>
-                  </View>
-                  <View style={styles.driverActions}>
-                    <Text style={styles.price}>{formatVND(item.price)}</Text>
-                    <TouchableOpacity
-                      style={styles.selectBtn}
-                      onPress={() => handleSelectDriver(item)}
-                    >
-                      <MaterialIcons
-                        name="check-circle"
-                        size={20}
-                        color={COLORS.GREEN}
-                      />
-                    </TouchableOpacity>
-                  </View>
-                </TouchableOpacity>
-              )}
-              style={[styles.driversList, { paddingBottom: insets.bottom }]}
-            />
-          </View>
-        </View>
-      </Modal>
-
-      {/* Confirmation Modal */}
-      <Modal
-        visible={isConfirmationModalVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setIsConfirmationModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View
-            style={[styles.confirmationModal, { paddingBottom: insets.bottom }]}
-          >
-            <View style={styles.confirmationHeader}>
-              <Text style={styles.confirmationTitle}>Xác nhận ghép chuyến</Text>
-              <TouchableOpacity
-                onPress={() => setIsConfirmationModalVisible(false)}
-                style={styles.closeBtn}
-              >
-                <MaterialIcons name="close" size={24} color={COLORS.GRAY} />
-              </TouchableOpacity>
-            </View>
-
-            {selectedDriver && (
-              <View style={styles.confirmationContent}>
-                <View style={styles.confirmationDriverCard}>
-                  <Image
-                    source={{ uri: selectedDriver.driverAvatar }}
-                    style={styles.confirmationAvatar}
-                  />
-                  <View style={styles.confirmationDriverInfo}>
-                    <Text style={styles.confirmationDriverName}>
-                      {selectedDriver.driverName}
-                    </Text>
-                    <View style={styles.confirmationDriverDetails}>
-                      <MaterialIcons
-                        name="phone"
-                        size={16}
-                        color={COLORS.GRAY}
-                      />
-                      <Text style={styles.confirmationDriverPhone}>
-                        {selectedDriver.driverPhone}
-                      </Text>
-                    </View>
-                    <View style={styles.confirmationDriverDetails}>
-                      <MaterialIcons
-                        name="directions-car"
-                        size={16}
-                        color={COLORS.GRAY}
-                      />
-                      <Text style={styles.confirmationVehicle}>
-                        {selectedDriver.carModel} -{" "}
-                        {selectedDriver.licensePlate}
-                      </Text>
-                    </View>
-                    <View style={styles.confirmationDriverDetails}>
-                      <MaterialIcons
-                        name="location-on"
-                        size={16}
-                        color={COLORS.GRAY}
-                      />
-                      <Text style={styles.confirmationRoute}>
-                        {fromLocation} → {toLocation}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-
-                <View style={styles.confirmationPrice}>
-                  <Text style={styles.priceLabel}>Giá dự kiến:</Text>
-                  <Text style={styles.priceValue}>
-                    {formatVND(selectedDriver.price)}
-                  </Text>
-                </View>
-
-                <View style={styles.confirmationWarning}>
-                  <MaterialIcons name="info" size={20} color={COLORS.ORANGE} />
-                  <Text style={styles.confirmationWarningText}>
-                    Sau khi xác nhận, tài xế sẽ bắt đầu đến đón bạn. Vui lòng
-                    chuẩn bị và đảm bảo thông tin liên lạc chính xác.
-                  </Text>
-                </View>
-
-                <View style={styles.confirmationActions}>
-                  <TouchableOpacity
-                    style={[styles.confirmationBtn, styles.cancelBtn]}
-                    onPress={() => setIsConfirmationModalVisible(false)}
-                  >
-                    <Text style={styles.cancelBtnText}>Hủy</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.confirmationBtn, styles.confirmBtn]}
-                    onPress={handleConfirmDriverSelection}
-                  >
-                    <Text style={styles.confirmBtnText}>Ghép chuyến</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 };
@@ -1065,6 +937,18 @@ const styles = StyleSheet.create({
     color: "#8E8E93",
     marginTop: 10,
     fontWeight: "500",
+  },
+  cancelSearchBtn: {
+    marginTop: 18,
+    paddingVertical: 12,
+    paddingHorizontal: 18,
+    borderRadius: 14,
+    backgroundColor: "#FF3B30",
+  },
+  cancelSearchBtnText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "700",
   },
 });
 
