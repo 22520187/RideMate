@@ -1,139 +1,288 @@
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  FlatList,
-  Image,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import COLORS from "../../constant/colors";
+import * as adminService from "../../services/adminService";
+import { unwrapApiData } from "../../utils/unwrapApiData";
+import { getVehiclesByDriver } from "../../services/vehicleService";
 
 const UserDetail = ({ route, navigation }) => {
-  const { user } = route.params || {};
-  
-  // Mock data - trong thực tế sẽ lấy từ API
-  const [userData] = useState({
-    ...user,
-    email: "nguyenvana@example.com",
-    address: "123 Đường ABC, Quận 1, TP.HCM",
-    joinDate: "15/03/2024",
-    totalPoints: 1250,
-    currentPoints: 850,
-    averageRating: user?.rating || 4.8,
-    totalRatings: 42,
-    driverLicenseStatus: user?.role === "driver" ? "approved" : "pending", // pending, approved, rejected
-    driverLicenseNumber: "A123456789",
-    driverLicenseExpiry: "15/12/2026",
-    driverLicenseImage: null, // URL to license image
-  });
+  const { userId, user: initialUser } = route.params || {};
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [userData, setUserData] = useState(null);
+  const [driverVehicles, setDriverVehicles] = useState([]);
 
-  const [pointHistory] = useState([
-    {
-      id: "PH-001",
-      type: "earn",
-      amount: 50,
-      description: "Hoàn thành chuyến đi RM-2024-109",
-      date: "12/11/2024 • 08:30",
-    },
-    {
-      id: "PH-002",
-      type: "redeem",
-      amount: -100,
-      description: "Đổi voucher giảm 10%",
-      date: "10/11/2024 • 14:20",
-    },
-    {
-      id: "PH-003",
-      type: "earn",
-      amount: 50,
-      description: "Hoàn thành chuyến đi RM-2024-108",
-      date: "09/11/2024 • 18:15",
-    },
-  ]);
+  const formatUserType = useCallback((type) => {
+    if (type === "DRIVER") return "Tài xế";
+    if (type === "PASSENGER") return "Hành khách";
+    if (type === "ADMIN") return "Admin";
+    return type || "-";
+  }, []);
 
-  // Thống kê chuyến đi - chỉ lưu số lượng
-  const [tripStats] = useState({
-    createdTrips: {
-      total: 42,
-      completed: 38,
-      active: 2,
-      cancelled: 2,
-    },
-    participatedTrips: {
-      total: 18,
-      completed: 16,
-      active: 1,
-      cancelled: 1,
-    },
-  });
+  const normalizeApprovalStatus = useCallback((s) => {
+    return (s ?? "").toString().trim().toUpperCase();
+  }, []);
 
-  const [reportHistory] = useState([
-    {
-      id: "REP-480",
-      type: "Thái độ tài xế",
-      reporter: "Trần Thị Thu",
-      status: "resolved",
-      date: "12/11/2024 • 09:15",
+  const formatApprovalStatus = useCallback(
+    (s) => {
+      const v = normalizeApprovalStatus(s);
+      if (v === "PENDING") return "Chờ duyệt";
+      if (v === "APPROVED") return "Đã duyệt";
+      if (v === "REJECTED" || v === "REJECT") return "Từ chối";
+      if (v === "NONE") return "Không áp dụng";
+      return v || "-";
     },
-    {
-      id: "REP-475",
-      type: "Xe không đảm bảo",
-      reporter: "Phạm Minh",
-      status: "resolved",
-      date: "10/11/2024 • 14:22",
-    },
-  ]);
+    [normalizeApprovalStatus]
+  );
 
-  const [voucherHistory] = useState([
-    {
-      id: "VCH-001",
-      name: "Giảm 10% chuyến đi",
-      status: "used",
-      usedDate: "10/11/2024 • 14:20",
-      value: "10%",
+  const getApprovalTextColor = useCallback(
+    (s) => {
+      const v = normalizeApprovalStatus(s);
+      if (v === "APPROVED") return COLORS.GREEN;
+      if (v === "PENDING") return COLORS.ORANGE_DARK;
+      if (v === "REJECTED" || v === "REJECT") return COLORS.RED;
+      return COLORS.BLACK;
     },
-    {
-      id: "VCH-002",
-      name: "Giảm 50.000đ",
-      status: "active",
-      expiryDate: "30/11/2024",
-      value: "50.000đ",
-    },
-  ]);
+    [normalizeApprovalStatus]
+  );
 
-  const handleDriverLicenseAction = (action) => {
-    // pending: approve, reject
-    // approved/rejected: view details
-    if (action === "approve") {
-      // Update driver license status
-      Alert.alert("Xác nhận", "Bạn có chắc chắn muốn duyệt bằng lái xe này?", [
-        { text: "Hủy", style: "cancel" },
-        {
-          text: "Duyệt",
-          onPress: () => {
-            // Update status to approved
-            console.log("Approved driver license");
-          },
-        },
-      ]);
-    } else if (action === "reject") {
-      Alert.alert("Xác nhận", "Bạn có chắc chắn muốn từ chối bằng lái xe này?", [
-        { text: "Hủy", style: "cancel" },
-        {
-          text: "Từ chối",
-          onPress: () => {
-            // Update status to rejected
-            console.log("Rejected driver license");
-          },
-        },
-      ]);
+  const formatPercent = useCallback((value) => {
+    if (value == null || Number.isNaN(Number(value))) return "-";
+    return `${Math.round(Number(value))}%`;
+  }, []);
+
+  const formatDate = useCallback((iso) => {
+    if (!iso) return "-";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "-";
+    return d.toLocaleDateString("vi-VN");
+  }, []);
+
+  const normalizeUser = useCallback((u) => {
+    if (!u) return null;
+    const fullName = u.fullName ?? u.name ?? "-";
+    const phoneNumber = u.phoneNumber ?? u.phone ?? "-";
+    const rating =
+      typeof u.rating === "number"
+        ? u.rating
+        : typeof u.averageRating === "number"
+        ? u.averageRating
+        : 0;
+
+    const userType = u.userType;
+    const isDriver = userType === "DRIVER" || u.role === "driver";
+    const isActive =
+      typeof u.isActive === "boolean" ? u.isActive : u.status === "active";
+    const joinDate = u.createdAt ? formatDate(u.createdAt) : u.joinDate ?? "-";
+
+    return {
+      // raw-ish fields (from backend)
+      ...u,
+      id: u.id ?? u.userId ?? u._id,
+      fullName,
+      phoneNumber,
+      userType,
+      isActive,
+      rating,
+
+      // fields used by the existing UI (legacy names)
+      name: fullName,
+      phone: phoneNumber,
+      role: isDriver ? "driver" : "passenger",
+      status:
+        typeof u.isActive === "boolean"
+          ? u.isActive
+            ? "active"
+            : "inactive"
+          : u.status ?? "active",
+      averageRating: rating,
+      totalRatings: typeof u.totalRatings === "number" ? u.totalRatings : 0,
+
+      // map backend driver fields into existing UI naming (so we can reuse styling)
+      driverLicenseNumber: u.licenseNumber ?? u.driverLicenseNumber,
+      driverLicenseStatus: u.driverApprovalStatus ?? u.driverLicenseStatus,
+      vehicleInfo: u.vehicleInfo ?? "-",
+      joinDate,
+    };
+  }, [formatDate]);
+
+  // Hydrate quickly from the list item while the real API call runs
+  useEffect(() => {
+    if (initialUser) setUserData(normalizeUser(initialUser));
+  }, [initialUser, normalizeUser]);
+
+  const fetchUserDetail = useCallback(async () => {
+    if (userId == null) {
+      setLoading(false);
+      Alert.alert("Lỗi", "Thiếu userId để xem chi tiết người dùng.");
+      return;
     }
-  };
+    try {
+      setLoading(true);
+      const res = await adminService.getUserById(userId);
+      const payload = unwrapApiData(res);
+      setUserData(normalizeUser(payload));
+    } catch (err) {
+      console.error("Error fetching user detail:", err);
+      Alert.alert("Lỗi", "Không thể tải chi tiết người dùng. Vui lòng thử lại.");
+    } finally {
+      setLoading(false);
+    }
+  }, [userId, normalizeUser]);
+
+  useEffect(() => {
+    fetchUserDetail();
+  }, [fetchUserDetail]);
+
+  const headerSubtitle = useMemo(() => userData?.name ?? "", [userData]);
+
+  const hasVehicleInfo =
+    typeof userData?.vehicleInfo === "string" &&
+    userData.vehicleInfo.trim().length > 0 &&
+    userData.vehicleInfo.trim() !== "-";
+
+  const fetchDriverVehicles = useCallback(async () => {
+    if (!userId) return;
+    try {
+      const res = await getVehiclesByDriver(userId);
+      const payload = unwrapApiData(res);
+      setDriverVehicles(Array.isArray(payload) ? payload : []);
+    } catch (e) {
+      console.error("Error fetching driver vehicles:", e);
+      setDriverVehicles([]);
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    if (userData?.userType === "DRIVER" && !hasVehicleInfo) {
+      fetchDriverVehicles();
+    }
+  }, [userData?.userType, hasVehicleInfo, fetchDriverVehicles]);
+
+  const bestVehicle = useMemo(() => {
+    if (!Array.isArray(driverVehicles) || driverVehicles.length === 0) return null;
+    const scoreStatus = (s) => {
+      if (s === "APPROVED") return 3;
+      if (s === "PENDING") return 2;
+      if (s === "REJECTED") return 1;
+      return 0;
+    };
+    return [...driverVehicles].sort((a, b) => {
+      const sa = scoreStatus(a?.status);
+      const sb = scoreStatus(b?.status);
+      if (sb !== sa) return sb - sa;
+      const ta = a?.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+      const tb = b?.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+      return tb - ta;
+    })[0];
+  }, [driverVehicles]);
+
+  const derivedVehicleInfo = useMemo(() => {
+    if (!bestVehicle) return "";
+    const make = bestVehicle.make || "";
+    const model = bestVehicle.model || "";
+    const plate = bestVehicle.licensePlate || "";
+    const pieces = [`${make} ${model}`.trim(), plate].filter(Boolean);
+    return pieces.join(" - ");
+  }, [bestVehicle]);
+
+  // Prefer backend driverApprovalStatus; if missing, fall back to vehicle status
+  const effectiveApprovalStatus = useMemo(() => {
+    const raw = userData?.driverApprovalStatus ?? "";
+    const v = normalizeApprovalStatus(raw);
+    if (v) return v;
+    return normalizeApprovalStatus(bestVehicle?.status);
+  }, [userData?.driverApprovalStatus, bestVehicle?.status, normalizeApprovalStatus]);
+
+  const approveDriver = useCallback(() => {
+    if (!userId) return;
+    Alert.alert("Xác nhận", "Bạn có chắc chắn muốn duyệt tài xế này?", [
+      { text: "Hủy", style: "cancel" },
+      {
+        text: "Duyệt",
+        style: "default",
+        onPress: async () => {
+          try {
+            setSubmitting(true);
+            await adminService.approveDriver(userId);
+            Alert.alert("Thành công", "Đã duyệt tài xế.");
+            fetchUserDetail();
+          } catch (e) {
+            console.error("Approve driver error:", e);
+            Alert.alert("Lỗi", "Không thể duyệt tài xế. Vui lòng thử lại.");
+          } finally {
+            setSubmitting(false);
+          }
+        },
+      },
+    ]);
+  }, [userId, fetchUserDetail]);
+
+  const rejectDriver = useCallback(() => {
+    if (!userId) return;
+
+    const doReject = async (rejectionReason) => {
+      try {
+        setSubmitting(true);
+        await adminService.rejectDriver(userId, { rejectionReason });
+        Alert.alert("Thành công", "Đã từ chối duyệt tài xế.");
+        fetchUserDetail();
+      } catch (e) {
+        console.error("Reject driver error:", e);
+        Alert.alert("Lỗi", "Không thể từ chối duyệt. Vui lòng thử lại.");
+      } finally {
+        setSubmitting(false);
+      }
+    };
+
+    Alert.alert("Chọn lý do từ chối", "Vui lòng chọn một lý do:", [
+      { text: "Hủy", style: "cancel" },
+      { text: "Thiếu giấy tờ", onPress: () => doReject("Thiếu giấy tờ") },
+      { text: "Thông tin không hợp lệ", onPress: () => doReject("Thông tin không hợp lệ") },
+    ]);
+  }, [userId, fetchUserDetail]);
+
+  const toggleUserStatus = useCallback(() => {
+    if (!userId || !userData) return;
+
+    const nextIsActive = !userData.isActive;
+    const actionLabel = nextIsActive ? "Mở khóa" : "Khóa";
+
+    Alert.alert(
+      `${actionLabel} tài khoản`,
+      `Bạn có chắc chắn muốn ${actionLabel.toLowerCase()} tài khoản này?`,
+      [
+        { text: "Hủy", style: "cancel" },
+        {
+          text: actionLabel,
+          style: nextIsActive ? "default" : "destructive",
+          onPress: async () => {
+            try {
+              setSubmitting(true);
+              await adminService.toggleUserStatus(userId, { isActive: nextIsActive });
+              Alert.alert("Thành công", `${actionLabel} tài khoản thành công.`);
+              fetchUserDetail();
+            } catch (e) {
+              console.error("Toggle user status error:", e);
+              Alert.alert("Lỗi", `Không thể ${actionLabel.toLowerCase()} tài khoản. Vui lòng thử lại.`);
+            } finally {
+              setSubmitting(false);
+            }
+          },
+        },
+      ]
+    );
+  }, [userId, userData, fetchUserDetail]);
 
   const renderSection = (icon, title, children) => (
     <View style={styles.section}>
@@ -153,88 +302,6 @@ const UserDetail = ({ route, navigation }) => {
     </View>
   );
 
-  const renderPointHistoryItem = ({ item }) => (
-    <View style={styles.historyItem}>
-      <View style={styles.historyContent}>
-        <Text style={styles.historyDescription}>{item.description}</Text>
-        <Text style={styles.historyDate}>{item.date}</Text>
-      </View>
-      <Text
-        style={[
-          styles.historyAmount,
-          item.type === "earn" ? styles.earnAmount : styles.redeemAmount,
-        ]}
-      >
-        {item.type === "earn" ? "+" : ""}
-        {item.amount} điểm
-      </Text>
-    </View>
-  );
-
-
-  const renderReportItem = ({ item }) => (
-    <View style={styles.reportItem}>
-      <View style={styles.reportInfo}>
-        <Text style={styles.reportType}>{item.type}</Text>
-        <Text style={styles.reportReporter}>Người báo cáo: {item.reporter}</Text>
-        <Text style={styles.reportDate}>{item.date}</Text>
-      </View>
-      <View
-        style={[
-          styles.reportStatusBadge,
-          item.status === "resolved"
-            ? { backgroundColor: COLORS.GREEN_LIGHT }
-            : { backgroundColor: COLORS.ORANGE_LIGHT },
-        ]}
-      >
-        <Text
-          style={[
-            styles.reportStatusText,
-            item.status === "resolved"
-              ? { color: COLORS.GREEN }
-              : { color: COLORS.ORANGE_DARK },
-          ]}
-        >
-          {item.status === "resolved" ? "Đã giải quyết" : "Chờ xử lý"}
-        </Text>
-      </View>
-    </View>
-  );
-
-  const renderVoucherItem = ({ item }) => (
-    <View style={styles.voucherItem}>
-      <View style={styles.voucherInfo}>
-        <Text style={styles.voucherName}>{item.name}</Text>
-        <Text style={styles.voucherValue}>Giá trị: {item.value}</Text>
-        {item.usedDate && (
-          <Text style={styles.voucherDate}>Đã dùng: {item.usedDate}</Text>
-        )}
-        {item.expiryDate && (
-          <Text style={styles.voucherDate}>Hết hạn: {item.expiryDate}</Text>
-        )}
-      </View>
-      <View
-        style={[
-          styles.voucherStatusBadge,
-          item.status === "used"
-            ? { backgroundColor: COLORS.GRAY_LIGHT }
-            : { backgroundColor: COLORS.GREEN_LIGHT },
-        ]}
-      >
-        <Text
-          style={[
-            styles.voucherStatusText,
-            item.status === "used"
-              ? { color: COLORS.GRAY }
-              : { color: COLORS.GREEN },
-          ]}
-        >
-          {item.status === "used" ? "Đã dùng" : "Còn hiệu lực"}
-        </Text>
-      </View>
-    </View>
-  );
-
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <View style={styles.header}>
@@ -246,10 +313,20 @@ const UserDetail = ({ route, navigation }) => {
         </TouchableOpacity>
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>Chi tiết người dùng</Text>
-          <Text style={styles.headerSubtitle}>{userData.name}</Text>
+          <Text style={styles.headerSubtitle}>{headerSubtitle}</Text>
         </View>
       </View>
 
+      {loading && !userData ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.PRIMARY} />
+          <Text style={styles.loadingText}>Đang tải chi tiết...</Text>
+        </View>
+      ) : !userData ? (
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Không có dữ liệu người dùng.</Text>
+        </View>
+      ) : (
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -261,9 +338,9 @@ const UserDetail = ({ route, navigation }) => {
             {renderInfoRow("person-outline", "Họ tên", userData.name)}
             {renderInfoRow("call-outline", "Số điện thoại", userData.phone)}
             {renderInfoRow("mail-outline", "Email", userData.email)}
-            {renderInfoRow("location-outline", "Địa chỉ", userData.address)}
             {renderInfoRow("calendar-outline", "Ngày tham gia", userData.joinDate)}
-            {renderInfoRow("briefcase-outline", "Vai trò", userData.role === "driver" ? "Tài xế" : "Hành khách")}
+            {renderInfoRow("briefcase-outline", "Vai trò", formatUserType(userData.userType))}
+            {renderInfoRow("wallet-outline", "Xu", userData.coins ?? 0)}
             <View style={styles.statusRow}>
               <Ionicons name="checkmark-circle-outline" size={18} color={COLORS.GRAY} />
               <Text style={styles.infoLabel}>Trạng thái:</Text>
@@ -272,10 +349,8 @@ const UserDetail = ({ route, navigation }) => {
                   styles.statusBadge,
                   {
                     backgroundColor:
-                      userData.status === "active"
+                      userData.isActive
                         ? COLORS.GREEN_LIGHT
-                        : userData.status === "suspended"
-                        ? COLORS.ORANGE_LIGHT
                         : COLORS.RED_LIGHT,
                   },
                 ]}
@@ -285,220 +360,104 @@ const UserDetail = ({ route, navigation }) => {
                     styles.statusText,
                     {
                       color:
-                        userData.status === "active"
-                          ? COLORS.GREEN
-                          : userData.status === "suspended"
-                          ? COLORS.ORANGE_DARK
-                          : COLORS.RED,
+                        userData.isActive ? COLORS.GREEN : COLORS.RED,
                     },
                   ]}
                 >
-                  {userData.status === "active"
-                    ? "Hoạt động"
-                    : userData.status === "suspended"
-                    ? "Tạm khóa"
-                    : "Bị cảnh báo"}
+                  {userData.isActive ? "Hoạt động" : "Bị khóa"}
                 </Text>
               </View>
             </View>
-          </View>
-        ))}
 
-        {/* Điểm + Lịch sử điểm */}
-        {renderSection("star-outline", "Điểm thưởng", (
-          <View style={styles.pointsCard}>
-            <View style={styles.pointsSummary}>
-              <View style={styles.pointsBox}>
-                <Text style={styles.pointsValue}>{userData.currentPoints}</Text>
-                <Text style={styles.pointsLabel}>Điểm hiện tại</Text>
-              </View>
-              <View style={styles.pointsBox}>
-                <Text style={styles.pointsValue}>{userData.totalPoints}</Text>
-                <Text style={styles.pointsLabel}>Tổng điểm tích lũy</Text>
-              </View>
-            </View>
-            <View style={styles.historySection}>
-              <Text style={styles.historyTitle}>Lịch sử điểm</Text>
-              <FlatList
-                data={pointHistory}
-                keyExtractor={(item) => item.id}
-                renderItem={renderPointHistoryItem}
-                scrollEnabled={false}
+            <TouchableOpacity
+              style={[
+                styles.toggleStatusButton,
+                userData.isActive ? styles.lockButton : styles.unlockButton,
+                submitting && styles.toggleStatusButtonDisabled,
+              ]}
+              onPress={toggleUserStatus}
+              disabled={submitting}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name={userData.isActive ? "lock-closed-outline" : "lock-open-outline"}
+                size={18}
+                color={COLORS.WHITE}
               />
-            </View>
+              <Text style={styles.toggleStatusButtonText}>
+                {userData.isActive ? "Khóa tài khoản" : "Mở khóa tài khoản"}
+              </Text>
+            </TouchableOpacity>
           </View>
         ))}
 
-        {/* Rating trung bình */}
-        {renderSection("star", "Đánh giá", (
-          <View style={styles.ratingCard}>
-            <View style={styles.ratingMain}>
-              <Text style={styles.ratingValue}>{userData.averageRating.toFixed(1)}</Text>
-              <View style={styles.ratingStars}>
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <Ionicons
-                    key={star}
-                    name={star <= Math.round(userData.averageRating) ? "star" : "star-outline"}
-                    size={24}
-                    color={COLORS.YELLOW}
-                  />
-                ))}
-              </View>
-              <Text style={styles.ratingCount}>({userData.totalRatings} đánh giá)</Text>
-            </View>
-          </View>
-        ))}
-
-        {/* Thống kê chuyến đi đã tạo */}
-        {userData.role === "driver" && renderSection("create-outline", "Chuyến đi đã tạo", (
-          <View style={styles.tripStatsCard}>
-            <View style={styles.tripStatsRow}>
-              <View style={styles.tripStatBox}>
-                <Text style={styles.tripStatValue}>{tripStats.createdTrips.total}</Text>
-                <Text style={styles.tripStatLabel}>Tổng số</Text>
-              </View>
-              <View style={styles.tripStatBox}>
-                <Text style={styles.tripStatValue}>{tripStats.createdTrips.completed}</Text>
-                <Text style={styles.tripStatLabel}>Đã hoàn thành</Text>
-              </View>
-              <View style={styles.tripStatBox}>
-                <Text style={styles.tripStatValue}>{tripStats.createdTrips.active}</Text>
-                <Text style={styles.tripStatLabel}>Đang diễn ra</Text>
-              </View>
-              <View style={styles.tripStatBox}>
-                <Text style={styles.tripStatValue}>{tripStats.createdTrips.cancelled}</Text>
-                <Text style={styles.tripStatLabel}>Đã hủy</Text>
-              </View>
-            </View>
-          </View>
-        ))}
-
-        {/* Thống kê chuyến đi đã tham gia */}
-        {renderSection("people-outline", "Chuyến đi đã tham gia", (
-          <View style={styles.tripStatsCard}>
-            <View style={styles.tripStatsRow}>
-              <View style={styles.tripStatBox}>
-                <Text style={styles.tripStatValue}>{tripStats.participatedTrips.total}</Text>
-                <Text style={styles.tripStatLabel}>Tổng số</Text>
-              </View>
-              <View style={styles.tripStatBox}>
-                <Text style={styles.tripStatValue}>{tripStats.participatedTrips.completed}</Text>
-                <Text style={styles.tripStatLabel}>Đã hoàn thành</Text>
-              </View>
-              <View style={styles.tripStatBox}>
-                <Text style={styles.tripStatValue}>{tripStats.participatedTrips.active}</Text>
-                <Text style={styles.tripStatLabel}>Đang diễn ra</Text>
-              </View>
-              <View style={styles.tripStatBox}>
-                <Text style={styles.tripStatValue}>{tripStats.participatedTrips.cancelled}</Text>
-                <Text style={styles.tripStatLabel}>Đã hủy</Text>
-              </View>
-            </View>
-          </View>
-        ))}
-
-        {/* Lịch sử report */}
-        {renderSection("alert-circle-outline", "Lịch sử báo cáo", (
-          <View style={styles.reportsCard}>
-            <FlatList
-              data={reportHistory}
-              keyExtractor={(item) => item.id}
-              renderItem={renderReportItem}
-              scrollEnabled={false}
-              ListEmptyComponent={
-                <Text style={styles.emptyText}>Không có báo cáo nào</Text>
-              }
-            />
-          </View>
-        ))}
-
-        {/* Lịch sử voucher */}
-        {renderSection("gift-outline", "Lịch sử voucher", (
-          <View style={styles.vouchersCard}>
-            <FlatList
-              data={voucherHistory}
-              keyExtractor={(item) => item.id}
-              renderItem={renderVoucherItem}
-              scrollEnabled={false}
-              ListEmptyComponent={
-                <Text style={styles.emptyText}>Không có voucher nào</Text>
-              }
-            />
+        {/* Thống kê */}
+        {renderSection("analytics-outline", "Thống kê", (
+          <View style={styles.infoCard}>
+            {renderInfoRow("star-outline", "Rating", (userData.rating ?? 0).toFixed(1))}
+            {renderInfoRow("car-outline", "Chuyến hoàn thành", userData.totalRidesCompleted ?? 0)}
+            {renderInfoRow("thumbs-up-outline", "Tỉ lệ nhận chuyến", formatPercent(userData.acceptanceRate))}
+            {renderInfoRow("checkmark-done-outline", "Tỉ lệ hoàn thành", formatPercent(userData.completionRate))}
           </View>
         ))}
 
         {/* Duyệt bằng lái xe */}
-        {userData.role === "driver" || userData.driverLicenseStatus === "pending" ? (
-          renderSection("card-outline", "Duyệt bằng lái xe", (
+        {userData.userType === "DRIVER" ? (
+          renderSection("card-outline", "Xác minh tài xế", (
             <View style={styles.licenseCard}>
-              {userData.driverLicenseStatus === "pending" ? (
+              <View style={styles.licenseInfo}>
+                <Text style={styles.licenseLabel}>Trạng thái duyệt:</Text>
+                <Text
+                  style={[
+                    styles.licenseValue,
+                    { color: getApprovalTextColor(effectiveApprovalStatus) },
+                  ]}
+                >
+                  {formatApprovalStatus(effectiveApprovalStatus)}
+                </Text>
+              </View>
+              <View style={styles.licenseInfo}>
+                <Text style={styles.licenseLabel}>Số bằng lái:</Text>
+                <Text style={styles.licenseValue}>
+                  {userData.licenseNumber || userData.driverLicenseNumber || "Chưa cập nhật"}
+                </Text>
+              </View>
+              <View style={styles.licenseInfo}>
+                <Text style={styles.licenseLabel}>Thông tin xe:</Text>
+                <Text style={styles.licenseValue}>
+                  {hasVehicleInfo
+                    ? userData.vehicleInfo
+                    : derivedVehicleInfo || "Chưa cập nhật"}
+                </Text>
+              </View>
+
+              {effectiveApprovalStatus === "PENDING" ? (
                 <>
-                  <View style={styles.licenseInfo}>
-                    <Text style={styles.licenseLabel}>Số bằng lái:</Text>
-                    <Text style={styles.licenseValue}>{userData.driverLicenseNumber || "Chưa cập nhật"}</Text>
-                  </View>
-                  <View style={styles.licenseInfo}>
-                    <Text style={styles.licenseLabel}>Ngày hết hạn:</Text>
-                    <Text style={styles.licenseValue}>{userData.driverLicenseExpiry || "Chưa cập nhật"}</Text>
-                  </View>
-                  {userData.driverLicenseImage && (
-                    <TouchableOpacity style={styles.licenseImageButton}>
-                      <Ionicons name="image-outline" size={20} color={COLORS.BLUE} />
-                      <Text style={styles.licenseImageText}>Xem ảnh bằng lái xe</Text>
-                    </TouchableOpacity>
-                  )}
                   <View style={styles.licenseActions}>
                     <TouchableOpacity
                       style={[styles.licenseButton, styles.approveButton]}
-                      onPress={() => handleDriverLicenseAction("approve")}
+                      onPress={approveDriver}
+                      disabled={submitting}
                     >
                       <Ionicons name="checkmark-circle" size={20} color={COLORS.WHITE} />
                       <Text style={styles.licenseButtonText}>Duyệt</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={[styles.licenseButton, styles.rejectButton]}
-                      onPress={() => handleDriverLicenseAction("reject")}
+                      onPress={rejectDriver}
+                      disabled={submitting}
                     >
                       <Ionicons name="close-circle" size={20} color={COLORS.WHITE} />
                       <Text style={styles.licenseButtonText}>Từ chối</Text>
                     </TouchableOpacity>
                   </View>
                 </>
-              ) : (
-                <>
-                  <View style={styles.licenseInfo}>
-                    <Text style={styles.licenseLabel}>Số bằng lái:</Text>
-                    <Text style={styles.licenseValue}>{userData.driverLicenseNumber}</Text>
-                  </View>
-                  <View style={styles.licenseInfo}>
-                    <Text style={styles.licenseLabel}>Ngày hết hạn:</Text>
-                    <Text style={styles.licenseValue}>{userData.driverLicenseExpiry}</Text>
-                  </View>
-                  <View
-                    style={[
-                      styles.licenseStatusBadge,
-                      userData.driverLicenseStatus === "approved"
-                        ? { backgroundColor: COLORS.GREEN_LIGHT }
-                        : { backgroundColor: COLORS.RED_LIGHT },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.licenseStatusText,
-                        userData.driverLicenseStatus === "approved"
-                          ? { color: COLORS.GREEN }
-                          : { color: COLORS.RED },
-                      ]}
-                    >
-                      {userData.driverLicenseStatus === "approved" ? "Đã duyệt" : "Đã từ chối"}
-                    </Text>
-                  </View>
-                </>
-              )}
+              ) : null}
             </View>
           ))
         ) : null}
       </ScrollView>
+      )}
     </SafeAreaView>
   );
 };
@@ -507,6 +466,18 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: COLORS.BG,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+    backgroundColor: COLORS.BG,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: COLORS.GRAY,
   },
   header: {
     backgroundColor: COLORS.PRIMARY,
@@ -593,205 +564,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
   },
-  pointsCard: {
-    backgroundColor: COLORS.WHITE,
-    borderRadius: 16,
-    padding: 16,
-  },
-  pointsSummary: {
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 20,
-  },
-  pointsBox: {
-    flex: 1,
-    backgroundColor: COLORS.BG,
-    padding: 16,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  pointsValue: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: COLORS.BLUE,
-  },
-  pointsLabel: {
-    fontSize: 12,
-    color: COLORS.GRAY,
-    marginTop: 4,
-  },
-  historySection: {
-    marginTop: 8,
-  },
-  historyTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: COLORS.BLACK,
-    marginBottom: 12,
-  },
-  historyItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.GRAY_LIGHT,
-  },
-  historyContent: {
-    flex: 1,
-  },
-  historyDescription: {
-    fontSize: 14,
-    color: COLORS.BLACK,
-    fontWeight: "500",
-  },
-  historyDate: {
-    fontSize: 12,
-    color: COLORS.GRAY,
-    marginTop: 4,
-  },
-  historyAmount: {
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  earnAmount: {
-    color: COLORS.GREEN,
-  },
-  redeemAmount: {
-    color: COLORS.RED,
-  },
-  ratingCard: {
-    backgroundColor: COLORS.WHITE,
-    borderRadius: 16,
-    padding: 20,
-  },
-  ratingMain: {
-    alignItems: "center",
-  },
-  ratingValue: {
-    fontSize: 48,
-    fontWeight: "700",
-    color: COLORS.BLUE,
-    marginBottom: 8,
-  },
-  ratingStars: {
-    flexDirection: "row",
-    gap: 4,
-    marginBottom: 8,
-  },
-  ratingCount: {
-    fontSize: 14,
-    color: COLORS.GRAY,
-  },
-  tripStatsCard: {
-    backgroundColor: COLORS.WHITE,
-    borderRadius: 16,
-    padding: 16,
-  },
-  tripStatsRow: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  tripStatBox: {
-    flex: 1,
-    backgroundColor: COLORS.BG,
-    padding: 12,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  tripStatValue: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: COLORS.BLUE,
-  },
-  tripStatLabel: {
-    fontSize: 11,
-    color: COLORS.GRAY,
-    marginTop: 4,
-    textAlign: "center",
-  },
-  reportsCard: {
-    backgroundColor: COLORS.WHITE,
-    borderRadius: 16,
-    padding: 16,
-  },
-  reportItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.GRAY_LIGHT,
-  },
-  reportInfo: {
-    flex: 1,
-    marginRight: 12,
-  },
-  reportType: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: COLORS.BLACK,
-    marginBottom: 4,
-  },
-  reportReporter: {
-    fontSize: 13,
-    color: COLORS.GRAY,
-    marginBottom: 4,
-  },
-  reportDate: {
-    fontSize: 12,
-    color: COLORS.GRAY,
-  },
-  reportStatusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  reportStatusText: {
-    fontSize: 11,
-    fontWeight: "600",
-  },
-  vouchersCard: {
-    backgroundColor: COLORS.WHITE,
-    borderRadius: 16,
-    padding: 16,
-  },
-  voucherItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.GRAY_LIGHT,
-  },
-  voucherInfo: {
-    flex: 1,
-    marginRight: 12,
-  },
-  voucherName: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: COLORS.BLACK,
-    marginBottom: 4,
-  },
-  voucherValue: {
-    fontSize: 13,
-    color: COLORS.GRAY,
-    marginBottom: 4,
-  },
-  voucherDate: {
-    fontSize: 12,
-    color: COLORS.GRAY,
-  },
-  voucherStatusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  voucherStatusText: {
-    fontSize: 11,
-    fontWeight: "600",
-  },
   licenseCard: {
     backgroundColor: COLORS.WHITE,
     borderRadius: 16,
@@ -848,6 +620,30 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.WHITE,
     fontWeight: "600",
+  },
+  toggleStatusButton: {
+    marginTop: 14,
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  toggleStatusButtonDisabled: {
+    opacity: 0.6,
+  },
+  lockButton: {
+    backgroundColor: COLORS.RED,
+  },
+  unlockButton: {
+    backgroundColor: COLORS.GREEN,
+  },
+  toggleStatusButtonText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: COLORS.WHITE,
   },
   licenseStatusBadge: {
     paddingHorizontal: 12,

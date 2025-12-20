@@ -17,6 +17,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import COLORS from "../../constant/colors";
 import * as adminService from "../../services/adminService";
+import { unwrapApiData } from "../../utils/unwrapApiData";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -126,14 +127,16 @@ const ReportManagement = () => {
         }
 
         const response = await adminService.getReports(params);
+        const pageData = unwrapApiData(response) || {};
+        const content = Array.isArray(pageData?.content) ? pageData.content : [];
 
         if (refresh || pageNum === 0) {
-          setReports(response.data.content || []);
+          setReports(content);
         } else {
-          setReports((prev) => [...prev, ...(response.data.content || [])]);
+          setReports((prev) => [...prev, ...content]);
         }
 
-        setHasMore(!response.data.last);
+        setHasMore(!pageData.last);
         setPage(pageNum);
       } catch (error) {
         console.error("Error fetching reports:", error);
@@ -148,7 +151,8 @@ const ReportManagement = () => {
 
   const fetchStatistics = useCallback(async () => {
     try {
-      const stats = await adminService.getReportStatistics();
+      const res = await adminService.getReportStatistics();
+      const stats = unwrapApiData(res);
       setStatistics(stats);
     } catch (error) {
       console.error("Error fetching statistics:", error);

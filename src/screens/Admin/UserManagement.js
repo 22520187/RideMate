@@ -11,12 +11,15 @@ import {
   ActivityIndicator,
   RefreshControl,
   Dimensions,
+  ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import COLORS from "../../constant/colors";
 import * as adminService from "../../services/adminService";
+import { unwrapApiData } from "../../utils/unwrapApiData";
+import SCREENS from "../index";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -25,12 +28,14 @@ const filterTabs = [
   { key: "DRIVER", label: "Tài xế", icon: "car-outline" },
   { key: "PASSENGER", label: "Hành khách", icon: "person-outline" },
   { key: "PENDING", label: "Chờ duyệt", icon: "time-outline" },
+  { key: "ADMIN", label: "Admin", icon: "shield-checkmark-outline" },
 ];
 
 const UserManagement = () => {
   const navigation = useNavigation();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [submittingUserId, setSubmittingUserId] = useState(null);
   const [selectedTab, setSelectedTab] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [users, setUsers] = useState([]);
@@ -46,6 +51,32 @@ const UserManagement = () => {
         setLoading(true);
       }
 
+      // Special tab: pending drivers (fast list, no pagination)
+      if (selectedTab === "PENDING") {
+        const res = await adminService.getPendingDrivers();
+        const payload = unwrapApiData(res);
+        const list = Array.isArray(payload) ? payload : [];
+
+        const q = searchQuery.trim().toLowerCase();
+        const filtered =
+          q.length === 0
+            ? list
+            : list.filter((u) => {
+                const fullName = (u.fullName || "").toLowerCase();
+                const phone = (u.phoneNumber || "").toLowerCase();
+                const email = (u.email || "").toLowerCase();
+                return (
+                  fullName.includes(q) || phone.includes(q) || email.includes(q)
+                );
+              });
+
+        setUsers(filtered);
+        setHasMore(false);
+        setPage(0);
+        return;
+      }
+
+      // Other tabs: pageable /admin/users with userType filter
       const userType = selectedTab === "all" ? null : selectedTab;
       const response = await adminService.getAllUsers({
         userType,
@@ -54,13 +85,22 @@ const UserManagement = () => {
         size: 20,
       });
 
+      const pageData = unwrapApiData(response) || {};
+      const usersData = Array.isArray(pageData?.content)
+        ? pageData.content
+        : Array.isArray(pageData?.users)
+        ? pageData.users
+        : [];
+      const totalPages =
+        typeof pageData?.totalPages === "number" ? pageData.totalPages : 1;
+
       if (refresh || pageNum === 0) {
-        setUsers(response.users);
+        setUsers(usersData);
       } else {
-        setUsers((prev) => [...prev, ...response.users]);
+        setUsers((prev) => [...prev, ...usersData]);
       }
 
-      setHasMore(pageNum < response.totalPages - 1);
+      setHasMore(pageNum < totalPages - 1);
       setPage(pageNum);
     } catch (error) {
       console.error("Error fetching users:", error);
@@ -73,7 +113,8 @@ const UserManagement = () => {
 
   const fetchStatistics = useCallback(async () => {
     try {
-      const stats = await adminService.getUserStatistics();
+      const res = await adminService.getUserStatistics();
+      const stats = unwrapApiData(res);
       setStatistics(stats);
     } catch (error) {
       console.error("Error fetching statistics:", error);
@@ -91,14 +132,73 @@ const UserManagement = () => {
   }, [fetchUsers, fetchStatistics]);
 
   const loadMore = useCallback(() => {
+    if (selectedTab === "PENDING") return;
     if (!loading && hasMore) {
       fetchUsers(page + 1);
     }
-  }, [loading, hasMore, page, fetchUsers]);
+  }, [selectedTab, loading, hasMore, page, fetchUsers]);
 
   const handleUserPress = (user) => {
-    navigation.navigate("UserDetail", { userId: user.id });
+    navigation.navigate(SCREENS.ADMIN_USER_DETAIL, { userId: user.id, user });
   };
+
+  const approveDriver = useCallback(
+    (user) => {
+      if (!user?.id) return;
+      Alert.alert("Duyệt tài xế", `Duyệt tài xế "${user.fullName}"?`, [
+        { text: "Hủy", style: "cancel" },
+        {
+          text: "Duyệt",
+          onPress: async () => {
+            try {
+              setSubmittingUserId(user.id);
+              await adminService.approveDriver(user.id);
+              Alert.alert("Thành công", "Đã duyệt tài xế.");
+              fetchUsers(0, true);
+              fetchStatistics();
+            } catch (e) {
+              console.error("Approve driver error:", e);
+              Alert.alert("Lỗi", "Không thể duyệt tài xế.");
+            } finally {
+              setSubmittingUserId(null);
+            }
+          },
+        },
+      ]);
+    },
+    [fetchUsers, fetchStatistics]
+  );
+
+  const rejectDriver = useCallback(
+    (user) => {
+      if (!user?.id) return;
+
+      const doReject = async (rejectionReason) => {
+        try {
+          setSubmittingUserId(user.id);
+          await adminService.rejectDriver(user.id, { rejectionReason });
+          Alert.alert("Thành công", "Đã từ chối duyệt.");
+          fetchUsers(0, true);
+          fetchStatistics();
+        } catch (e) {
+          console.error("Reject driver error:", e);
+          Alert.alert("Lỗi", "Không thể từ chối duyệt.");
+        } finally {
+          setSubmittingUserId(null);
+        }
+      };
+
+      Alert.alert("Từ chối duyệt", `Chọn lý do từ chối "${user.fullName}"`, [
+        { text: "Hủy", style: "cancel" },
+        { text: "Thiếu giấy tờ", onPress: () => doReject("Thiếu giấy tờ") },
+        {
+          text: "Thông tin không hợp lệ",
+          onPress: () => doReject("Thông tin không hợp lệ"),
+        },
+      ]);
+    },
+    [fetchUsers, fetchStatistics]
+  );
 
   const getStatusStyle = (isActive, driverApprovalStatus) => {
     if (!isActive) {
@@ -191,7 +291,11 @@ const UserManagement = () => {
       </View>
 
       {/* Filter Tabs */}
-      <View style={styles.filterTabs}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.filterTabs}
+      >
         {filterTabs.map((tab) => (
           <TouchableOpacity
             key={tab.key}
@@ -216,12 +320,14 @@ const UserManagement = () => {
             </Text>
           </TouchableOpacity>
         ))}
-      </View>
+      </ScrollView>
     </View>
   );
 
   const renderUserCard = ({ item }) => {
     const status = getStatusStyle(item.isActive, item.driverApprovalStatus);
+    const isPending = item.driverApprovalStatus === "PENDING";
+    const isSubmittingThis = submittingUserId === item.id;
 
     return (
       <TouchableOpacity
@@ -254,12 +360,22 @@ const UserManagement = () => {
         <View style={styles.userCardFooter}>
           <View style={styles.userStat}>
             <Ionicons
-              name={item.userType === "DRIVER" ? "car" : "person"}
+              name={
+                item.userType === "DRIVER"
+                  ? "car"
+                  : item.userType === "ADMIN"
+                  ? "shield-checkmark"
+                  : "person"
+              }
               size={16}
               color={COLORS.PRIMARY}
             />
             <Text style={styles.userStatText}>
-              {item.userType === "DRIVER" ? "Tài xế" : "Hành khách"}
+              {item.userType === "DRIVER"
+                ? "Tài xế"
+                : item.userType === "ADMIN"
+                ? "Admin"
+                : "Hành khách"}
             </Text>
           </View>
 
@@ -274,6 +390,31 @@ const UserManagement = () => {
             <Ionicons name="wallet" size={16} color="#4CAF50" />
             <Text style={styles.userStatText}>{item.coins || 0} xu</Text>
           </View>
+
+          {selectedTab === "PENDING" && isPending ? (
+            <View style={styles.pendingActions}>
+              <TouchableOpacity
+                style={[styles.pendingButton, styles.approveSmall]}
+                onPress={() => approveDriver(item)}
+                disabled={isSubmittingThis}
+              >
+                <Ionicons
+                  name="checkmark"
+                  size={16}
+                  color={COLORS.WHITE}
+                />
+                <Text style={styles.pendingButtonText}>Duyệt</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.pendingButton, styles.rejectSmall]}
+                onPress={() => rejectDriver(item)}
+                disabled={isSubmittingThis}
+              >
+                <Ionicons name="close" size={16} color={COLORS.WHITE} />
+                <Text style={styles.pendingButtonText}>Từ chối</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
 
           <TouchableOpacity style={styles.viewButton}>
             <Ionicons name="chevron-forward" size={20} color={COLORS.PRIMARY} />
@@ -438,9 +579,10 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   filterTabs: {
-    flexDirection: "row",
     paddingHorizontal: 20,
+    paddingBottom: 4,
     gap: 8,
+    alignItems: "center",
   },
   filterTab: {
     flexDirection: "row",
@@ -519,6 +661,31 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 16,
+  },
+  pendingActions: {
+    flexDirection: "row",
+    gap: 8,
+    alignItems: "center",
+    marginLeft: 6,
+  },
+  pendingButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+  },
+  approveSmall: {
+    backgroundColor: COLORS.GREEN,
+  },
+  rejectSmall: {
+    backgroundColor: COLORS.RED,
+  },
+  pendingButtonText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: COLORS.WHITE,
   },
   userStat: {
     flexDirection: "row",
