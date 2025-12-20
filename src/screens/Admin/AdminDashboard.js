@@ -16,6 +16,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { LineChart, BarChart, PieChart } from "react-native-chart-kit";
 import COLORS from "../../constant/colors";
 import * as adminService from "../../services/adminService";
+import { unwrapApiData } from "../../utils/unwrapApiData";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -37,16 +38,16 @@ const AdminDashboard = ({ navigation }) => {
   const fetchDashboardData = useCallback(async () => {
     try {
       setLoading(true);
-      const [stats, usersChart, sessionsChart] = await Promise.all([
+      const [statsRes, usersChartRes, sessionsChartRes] = await Promise.all([
         adminService.getDashboardStats(),
         adminService.getChartData("users"),
         adminService.getChartData("sessions"),
       ]);
 
-      setDashboardStats(stats);
+      setDashboardStats(unwrapApiData(statsRes));
       setChartData({
-        users: usersChart,
-        sessions: sessionsChart,
+        users: unwrapApiData(usersChartRes),
+        sessions: unwrapApiData(sessionsChartRes),
       });
     } catch (error) {
       console.error("Error fetching dashboard data:", error);

@@ -82,7 +82,8 @@ export default {
     pendingDrivers: "/admin/users/pending-drivers",
     approveDriver: (id) => `/admin/users/${id}/approve-driver`,
     rejectDriver: (id) => `/admin/users/${id}/reject-driver`,
-    toggleUserStatus: (id) => `/admin/users/${id}/toggle-status`,
+    // Backend: PATCH /admin/users/{id}/status
+    toggleUserStatus: (id) => `/admin/users/${id}/status`,
 
     // Trip management
     trips: "/admin/trips",

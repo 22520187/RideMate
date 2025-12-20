@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { View, ActivityIndicator, StyleSheet } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { getToken, getChatToken, getUserData } from "../../utils/storage";
+import { getToken, getChatToken, getUserData, getUserType } from "../../utils/storage";
 import { chatClient } from "../../utils/StreamClient";
 
 const InitialScreen = ({ navigation }) => {
@@ -47,8 +47,13 @@ const InitialScreen = ({ navigation }) => {
           console.log("⚠️ Stream reconnect failed:", streamError?.message);
           // Do not block app navigation
         }
-        // User is logged in - go to main app
-        navigation.replace("MainTabs");
+        // User is logged in - route by userType (ADMIN goes to AdminStack)
+        const userType = await getUserType();
+        if (userType === "ADMIN") {
+          navigation.replace("AdminStack");
+        } else {
+          navigation.replace("MainTabs");
+        }
       } else {
         // User has seen onboarding but not logged in
         navigation.replace("Login");

@@ -16,6 +16,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import COLORS from "../../constant/colors";
 import * as adminService from "../../services/adminService";
+import { unwrapApiData } from "../../utils/unwrapApiData";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -100,14 +101,16 @@ const TripManagement = () => {
         }
 
         const response = await adminService.getTrips(params);
+        const pageData = unwrapApiData(response) || {};
+        const content = Array.isArray(pageData?.content) ? pageData.content : [];
 
         if (refresh || pageNum === 0) {
-          setTrips(response.data.content || []);
+          setTrips(content);
         } else {
-          setTrips((prev) => [...prev, ...(response.data.content || [])]);
+          setTrips((prev) => [...prev, ...content]);
         }
 
-        setHasMore(!response.data.last);
+        setHasMore(!pageData.last);
         setPage(pageNum);
       } catch (error) {
         console.error("Error fetching trips:", error);
@@ -122,7 +125,8 @@ const TripManagement = () => {
 
   const fetchStatistics = useCallback(async () => {
     try {
-      const stats = await adminService.getTripStatistics();
+      const res = await adminService.getTripStatistics();
+      const stats = unwrapApiData(res);
       setStatistics(stats);
     } catch (error) {
       console.error("Error fetching statistics:", error);
@@ -147,7 +151,8 @@ const TripManagement = () => {
 
   const handleTripPress = async (trip) => {
     try {
-      const detailData = await adminService.getTripById(trip.id);
+      const detailRes = await adminService.getTripById(trip.id);
+      const detailData = unwrapApiData(detailRes);
       setSelectedTrip(detailData);
       setModalVisible(true);
     } catch (error) {

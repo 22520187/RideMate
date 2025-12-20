@@ -361,7 +361,7 @@ const Profile = () => {
               <Text style={styles.profilePhone}>
                 {profile?.phoneNumber || "Chưa cập nhật"}
               </Text>
-              {profile?.rating !== null && (
+              {typeof profile?.rating === "number" && (
                 <View style={styles.ratingContainer}>
                   <Star size={14} color="#FFC107" fill="#FFC107" />
                   <Text style={styles.ratingText}>

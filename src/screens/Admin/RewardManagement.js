@@ -23,6 +23,7 @@ import {
   updateVoucher,
   deleteVoucher,
 } from "../../services/adminService";
+import { unwrapApiData } from "../../utils/unwrapApiData";
 
 const initialRewards = [
   {
@@ -94,12 +95,14 @@ const RewardManagement = () => {
       setLoading(true);
       const response = await getVouchers();
 
-      if (response?.data) {
-        // Ensure response.data is an array
-        const vouchersData = Array.isArray(response.data)
-          ? response.data
-          : Array.isArray(response.data.content)
-          ? response.data.content
+      const payload = unwrapApiData(response);
+
+      if (payload) {
+        // payload can be either an array or a pageable object with `content`
+        const vouchersData = Array.isArray(payload)
+          ? payload
+          : Array.isArray(payload?.content)
+          ? payload.content
           : [];
         setRewards(vouchersData);
       } else {
