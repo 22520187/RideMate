@@ -8,6 +8,7 @@ import COLORS from "./src/constant/colors";
 import { OverlayProvider, Chat } from "stream-chat-expo";
 import { chatClient } from "./src/utils/StreamClient";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import "./src/config/envTest"; // Debug: Test .env loading
 
 export default function App() {
   return (

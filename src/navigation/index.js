@@ -21,6 +21,7 @@ import Member from "../screens/User/Member/Member";
 import Voucher from "../screens/User/Voucher";
 import Mission from "../screens/User/Mission";
 import RideHistory from "../screens/User/RideHistory";
+import RideDetail from "../screens/User/RideDetail";
 import Login from "../screens/Auth/Login";
 import Onboarding from "../screens/Auth/Onboarding";
 import InitialScreen from "../screens/Auth/InitialScreen";
@@ -172,6 +173,8 @@ const UserTabNavigator = () => {
           let iconName;
           if (route.name === SCREENS.HOME) {
             iconName = focused ? "home" : "home-outline";
+          } else if (route.name === SCREENS.RIDE_HISTORY) {
+            iconName = focused ? "time" : "time-outline";
           } else if (route.name === SCREENS.AWARD) {
             iconName = focused ? "diamond" : "diamond-outline";
           } else if (route.name === SCREENS.PROFILE) {
@@ -181,12 +184,12 @@ const UserTabNavigator = () => {
           }
           return <Ionicons name={iconName} size={size} color={color} />;
         },
-        tabBarActiveTintColor: COLORS.BLUE,
+        tabBarActiveTintColor: COLORS.PRIMARY,
         tabBarInactiveTintColor: COLORS.GRAY,
         tabBarStyle: {
           display: isKeyboardVisible ? "none" : "flex",
-          height: 60 + insets.bottom, // Thêm bottom inset vào height
-          paddingBottom: 8 + insets.bottom, // Thêm bottom inset vào padding
+          height: 60 + insets.bottom,
+          paddingBottom: 8 + insets.bottom,
           paddingTop: 8,
         },
         headerShown: false,
@@ -196,6 +199,11 @@ const UserTabNavigator = () => {
         name={SCREENS.HOME}
         component={Home}
         options={{ tabBarLabel: "Home" }}
+      />
+      <Tab.Screen
+        name={SCREENS.RIDE_HISTORY}
+        component={RideHistory}
+        options={{ tabBarLabel: "Lịch sử" }}
       />
       <Tab.Screen
         name={SCREENS.MESSAGE}
@@ -249,6 +257,8 @@ const MainStackNavigator = () => {
       <Stack.Screen name={SCREENS.VOUCHER} component={Voucher} />
       <Stack.Screen name={SCREENS.MISSION} component={Mission} />
       <Stack.Screen name={SCREENS.RIDE_HISTORY} component={RideHistory} />
+      <Stack.Screen name="RideDetail" component={RideDetail} />
+      <Stack.Screen name="ChatScreen" component={ChatScreen} />
       <Stack.Screen
         name={SCREENS.ADMIN_MEMBERSHIP_MANAGEMENT}
         component={MembershipManagement}

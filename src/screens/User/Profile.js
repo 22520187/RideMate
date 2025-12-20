@@ -12,6 +12,7 @@ import {
   Modal,
   TextInput,
   Platform,
+  KeyboardAvoidingView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
@@ -39,6 +40,7 @@ import { clearTokens } from "../../utils/storage";
 import { chatClient } from "../../utils/StreamClient";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import VehicleRegistration from "../../components/VehicleRegistration";
+import ImagePickerModal from "../../components/ImagePickerModal";
 
 const Profile = () => {
   const navigation = useNavigation();
@@ -116,41 +118,48 @@ const Profile = () => {
   };
 
   const handlePickImage = async (sourceType) => {
+    console.log('handlePickImage called with:', sourceType);
+    setImagePickerVisible(false); // Close modal first
+    
     try {
-      setImagePickerVisible(false);
-
+      console.log('Requesting permission...');
       let result;
+      
       if (sourceType === "camera") {
         const permission = await ImagePicker.requestCameraPermissionsAsync();
         if (!permission.granted) {
-          Alert.alert("Lỗi", "Cần cấp quyền truy cập camera");
+          Alert.alert(
+            'Cần quyền truy cập',
+            'Vui lòng cho phép ứng dụng truy cập Camera để chụp ảnh đại diện.\n\nĐi tới Cài đặt > Quyền riêng tư > Camera.'
+          );
           return;
         }
+        console.log('Launching camera...');
         result = await ImagePicker.launchCameraAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          mediaTypes: 'Images',
           allowsEditing: true,
           aspect: [1, 1],
           quality: 0.8,
         });
       } else {
-        const permission =
-          await ImagePicker.requestMediaLibraryPermissionsAsync();
+        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (!permission.granted) {
-          Alert.alert("Lỗi", "Cần cấp quyền truy cập thư viện ảnh");
+          Alert.alert(
+            'Cần quyền truy cập',
+            'Vui lòng cho phép ứng dụng truy cập Thư viện ảnh để chọn ảnh đại diện.\n\nĐi tới Cài đặt > Quyền riêng tư > Ảnh.'
+          );
           return;
         }
-        result = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
-          allowsEditing: true,
-          aspect: [1, 1],
-          quality: 0.8,
-        });
+        console.log('Launching image library...');
+        result = await ImagePicker.launchImageLibraryAsync();
+        console.log('Library closed. Result:', JSON.stringify(result));
       }
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         await uploadProfileImage(result.assets[0].uri);
       }
     } catch (error) {
+      setImagePickerVisible(false);
       console.error("Pick image error:", error);
       Alert.alert("Lỗi", "Không thể chọn ảnh");
     }
@@ -180,15 +189,18 @@ const Profile = () => {
 
       // Upload image
       const uploadResp = await uploadImage(formData);
+      console.log('Upload response:', JSON.stringify(uploadResp));
       const imageUrl = uploadResp?.data?.url;
+      console.log('Got Image URL:', imageUrl);
 
       if (imageUrl) {
         // Update profile with new image URL
-        await updateProfile({ profilePictureUrl: imageUrl });
+        const updateData = { profilePictureUrl: imageUrl };
+        console.log('Updating profile with data:', JSON.stringify(updateData));
+        await updateProfile(updateData);
 
-        // Refresh profile data
-        await fetchData();
-        Alert.alert("Thành công", "Đã cập nhật ảnh đại diện");
+        // Update local state without closing modal
+        setProfile(prev => ({ ...prev, profilePictureUrl: imageUrl }));
       } else {
         throw new Error("No image URL returned");
       }
@@ -327,11 +339,7 @@ const Profile = () => {
         {/* Profile Card */}
         <View style={styles.profileCard}>
           <View style={styles.profileLeft}>
-            <TouchableOpacity
-              onPress={() => setImagePickerVisible(true)}
-              activeOpacity={0.8}
-              disabled={uploading}
-            >
+            <View>
               <Image
                 source={{
                   uri:
@@ -345,10 +353,7 @@ const Profile = () => {
                   <ActivityIndicator size="small" color={COLORS.WHITE} />
                 </View>
               )}
-              <View style={styles.cameraButton}>
-                <Camera size={16} color={COLORS.WHITE} />
-              </View>
-            </TouchableOpacity>
+            </View>
             <View style={styles.profileInfo}>
               <Text style={styles.profileName}>
                 {profile?.fullName || "Người dùng"}
@@ -475,55 +480,13 @@ const Profile = () => {
           onPress={handleLogout}
           activeOpacity={0.7}
         >
-          <LogOut size={22} color={COLORS.RED} />
+          <LogOut size={22} color={COLORS.WHITE} />
           <Text style={styles.logoutText}>Đăng xuất</Text>
         </TouchableOpacity>
 
         {/* Version */}
         <Text style={styles.version}>Phiên bản 1.0.0</Text>
       </ScrollView>
-
-      {/* Image Picker Modal */}
-      <Modal
-        visible={imagePickerVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setImagePickerVisible(false)}
-      >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setImagePickerVisible(false)}
-        >
-          <View style={styles.imagePickerModal}>
-            <Text style={styles.modalTitle}>Chọn ảnh đại diện</Text>
-            <TouchableOpacity
-              style={styles.modalOption}
-              onPress={() => handlePickImage("camera")}
-            >
-              <Camera size={24} color={COLORS.PRIMARY} />
-              <Text style={styles.modalOptionText}>Chụp ảnh</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.modalOption}
-              onPress={() => handlePickImage("library")}
-            >
-              <MaterialIcons
-                name="photo-library"
-                size={24}
-                color={COLORS.PRIMARY}
-              />
-              <Text style={styles.modalOptionText}>Chọn từ thư viện</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.modalOption, styles.modalCancel]}
-              onPress={() => setImagePickerVisible(false)}
-            >
-              <Text style={styles.modalCancelText}>Hủy</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
 
       {/* Edit Profile Modal */}
       <Modal
@@ -533,11 +496,18 @@ const Profile = () => {
       >
         <SafeAreaView style={styles.editModal} edges={["top"]}>
           <View style={styles.editHeader}>
-            <TouchableOpacity onPress={() => setEditModalVisible(false)}>
+            <TouchableOpacity 
+              style={styles.headerButton} 
+              onPress={() => setEditModalVisible(false)}
+            >
               <Text style={styles.editCancel}>Hủy</Text>
             </TouchableOpacity>
             <Text style={styles.editTitle}>Chỉnh sửa thông tin</Text>
-            <TouchableOpacity onPress={handleSaveProfile} disabled={uploading}>
+            <TouchableOpacity 
+              style={styles.headerButton}
+              onPress={handleSaveProfile} 
+              disabled={uploading}
+            >
               {uploading ? (
                 <ActivityIndicator size="small" color={COLORS.PRIMARY} />
               ) : (
@@ -546,7 +516,58 @@ const Profile = () => {
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.editContent}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={{ flex: 1 }}
+          >
+            <ScrollView style={styles.editContent}>
+            {/* Avatar Picker */}
+            <View style={styles.avatarPickerContainer}>
+              <TouchableOpacity
+                onPress={() => {
+                  Alert.alert(
+                    'Chọn ảnh đại diện',
+                    'Chọn nguồn ảnh',
+                    [
+                      {
+                        text: 'Chụp ảnh',
+                        onPress: () => handlePickImage('camera'),
+                      },
+                      {
+                        text: 'Chọn từ thư viện',
+                        onPress: () => handlePickImage('library'),
+                      },
+                      {
+                        text: 'Hủy',
+                        style: 'cancel',
+                      },
+                    ]
+                  );
+                }}
+                activeOpacity={0.8}
+                disabled={uploading}
+                style={styles.avatarPickerButton}
+              >
+                <Image
+                  source={{
+                    uri:
+                      profile?.profilePictureUrl ||
+                      "https://api.dicebear.com/7.x/avataaars/png?seed=user",
+                  }}
+                  style={styles.editAvatar}
+                />
+                {uploading && (
+                  <View style={styles.editUploadingOverlay}>
+                    <ActivityIndicator size="small" color={COLORS.WHITE} />
+                  </View>
+                )}
+                <View style={styles.editCameraButton}>
+                  <Camera size={20} color={COLORS.WHITE} />
+                </View>
+              </TouchableOpacity>
+              <Text style={styles.avatarPickerHint}>Nhấn để thay đổi ảnh đại diện</Text>
+            </View>
+            
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Họ và tên *</Text>
               <TextInput
@@ -578,18 +599,52 @@ const Profile = () => {
                 </Text>
               </TouchableOpacity>
               {showDatePicker && (
-                <DateTimePicker
-                  value={editForm.dob || new Date(1990, 0, 1)}
-                  mode="date"
-                  display="default"
-                  maximumDate={new Date()}
-                  onChange={(event, selectedDate) => {
-                    setShowDatePicker(false);
-                    if (selectedDate) {
-                      setEditForm({ ...editForm, dob: selectedDate });
-                    }
-                  }}
-                />
+                Platform.OS === 'ios' ? (
+                  <Modal
+                    transparent
+                    animationType="fade"
+                    visible={showDatePicker}
+                    onRequestClose={() => setShowDatePicker(false)}
+                  >
+                    <View style={styles.iosDatePickerOverlay}>
+                      <View style={styles.iosDatePickerContainer}>
+                        <View style={styles.iosDatePickerHeader}>
+                          <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                            <Text style={styles.iosDatePickerCancel}>Hủy</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                            <Text style={styles.iosDatePickerDone}>Xong</Text>
+                          </TouchableOpacity>
+                        </View>
+                        <DateTimePicker
+                          value={editForm.dob || new Date(1990, 0, 1)}
+                          mode="date"
+                          display="spinner"
+                          onChange={(event, selectedDate) => {
+                            if (selectedDate) {
+                              setEditForm(prev => ({ ...prev, dob: selectedDate }));
+                            }
+                          }}
+                          style={{ height: 200 }}
+                          textColor="#000000"
+                        />
+                      </View>
+                    </View>
+                  </Modal>
+                ) : (
+                  <DateTimePicker
+                    value={editForm.dob || new Date(1990, 0, 1)}
+                    mode="date"
+                    display="default"
+                    maximumDate={new Date()}
+                    onChange={(event, selectedDate) => {
+                      setShowDatePicker(false);
+                      if (event.type === 'set' && selectedDate) {
+                        setEditForm(prev => ({ ...prev, dob: selectedDate }));
+                      }
+                    }}
+                  />
+                )
               )}
             </View>
 
@@ -634,7 +689,8 @@ const Profile = () => {
                 keyboardType="numeric"
               />
             </View>
-          </ScrollView>
+            </ScrollView>
+          </KeyboardAvoidingView>
         </SafeAreaView>
       </Modal>
 
@@ -852,24 +908,24 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#F8F9FA",
-    marginHorizontal: 16,
+    backgroundColor: COLORS.RED,
+    marginHorizontal: 20,
     marginTop: 24,
     paddingVertical: 16,
     borderRadius: 16,
     gap: 8,
-    borderWidth: 1,
-    borderColor: "#FFE5E5",
-    shadowColor: COLORS.RED,
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 2,
+    marginBottom: 30, // Add bottom margin for scroll view
   },
   logoutText: {
     fontSize: 16,
     fontWeight: "700",
-    color: COLORS.RED,
+    color: COLORS.WHITE,
+
   },
   version: {
     textAlign: "center",
@@ -929,17 +985,21 @@ const styles = StyleSheet.create({
   // Edit Modal
   editModal: {
     flex: 1,
-    backgroundColor: "#F8F9FA",
+    backgroundColor: COLORS.WHITE,
   },
   editHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingTop: 20,
+    paddingBottom: 16,
     backgroundColor: COLORS.WHITE,
     borderBottomWidth: 1,
     borderBottomColor: "#F0F0F0",
+  },
+  headerButton: {
+    paddingVertical: 8,
   },
   editCancel: {
     fontSize: 16,
@@ -995,6 +1055,82 @@ const styles = StyleSheet.create({
   },
   datePlaceholder: {
     color: "#999",
+  },
+  iosDatePickerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  iosDatePickerContainer: {
+    backgroundColor: COLORS.WHITE,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 30,
+  },
+  iosDatePickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+    backgroundColor: '#FAFAFA',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+  },
+  iosDatePickerCancel: {
+    color: '#8E8E93',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  iosDatePickerDone: {
+    color: COLORS.PRIMARY,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  avatarPickerContainer: {
+    alignItems: 'center',
+    paddingVertical: 24,
+    marginBottom: 20,
+  },
+  avatarPickerButton: {
+    position: 'relative',
+  },
+  editAvatar: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#F0F0F0',
+    borderWidth: 3,
+    borderColor: COLORS.PRIMARY,
+  },
+  editCameraButton: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: COLORS.PRIMARY,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: COLORS.WHITE,
+  },
+  editUploadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarPickerHint: {
+    marginTop: 12,
+    fontSize: 14,
+    color: '#8E8E93',
   },
 });
 

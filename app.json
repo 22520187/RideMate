@@ -19,6 +19,8 @@
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "This app needs access to location when open to find nearby places.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "This app needs access to location to provide location-based services.",
+        "NSPhotoLibraryUsageDescription": "RideMate cần truy cập thư viện ảnh để bạn chọn ảnh đại diện và giấy tờ xe.",
+        "NSCameraUsageDescription": "RideMate cần truy cập camera để chụp ảnh đại diện và giấy tờ xe.",
         "CFBundleURLTypes": [
           {
             "CFBundleURLName": "ridemate",

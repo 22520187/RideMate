@@ -13,11 +13,14 @@ import {
   FlatList,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { MaterialIcons } from "@expo/vector-icons";
+import { MaterialIcons, Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import COLORS from "../constant/colors";
 import { registerVehicle } from "../services/vehicleService";
 import { uploadImage } from "../services/uploadService";
+import { processVehicleImage } from "../services/licensePlateService";
+import Toast from "react-native-toast-message";
+import ImagePickerModal from "./ImagePickerModal";
 
 const VehicleRegistration = ({ visible, onClose, onSuccess }) => {
   const [vehicleData, setVehicleData] = useState({
@@ -33,6 +36,14 @@ const VehicleRegistration = ({ visible, onClose, onSuccess }) => {
   const [submitting, setSubmitting] = useState(false);
   const [vehicleTypeModalVisible, setVehicleTypeModalVisible] = useState(false);
   const [errors, setErrors] = useState({});
+  
+  // License plate scanning states
+  const [plateImage, setPlateImage] = useState(null);
+  const [scanningPlate, setScanningPlate] = useState(false);
+  const [plateDetectionResult, setPlateDetectionResult] = useState(null);
+  const [scanError, setScanError] = useState(null);
+  const [imagePickerVisible, setImagePickerVisible] = useState(false);
+  const [pickerTarget, setPickerTarget] = useState('plate'); // 'plate' | 'document'
 
   const vehicleTypes = [
     { label: "Xe máy", value: "MOTORBIKE" },
@@ -40,6 +51,118 @@ const VehicleRegistration = ({ visible, onClose, onSuccess }) => {
     { label: "Van", value: "VAN" },
     { label: "Tải", value: "TRUCK" },
   ];
+
+  /**
+   * Show image source selection
+   */
+  const showImageSourceModal = () => {
+    setImagePickerVisible(true);
+  };
+
+  /**
+   * Scan license plate from camera or gallery
+   */
+  const scanLicensePlate = async (sourceType = 'camera') => {
+    try {
+      let result;
+      
+      if (sourceType === 'camera') {
+        const permission = await ImagePicker.requestCameraPermissionsAsync();
+        if (permission.status !== 'granted') {
+          Alert.alert(
+            'Cần quyền truy cập',
+            'Vui lòng cho phép ứng dụng truy cập Camera để chụp ảnh biển số xe.\n\nĐi tới Cài đặt > Quyền riêng tư > Camera để mở quyền.'
+          );
+          return;
+        }
+        
+        result = await ImagePicker.launchCameraAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          aspect: [4, 3],
+          quality: 1,
+        });
+      } else {
+        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (permission.status !== 'granted') {
+          Alert.alert(
+            'Quyền bị từ chối',
+            'Vui lòng cấp quyền truy cập thư viện ảnh.'
+          );
+          return;
+        }
+        
+        result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: 'Images',
+          allowsEditing: true,
+          aspect: [4, 3],
+          quality: 1,
+        });
+      }
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const imageUri = result.assets[0].uri;
+        setPlateImage(imageUri);
+        setPlateDetectionResult(null);
+        
+        // Process the image
+        setScanningPlate(true);
+        Toast.show({
+          type: 'info',
+          text1: 'Đang xử lý...',
+          text2: 'Vui lòng chờ trong giây lát',
+        });
+
+        const detectionResult = await processVehicleImage(imageUri);
+        
+        setScanningPlate(false);
+
+        if (detectionResult.success) {
+          setPlateDetectionResult(detectionResult);
+          setScanError(null);
+          // Auto-fill license plate
+          setVehicleData((prev) => ({
+            ...prev,
+            licensePlate: detectionResult.plateNumber,
+          }));
+          
+          Toast.show({
+            type: 'success',
+            text1: 'Thành công!',
+            text2: `Đã phát hiện biển số: ${detectionResult.plateNumber}`,
+          });
+        } else {
+          // If failed, clear image and show error
+          setPlateImage(null);
+          setPlateDetectionResult(null);
+          setScanError(detectionResult.error || 'Không thể đọc biển số');
+          
+          Toast.show({
+            type: 'error',
+            text1: 'Không thành công',
+            text2: detectionResult.error || 'Không thể đọc biển số',
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error scanning license plate:', error);
+      setScanningPlate(false);
+      Toast.show({
+        type: 'error',
+        text1: 'Lỗi',
+        text2: 'Có lỗi xảy ra khi xử lý ảnh',
+      });
+    }
+  };
+
+  /**
+   * Clear plate scan result
+   */
+  const clearPlateScan = () => {
+    setPlateImage(null);
+    setPlateDetectionResult(null);
+    setScanError(null);
+  };
 
   const formatLicensePlate = (text) => {
     let formatted = text.replace(/\s/g, "").toUpperCase();
@@ -71,41 +194,77 @@ const VehicleRegistration = ({ visible, onClose, onSuccess }) => {
     if (!trimmed)
       return { valid: false, message: "Biển số không được để trống" };
 
-    const pattern1 = /^[0-9]{2}[A-Z]-[0-9]{4,5}$/;
-    const pattern2 = /^[0-9]{2}[A-Z]{1,2}-[0-9]{4,5}$/;
+    // Format: XX-XX YYYY or XX-XX YYYYY
+    // Example: 54-L1 9999, 59-V1 12345
+    // Also accept old logic just in case: XX-XX-YYYY (if logic changes back)
+    
+    // Regex explanation:
+    // ^[0-9]{2}: Starts with 2 digits (Area code)
+    // -: Hyphen
+    // [A-Z0-9]{1,2}: 1 or 2 alphanumeric chars (Series)
+    // [\s-]?: Optional space or hyphen separator
+    // [0-9]{4,5}$: Ends with 4 or 5 digits
+    const pattern = /^[0-9]{2}-[A-Z0-9]{1,2}[\s-]?[0-9]{4,5}$/;
 
-    if (pattern1.test(trimmed) || pattern2.test(trimmed)) {
+    if (pattern.test(trimmed)) {
       return { valid: true, message: null };
     }
 
     return {
       valid: false,
       message:
-        "Biển số phải có định dạng: XX-YZZZZ hoặc XX-YY-ZZZZ\nVí dụ: 30A-12345 hoặc 51AB-12345",
+        "Biển số phải có định dạng: XX-XX YYYY\nVí dụ: 54-L1 9999 hoặc 59-V1 12345",
     };
   };
 
-  const pickImage = async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (permission.status !== "granted") {
-      Alert.alert(
-        "Quyền bị từ chối",
-        "Vui lòng cấp quyền truy cập thư viện ảnh."
-      );
-      return;
-    }
+  const handleImagePickerSelect = (source) => {
+    // Wait for modal to close (handled by child)
+    setTimeout(() => {
+      if (pickerTarget === 'plate') {
+        scanLicensePlate(source);
+      } else {
+        pickDocumentImage(source);
+      }
+    }, 500);
+  };
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 0.8,
-    });
+  const pickDocumentImage = async (sourceType) => {
+    let result;
+    if (sourceType === 'camera') {
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+      if (permission.status !== 'granted') {
+        Alert.alert(
+          'Cần quyền truy cập',
+          'Vui lòng cho phép ứng dụng truy cập Camera để chụp ảnh giấy tờ xe.\n\nĐi tới Cài đặt > Quyền riêng tư > Camera để mở quyền.'
+        );
+        return;
+      }
+      result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.8,
+      });
+    } else {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (permission.status !== "granted") {
+        Alert.alert(
+          'Cần quyền truy cập',
+          'Vui lòng cho phép ứng dụng truy cập Thư viện ảnh để tải lên ảnh giấy tờ xe.\n\nĐi tới Cài đặt > Quyền riêng tư > Ảnh để mở quyền.'
+        );
+        return;
+      }
+      result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: 'Images',
+        allowsEditing: true,
+        quality: 0.8,
+      });
+    }
 
     if (!result.canceled && result.assets && result.assets.length > 0) {
       const asset = result.assets[0];
       const newImage = {
         uri: asset.uri,
-        name: asset.fileName || `image_${Date.now()}.jpg`,
+        name: asset.fileName || `doc_${Date.now()}.jpg`,
         type: asset.type || "image/jpeg",
       };
       setVehicleData((prev) => ({
@@ -178,16 +337,29 @@ const VehicleRegistration = ({ visible, onClose, onSuccess }) => {
 
       if (!registrationDocumentUrl) {
         const firstImage = vehicleData.images[0];
-        const blob = await uriToBlob(firstImage.uri);
-        const file = new File([blob], firstImage.name, {
-          type: firstImage.type,
+        
+        // Create FormData specifically for React Native
+        const formData = new FormData();
+        formData.append('file', {
+          uri: firstImage.uri,
+          name: firstImage.name || 'image.jpg',
+          type: firstImage.type || 'image/jpeg',
         });
 
-        console.log("Uploading image...");
-        const uploadResp = await uploadImage(file);
-        registrationDocumentUrl = uploadResp?.url;
+        console.log("Uploading image...", firstImage.uri);
+        const uploadResp = await uploadImage(formData);
+        
+        // Handle response format variations
+        if (uploadResp?.data?.url) {
+          registrationDocumentUrl = uploadResp.data.url;
+        } else if (uploadResp?.data?.data?.url) {
+          registrationDocumentUrl = uploadResp.data.data.url;
+        } else if (uploadResp?.url) {
+          registrationDocumentUrl = uploadResp.url;
+        }
 
         if (!registrationDocumentUrl) {
+          console.error("Upload response:", uploadResp);
           throw new Error("Không nhận được URL từ upload service");
         }
       }
@@ -264,13 +436,13 @@ const VehicleRegistration = ({ visible, onClose, onSuccess }) => {
   return (
     <>
       <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-        <SafeAreaView style={styles.container}>
+        <SafeAreaView style={styles.container} edges={['top']}>
           <View style={styles.header}>
-            <TouchableOpacity onPress={onClose}>
+            <TouchableOpacity onPress={onClose} style={styles.headerButton}>
               <Text style={styles.cancelText}>Hủy</Text>
             </TouchableOpacity>
             <Text style={styles.title}>Đăng ký xe</Text>
-            <TouchableOpacity onPress={handleSubmit} disabled={submitting}>
+            <TouchableOpacity onPress={handleSubmit} disabled={submitting} style={styles.headerButton}>
               {submitting ? (
                 <ActivityIndicator size="small" color={COLORS.PRIMARY} />
               ) : (
@@ -282,28 +454,118 @@ const VehicleRegistration = ({ visible, onClose, onSuccess }) => {
           <ScrollView
             style={styles.content}
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
           >
             <Text style={styles.label}>Biển số xe *</Text>
-            <TextInput
-              style={[styles.input, errors.licensePlate && styles.inputError]}
-              placeholder="VD: 30A-12345 hoặc 51AB-12345"
-              value={vehicleData.licensePlate}
-              onChangeText={(text) => {
-                const formatted = formatLicensePlate(text);
-                setVehicleData((prev) => ({
-                  ...prev,
-                  licensePlate: formatted,
-                }));
-                if (errors.licensePlate) {
-                  setErrors((e) => ({ ...e, licensePlate: null }));
-                }
-              }}
-              autoCapitalize="characters"
-              maxLength={11}
-            />
-            {errors.licensePlate && (
-              <Text style={styles.errorText}>{errors.licensePlate}</Text>
-            )}
+            
+            {/* License Plate Scanner Section */}
+            <View style={styles.plateScannerSection}>
+              <TouchableOpacity
+                style={styles.imageUploadBox}
+                onPress={() => {
+                  console.log('📸 Image upload box pressed');
+                  setPickerTarget('plate');
+                  showImageSourceModal();
+                }}
+                disabled={scanningPlate}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="camera-outline" size={32} color={COLORS.PRIMARY} />
+                <Text style={styles.imageUploadText}>Chụp/Chọn ảnh biển số</Text>
+                <Text style={styles.imageUploadHint}>Nhấn để tải ảnh lên</Text>
+              </TouchableOpacity>
+
+              {/* Scan Error Message (shown when no image is selected but error occurred) */}
+              {!plateImage && scanError && (
+                <View style={styles.scanErrorBox}>
+                  <MaterialIcons name="error-outline" size={20} color="#DC2626" />
+                  <Text style={styles.scanErrorText}>{scanError}</Text>
+                  <TouchableOpacity 
+                    style={styles.retryTextButton}
+                    onPress={() => showImageSourceModal()}
+                  >
+                    <Text style={styles.retryTextButtonLabel}>Thử lại ngay</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* Image Preview & Results */}
+              {plateImage && (
+                <View style={styles.platePreviewContainer}>
+                  <View style={styles.plateImageWrapper}>
+                    <Image
+                      source={{ uri: plateImage }}
+                      style={styles.plateImage}
+                    />
+                    {scanningPlate && (
+                      <View style={styles.scanningOverlay}>
+                        <ActivityIndicator size="large" color={COLORS.WHITE} />
+                        <Text style={styles.scanningText}>Đang xử lý...</Text>
+                      </View>
+                    )}
+                    <TouchableOpacity
+                      style={styles.clearImageButton}
+                      onPress={clearPlateScan}
+                    >
+                      <Ionicons name="close-circle" size={24} color="#FF3B30" />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Detection Result */}
+                  {plateDetectionResult && !scanningPlate && (
+                    <View
+                      style={[
+                        styles.detectionResult,
+                        plateDetectionResult.success
+                          ? styles.detectionSuccess
+                          : styles.detectionError,
+                      ]}
+                    >
+                      <View style={styles.detectionHeader}>
+                        <Ionicons
+                          name={
+                            plateDetectionResult.success
+                              ? 'checkmark-circle'
+                              : 'close-circle'
+                          }
+                          size={20}
+                          color={plateDetectionResult.success ? '#065F46' : '#EF4444'}
+                        />
+                        <Text style={[
+                          styles.detectionTitle,
+                          plateDetectionResult.success && { color: '#065F46' }
+                        ]}>
+                          {plateDetectionResult.success
+                            ? 'Đã phát hiện biển số'
+                            : 'Không thành công'}
+                        </Text>
+                      </View>
+
+                      {plateDetectionResult.success && (
+                        <>
+                          <Text style={styles.detectedPlateNumber}>
+                            {plateDetectionResult.plateNumber}
+                          </Text>
+
+                        </>
+                      )}
+                    </View>
+                  )}
+                </View>
+              )}
+
+              {/* Tips */}
+              {!plateImage && (
+                <View style={styles.tipsBox}>
+                  <Ionicons name="bulb-outline" size={16} color="#0891B2" />
+                  <Text style={styles.tipsText}>
+                    Chụp ảnh biển số để tự động nhận diện
+                  </Text>
+                </View>
+              )}
+            </View>
+
+
 
             <Text style={styles.label}>Hãng xe *</Text>
             <TextInput
@@ -369,7 +631,10 @@ const VehicleRegistration = ({ visible, onClose, onSuccess }) => {
               ListFooterComponent={
                 <TouchableOpacity
                   style={styles.addImageButton}
-                  onPress={pickImage}
+                  onPress={() => {
+                    setPickerTarget('document');
+                    setImagePickerVisible(true);
+                  }}
                 >
                   <MaterialIcons
                     name="add-a-photo"
@@ -393,7 +658,15 @@ const VehicleRegistration = ({ visible, onClose, onSuccess }) => {
               </Text>
             </View>
           </ScrollView>
-        </SafeAreaView>
+          {/* Image Picker Modal */}
+      <ImagePickerModal
+        visible={imagePickerVisible}
+        onClose={() => setImagePickerVisible(false)}
+        onCameraPress={() => handleImagePickerSelect('camera')}
+        onLibraryPress={() => handleImagePickerSelect('gallery')}
+        title={pickerTarget === 'plate' ? "Chọn ảnh biển số xe" : "Chọn ảnh giấy tờ xe"}
+      />
+    </SafeAreaView>
       </Modal>
 
       {/* Vehicle Type Picker Modal */}
@@ -451,6 +724,9 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: "#F0F0F0",
+  },
+  headerButton: {
+    paddingVertical: 8,
   },
   cancelText: {
     fontSize: 16,
@@ -591,6 +867,202 @@ const styles = StyleSheet.create({
   pickerItemTextActive: {
     color: COLORS.PRIMARY,
     fontWeight: "600",
+  },
+  // License Plate Scanner Styles
+  plateScannerSection: {
+    marginBottom: 12,
+  },
+  imageUploadBox: {
+    borderWidth: 2,
+    borderColor: COLORS.PRIMARY,
+    borderStyle: 'dashed',
+    borderRadius: 12,
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F0F8FF',
+    marginBottom: 12,
+  },
+  imageUploadText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.PRIMARY,
+    marginTop: 12,
+  },
+  imageUploadHint: {
+    fontSize: 13,
+    color: '#0369A1',
+    marginTop: 4,
+  },
+  platePreviewContainer: {
+    marginBottom: 12,
+  },
+  plateImageWrapper: {
+    position: 'relative',
+    width: '100%',
+    height: 200,
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginBottom: 12,
+  },
+  plateImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  scanningOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  scanningText: {
+    color: COLORS.WHITE,
+    fontSize: 14,
+    marginTop: 8,
+    fontWeight: '600',
+  },
+  clearImageButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: COLORS.WHITE,
+    borderRadius: 12,
+  },
+  detectionResult: {
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  detectionSuccess: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#10B981',
+  },
+  detectionError: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#EF4444',
+  },
+  detectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 8,
+  },
+  detectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1C1C1E',
+  },
+  detectedPlateNumber: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#065F46',
+    textAlign: 'center',
+    letterSpacing: 2,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: COLORS.WHITE,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  confidenceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  confidenceLabel: {
+    fontSize: 13,
+    color: '#065F46',
+  },
+  confidenceBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  highConfidence: {
+    backgroundColor: '#10B981',
+  },
+  mediumConfidence: {
+    backgroundColor: '#F59E0B',
+  },
+  lowConfidence: {
+    backgroundColor: '#EF4444',
+  },
+  confidenceText: {
+    color: COLORS.WHITE,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  errorMessage: {
+    fontSize: 13,
+    color: '#991B1B',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  errorContainer: {
+    alignItems: 'center',
+    width: '100%',
+  },
+  retryText: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  retryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.PRIMARY,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    gap: 8,
+  },
+  retryButtonText: {
+    color: COLORS.WHITE,
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  tipsBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0F9FF',
+    padding: 12,
+    borderRadius: 8,
+    gap: 8,
+  },
+  tipsText: {
+    flex: 1,
+    fontSize: 12,
+    color: '#0369A1',
+  },
+  scanErrorBox: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    backgroundColor: '#FEF2F2',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+  },
+  scanErrorText: {
+    fontSize: 14,
+    color: '#DC2626',
+    textAlign: 'center',
+    marginVertical: 8,
+  },
+  retryTextButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: '#DC2626',
+    borderRadius: 6,
+  },
+  retryTextButtonLabel: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '600',
   },
 });
 

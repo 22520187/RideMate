@@ -10,7 +10,9 @@ import {
   Platform,
   Image,
   ScrollView,
-} from "react-native";
+  Linking,
+} from 'react-native';
+import * as Location from 'expo-location';
 import { Ionicons } from "@expo/vector-icons";
 import COLORS from "../../constant/colors";
 import Toast from "react-native-toast-message";
@@ -42,57 +44,98 @@ const Login = ({ navigation }) => {
   const [isLoading, setIsLoading] = useState(false);
 
   const handlePhoneLogin = async () => {
-    console.log("✅ Login button pressed");
-    console.log("📱 Phone number:", phoneNumber);
-    console.log("🔐 Password:", password);
+    console.log('Login button pressed');
+    console.log('Phone number:', phoneNumber);
 
     if (!phoneNumber.trim() || !password.trim()) {
       Toast.show({
-        type: "error",
-        text1: "Lỗi",
-        text2: "Vui lòng nhập số điện thoại và mật khẩu",
+        type: 'error',
+        text1: 'Lỗi',
+        text2: 'Vui lòng nhập số điện thoại và mật khẩu',
       });
       return;
     }
 
     if (!validatePhoneNumber(phoneNumber)) {
       Toast.show({
-        type: "error",
-        text1: "Lỗi",
-        text2: "Số điện thoại không hợp lệ",
+        type: 'error',
+        text1: 'Lỗi',
+        text2: 'Số điện thoại không hợp lệ',
       });
       return;
     }
 
-    const formattedPhone = phoneNumber.replace(/\s/g, "");
-    console.log("📞 Formatted phone:", formattedPhone);
+    const formattedPhone = phoneNumber.replace(/\s/g, '');
 
     try {
       setIsLoading(true);
 
-      // Log API configuration
-      console.log("🔧 API Configuration:");
-      console.log("   Base URL:", API_BASE_URL);
-      console.log("   Endpoint:", endpoints.auth.login);
+      let currentLatitude = null;
+      let currentLongitude = null;
+
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        
+        if (status !== 'granted') {
+          Alert.alert(
+            'Yêu cầu quyền truy cập vị trí',
+            'RideMate cần quyền truy cập vị trí để cung cấp dịch vụ tốt nhất. Vui lòng cho phép truy cập vị trí trong cài đặt.',
+            [
+              { text: 'Hủy', style: 'cancel' },
+              {
+                text: 'Mở cài đặt',
+                onPress: () => Linking.openSettings(),
+              },
+            ]
+          );
+          setIsLoading(false);
+          return;
+        }
+
+        Toast.show({
+          type: 'info',
+          text1: 'Đang lấy vị trí...',
+          text2: 'Vui lòng chờ trong giây lát',
+        });
+
+        const location = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.High,
+        });
+
+        currentLatitude = location.coords.latitude;
+        currentLongitude = location.coords.longitude;
+
+        console.log('Location obtained:', currentLatitude, currentLongitude);
+      } catch (locationError) {
+        console.warn('Failed to get location:', locationError);
+        Toast.show({
+          type: 'warning',
+          text1: 'Không lấy được vị trí',
+          text2: 'Sử dụng vị trí mặc định',
+        });
+        currentLatitude = 10.7769;
+        currentLongitude = 106.7009;
+      }
+
+      console.log('API Configuration:');
+      console.log('   Base URL:', API_BASE_URL);
+      console.log('   Endpoint:', endpoints.auth.login);
 
       const response = await axiosClient.post(endpoints.auth.login, {
         phoneNumber: formattedPhone,
         password,
-        currentLatitude: 10.7769,
-        currentLongitude: 106.7009,
+        currentLatitude,
+        currentLongitude,
       });
 
-      console.log("📦 API Response:", response?.data);
-      const authData = response?.data?.data; // ApiResponse.data -> AuthResponse
+      console.log('API Response:', response?.data);
+      const authData = response?.data?.data;
 
       const { chatToken, user, accessToken, refreshToken } = authData;
-      console.log("👤 Auth data:", authData);
-      console.log("👤 User:", user);
-      console.log("🔑 Access token:", accessToken);
-      console.log("🔄 Refresh token:", refreshToken);
-      console.log("🎭 User type:", user.userType);
+      console.log('User:', user);
+      console.log('Access token:', accessToken);
+      console.log('User type:', user.userType);
 
-      // Save tokens
       if (accessToken) {
         await saveToken(accessToken);
       }
@@ -103,13 +146,11 @@ const Login = ({ navigation }) => {
         await saveChatToken(chatToken);
       }
 
-      // Save user type and data
       if (user) {
         await saveUserType(user.userType);
         await saveUserData(user);
       }
 
-      // Kết nối user lên Stream
       try {
         if (chatToken && user?.id != null) {
           await chatClient.connectUser(
@@ -121,43 +162,41 @@ const Login = ({ navigation }) => {
             chatToken
           );
         }
-        console.log("💬 Stream connect successful");
+        console.log('Stream connect successful');
       } catch (streamError) {
-        console.log("⚠️  Stream connect failed:", streamError.message);
-        // Không throw error, tiếp tục login
+        console.log('Stream connect failed:', streamError.message);
       }
 
       Toast.show({
-        type: "success",
-        text1: "Thành công",
-        text2: "Đăng nhập thành công!",
+        type: 'success',
+        text1: 'Thành công',
+        text2: 'Đăng nhập thành công!',
       });
 
-      // Role-based navigation
-      if (user.userType === "ADMIN") {
-        console.log("🔐 Admin user detected - navigating to AdminStack");
+      if (user.userType === 'ADMIN') {
+        console.log('Admin user detected - navigating to AdminStack');
         navigation.reset({
           index: 0,
           routes: [{ name: SCREENS.ADMIN_STACK }],
         });
       } else {
-        console.log("👤 Regular user detected - navigating to MainTabs");
+        console.log('Regular user detected - navigating to MainTabs');
         navigation.reset({
           index: 0,
-          routes: [{ name: "MainTabs" }],
+          routes: [{ name: 'MainTabs' }],
         });
       }
     } catch (error) {
-      console.log("❌ Login error:", error.message);
-      console.log("🔍 Error details:", {
+      console.log('Login error:', error.message);
+      console.log('Error details:', {
         code: error.code,
         status: error.response?.status,
         message: error.response?.data?.message,
       });
       Toast.show({
-        type: "error",
-        text1: "Lỗi",
-        text2: error.response?.data?.message || "Sai thông tin đăng nhập",
+        type: 'error',
+        text1: 'Lỗi',
+        text2: error.response?.data?.message || 'Sai thông tin đăng nhập',
       });
     } finally {
       setIsLoading(false);

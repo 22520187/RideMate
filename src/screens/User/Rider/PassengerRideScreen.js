@@ -21,9 +21,11 @@ import COLORS from "../../../constant/colors";
 import LocationSearch from "../../../components/LocationSearch";
 import RouteMap from "../../../components/RouteMap";
 import RadarScanning from "../../../components/RadarScanning";
+import DriverMapMarker from "../../../components/DriverMapMarker";
 import { getCurrentLocation, reverseGeocode } from "../../../config/maps";
 import { searchPlaces as osmSearchPlaces, getRoute } from "../../../utils/api";
 import { getProfile } from "../../../services/userService";
+import useDriverLocations from "../../../hooks/useDriverLocations";
 
 const PassengerRideScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
@@ -89,7 +91,9 @@ const PassengerRideScreen = ({ navigation, route }) => {
   const [shouldAnimateRoute, setShouldAnimateRoute] = useState(false); // Kiểm soát animation
   const [routeDistance, setRouteDistance] = useState("0");
   const [routeDuration, setRouteDuration] = useState("0");
-  const [isSearching, setIsSearching] = useState(false); // Trạng thái đang tìm tài xế
+  const [isSearching, setIsSearching] = useState(false);
+
+  const { drivers, loading: driversLoading } = useDriverLocations(originCoordinate, 7);
 
   // Xử lý destination từ params
   useEffect(() => {
@@ -462,7 +466,16 @@ const PassengerRideScreen = ({ navigation, route }) => {
           showVehicle={false}
         />
 
-        {/* Radar Scanning Overlay khi đang tìm kiếm */}
+        {!isSearching && drivers && drivers.length > 0 && drivers.map((driver) => (
+          <DriverMapMarker
+            key={driver.driver_id}
+            driver={driver}
+            onPress={(driver) => {
+              console.log('Driver selected:', driver);
+            }}
+          />
+        ))}
+
         {isSearching && (
           <View style={styles.searchingOverlay}>
             <View style={styles.searchingContent}>
