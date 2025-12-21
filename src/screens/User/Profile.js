@@ -62,10 +62,13 @@ const Profile = () => {
   // Edit form state
   const [editForm, setEditForm] = useState({
     fullName: "",
+    email: "",
+    phoneNumber: "",
     dob: null,
     address: "",
     bankAccountNumber: "",
     bankName: "",
+    profilePictureUrl: "",
   });
 
   useEffect(() => {
@@ -98,10 +101,13 @@ const Profile = () => {
       // Initialize edit form
       setEditForm({
         fullName: userData?.fullName || "",
+        email: userData?.email || "",
+        phoneNumber: userData?.phoneNumber || "",
         dob: userData?.dob ? new Date(userData.dob) : null,
         address: userData?.address || "",
         bankAccountNumber: userData?.bankAccountNumber || "",
         bankName: userData?.bankName || "",
+        profilePictureUrl: userData?.profilePictureUrl || "",
       });
 
       // Fetch vehicle info
@@ -256,8 +262,14 @@ const Profile = () => {
         name: fileName,
       });
 
+      const fileInfo = {
+        uri,
+        type: mimeType,
+        name: fileName,
+      };
+
       // Upload image
-      const uploadResp = await uploadImage(formData);
+      const uploadResp = await uploadImage(fileInfo);
       const imageUrl = uploadResp?.data?.url;
 
       if (imageUrl) {
@@ -285,18 +297,38 @@ const Profile = () => {
         return;
       }
 
+      // Basic email validation
+      if (editForm.email && !/\S+@\S+\.\S+/.test(editForm.email)) {
+        Alert.alert("Lỗi", "Email không hợp lệ");
+        return;
+      }
+
+      // Basic phone validation
+      if (
+        editForm.phoneNumber &&
+        !/^(\+84|0)[0-9]{9}$/.test(editForm.phoneNumber)
+      ) {
+        Alert.alert("Lỗi", "Số điện thoại không hợp lệ");
+        return;
+      }
+
       setUploading(true);
 
       const updateData = {
         fullName: editForm.fullName,
-        dob: editForm.dob ? editForm.dob.toISOString() : null,
+        email: editForm.email,
+        phoneNumber: editForm.phoneNumber,
+        profilePictureUrl: editForm.profilePictureUrl,
+        dob: editForm.dob ? editForm.dob.toISOString().split("T")[0] : null, // Format as YYYY-MM-DD
         address: editForm.address,
-        bankAccountNumber: editForm.bankAccountNumber,
         bankName: editForm.bankName,
+        bankAccountNumber: editForm.bankAccountNumber,
       };
 
       await updateProfile(updateData);
+      console.log("✅ Profile updated successfully");
       await fetchData();
+      console.log("✅ Data refetched after update");
       setEditModalVisible(false);
       Alert.alert("Thành công", "Đã cập nhật thông tin");
     } catch (error) {
@@ -427,7 +459,7 @@ const Profile = () => {
               <Text style={styles.profilePhone}>
                 {profile?.phoneNumber || "Chưa cập nhật"}
               </Text>
-              {profile?.rating !== null && (
+              {profile?.rating != null && (
                 <View style={styles.ratingContainer}>
                   <Star size={14} color="#FFC107" fill="#FFC107" />
                   <Text style={styles.ratingText}>
@@ -475,8 +507,13 @@ const Profile = () => {
                 {vehicle ? "Thông tin xe" : "Đăng ký xe"}
               </Text>
               <Text style={styles.menuSubtitle}>
-                {vehicle
+                {vehicle &&
+                vehicle.make &&
+                vehicle.model &&
+                vehicle.licensePlate
                   ? `${vehicle.make} ${vehicle.model} • ${vehicle.licensePlate}`
+                  : vehicle
+                  ? "Thông tin xe chưa đầy đủ"
                   : "Đăng ký để làm tài xế"}
               </Text>
               {vehicle?.status && (
@@ -774,6 +811,79 @@ const Profile = () => {
                   }
                   placeholder="Nhập họ tên"
                   placeholderTextColor="#999"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Ngày sinh</Text>
+                <TouchableOpacity
+                  style={styles.dateButton}
+                  onPress={() => setShowDatePicker(true)}
+                >
+                  <Text
+                    style={[
+                      styles.dateText,
+                      !editForm.dob && styles.datePlaceholder,
+                    ]}
+                  >
+                    {editForm.dob
+                      ? editForm.dob.toLocaleDateString("vi-VN")
+                      : "Chọn ngày sinh"}
+                  </Text>
+                </TouchableOpacity>
+                {showDatePicker && (
+                  <DateTimePicker
+                    value={editForm.dob || new Date(1990, 0, 1)}
+                    mode="date"
+                    display="default"
+                    maximumDate={new Date()}
+                    onChange={(event, selectedDate) => {
+                      setShowDatePicker(false);
+                      if (selectedDate) {
+                        setEditForm({ ...editForm, dob: selectedDate });
+                      }
+                    }}
+                  />
+                )}
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Địa chỉ</Text>
+                <TextInput
+                  style={[styles.textInput, styles.textArea]}
+                  value={editForm.address}
+                  onChangeText={(text) =>
+                    setEditForm({ ...editForm, address: text })
+                  }
+                  placeholder="Nhập địa chỉ"
+                  placeholderTextColor="#999"
+                  multiline
+                  numberOfLines={3}/>
+                <Text style={styles.inputLabel}>Email</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editForm.email}
+                  onChangeText={(text) =>
+                    setEditForm({ ...editForm, email: text })
+                  }
+                  placeholder="Nhập email"
+                  placeholderTextColor="#999"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Số điện thoại</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editForm.phoneNumber}
+                  onChangeText={(text) =>
+                    setEditForm({ ...editForm, phoneNumber: text })
+                  }
+                  placeholder="Nhập số điện thoại"
+                  placeholderTextColor="#999"
+                  keyboardType="phone-pad"
                 />
               </View>
 

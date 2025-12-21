@@ -42,6 +42,7 @@ import COLORS from "../../../constant/colors";
 import SCREENS from "../../../screens";
 import { getProfile } from "../../../services/userService";
 import { getMyVehicle } from "../../../services/vehicleService";
+import { getUserData, getToken } from "../../../utils/storage";
 import { LinearGradient } from "expo-linear-gradient";
 
 const { width } = Dimensions.get("window");
@@ -84,13 +85,44 @@ const Home = ({ navigation }) => {
   const loadUserData = async () => {
     try {
       console.log("🔄 Home: Loading user data...");
-      const profileResp = await getProfile();
-      console.log("✅ Home: Profile response:", profileResp);
-      const profile = profileResp?.data?.data; // Fix: nested data
-      console.log("👤 Home: Profile data:", profile);
-      setUserProfile(profile);
 
-      if (profile && profile.userType === "DRIVER") {
+      // Load from storage first
+      const storedUser = await getUserData();
+      if (storedUser) {
+        console.log("👤 Home: Loaded from storage:", storedUser);
+        setUserProfile(storedUser);
+      }
+
+      // Then try to fetch from API if token exists
+      const token = await getToken();
+      if (token) {
+        try {
+          const profileResp = await getProfile();
+          console.log("✅ Home: Profile response:", profileResp);
+          const profile = profileResp?.data?.data; // Fix: nested data
+          console.log("👤 Home: Profile data:", profile);
+          setUserProfile(profile);
+
+          // Update storage with fresh data
+          if (profile) {
+            // Note: getUserData returns object, but we can update if needed
+          }
+        } catch (apiErr) {
+          console.warn(
+            "⚠️ Home: API failed, using stored data:",
+            apiErr.message
+          );
+          // Keep stored data
+        }
+      } else {
+        console.log("⚠️ Home: No token, using stored data only");
+      }
+
+      if (
+        userProfile &&
+        (userProfile.userType === "DRIVER" ||
+          userProfile.userType === "PASSENGER")
+      ) {
         try {
           const vehicleResp = await getMyVehicle();
           const vehicle = vehicleResp?.data;
