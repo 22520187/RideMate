@@ -83,11 +83,45 @@ const RewardManagement = () => {
   const [formState, setFormState] = useState({
     voucherCode: "",
     description: "",
-    voucherType: "DISCOUNT_PERCENTAGE",
+    // Keep in sync with backend/user app voucher types
+    voucherType: "FOOD_AND_BEVERAGE",
     cost: "",
     expiryDate: "",
     isActive: true,
   });
+
+  // Parse YYYY-MM-DD to ISO string safely.
+  // - returns null if empty
+  // - returns undefined if invalid format/value
+  const parseExpiryDateToISO = (ymd) => {
+    const raw = String(ymd || "").trim();
+    if (!raw) return null;
+
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+    if (!match) return undefined;
+
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    if (
+      !Number.isFinite(year) ||
+      !Number.isFinite(month) ||
+      !Number.isFinite(day)
+    )
+      return undefined;
+
+    // Construct in UTC to avoid timezone shifting.
+    const date = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
+    if (
+      date.getUTCFullYear() !== year ||
+      date.getUTCMonth() !== month - 1 ||
+      date.getUTCDate() !== day
+    ) {
+      return undefined;
+    }
+
+    return date.toISOString();
+  };
 
   // Fetch vouchers from API
   const fetchVouchers = useCallback(async () => {
@@ -166,14 +200,21 @@ const RewardManagement = () => {
   const handleOpenEdit = (reward) => {
     setSelectedReward(reward);
     setIsCreating(false);
+
+    let expiryDateText = "";
+    if (reward?.expiryDate) {
+      const d = new Date(reward.expiryDate);
+      expiryDateText = Number.isNaN(d.getTime())
+        ? ""
+        : d.toISOString().split("T")[0];
+    }
+
     setFormState({
       voucherCode: reward.voucherCode,
       description: reward.description || "",
-      voucherType: reward.voucherType || "DISCOUNT_PERCENTAGE",
+      voucherType: reward.voucherType || "FOOD_AND_BEVERAGE",
       cost: String(reward.cost || 0),
-      expiryDate: reward.expiryDate
-        ? new Date(reward.expiryDate).toISOString().split("T")[0]
-        : "",
+      expiryDate: expiryDateText,
       isActive: reward.isActive !== undefined ? reward.isActive : true,
     });
     setModalVisible(true);
@@ -185,7 +226,7 @@ const RewardManagement = () => {
     setFormState({
       voucherCode: "",
       description: "",
-      voucherType: "DISCOUNT_PERCENTAGE",
+      voucherType: "FOOD_AND_BEVERAGE",
       cost: "",
       expiryDate: "",
       isActive: true,
@@ -207,16 +248,31 @@ const RewardManagement = () => {
     try {
       setSubmitting(true);
 
+      const expiryDateIso = parseExpiryDateToISO(formState.expiryDate);
+      if (expiryDateIso === undefined) {
+        Alert.alert("Lỗi", "Ngày hết hạn không hợp lệ. Định dạng đúng: YYYY-MM-DD");
+        return;
+      }
+
       const voucherData = {
         voucherCode: formState.voucherCode.trim(),
         description: formState.description.trim(),
         voucherType: formState.voucherType,
         cost: Number(formState.cost),
-        expiryDate: formState.expiryDate
-          ? new Date(formState.expiryDate).toISOString()
-          : null,
+        expiryDate: expiryDateIso,
         isActive: formState.isActive,
       };
+
+      // If user left expiry date empty, omit it instead of sending null
+      // (some backends 500 on null date fields).
+      if (!voucherData.expiryDate) {
+        delete voucherData.expiryDate;
+      }
+
+      console.log(
+        `💾 Saving voucher (${isCreating ? "CREATE" : "UPDATE"}) payload:`,
+        voucherData
+      );
 
       if (isCreating) {
         await createVoucher(voucherData);
@@ -230,12 +286,20 @@ const RewardManagement = () => {
       await fetchVouchers();
       handleCloseModal();
     } catch (error) {
-      console.error("Error saving voucher:", error);
+      const serverData = error?.response?.data;
+      console.error("Error saving voucher:", {
+        message: error?.message,
+        status: error?.response?.status,
+        url: error?.config?.url,
+        method: error?.config?.method,
+        data: serverData,
+      });
+      const serverMessage =
+        (serverData && (serverData.message || serverData.error)) || null;
       Alert.alert(
         "Lỗi",
-        `Không thể ${
-          isCreating ? "tạo" : "cập nhật"
-        } voucher. Vui lòng thử lại.`
+        serverMessage ||
+          `Không thể ${isCreating ? "tạo" : "cập nhật"} voucher. Vui lòng thử lại.`
       );
     } finally {
       setSubmitting(false);
@@ -302,15 +366,16 @@ const RewardManagement = () => {
     const formatDate = (dateStr) => {
       if (!dateStr) return "Không giới hạn";
       const date = new Date(dateStr);
+      if (Number.isNaN(date.getTime())) return "Không hợp lệ";
       return date.toLocaleDateString("vi-VN");
     };
 
     // Map voucher type to Vietnamese
     const getVoucherTypeLabel = (type) => {
       const typeMap = {
-        DISCOUNT_PERCENTAGE: "Giảm %",
-        DISCOUNT_AMOUNT: "Giảm tiền",
-        FREE_RIDE: "Miễn phí",
+        FOOD_AND_BEVERAGE: "Đồ ăn & Uống",
+        SHOPPING: "Mua sắm",
+        VEHICLE_SERVICE: "Dịch vụ xe",
       };
       return typeMap[type] || type;
     };
@@ -496,7 +561,7 @@ const RewardManagement = () => {
 
               <Text style={styles.label}>Loại voucher *</Text>
               <View style={styles.typeSelector}>
-                {["DISCOUNT_PERCENTAGE", "DISCOUNT_AMOUNT", "FREE_RIDE"].map(
+                {["FOOD_AND_BEVERAGE", "SHOPPING", "VEHICLE_SERVICE"].map(
                   (type) => (
                     <TouchableOpacity
                       key={type}
@@ -516,11 +581,11 @@ const RewardManagement = () => {
                             styles.typeButtonTextActive,
                         ]}
                       >
-                        {type === "DISCOUNT_PERCENTAGE"
-                          ? "Giảm %"
-                          : type === "DISCOUNT_AMOUNT"
-                          ? "Giảm tiền"
-                          : "Miễn phí"}
+                        {type === "FOOD_AND_BEVERAGE"
+                          ? "Đồ ăn & Uống"
+                          : type === "SHOPPING"
+                          ? "Mua sắm"
+                          : "Dịch vụ xe"}
                       </Text>
                     </TouchableOpacity>
                   )
