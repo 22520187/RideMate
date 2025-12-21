@@ -11,12 +11,14 @@ import {
   RefreshControl,
   Alert,
   Dimensions,
+  TextInput,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import COLORS from "../../constant/colors";
 import * as adminService from "../../services/adminService";
 import { unwrapApiData } from "../../utils/unwrapApiData";
+import { useDebounce } from "../../hooks/useDebounce";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -31,62 +33,45 @@ const filterTabs = [
 ];
 
 const statusConfig = {
-  PENDING: {
-    label: "Chờ xử lý",
-    color: "#FF9800",
-    bg: "#FFF3E0",
-    icon: "time",
-  },
-  WAITING: {
-    label: "Đang chờ",
-    color: "#2196F3",
-    bg: "#E3F2FD",
-    icon: "radio-button-on",
-  },
-  ACCEPTED: {
-    label: "Đã chấp nhận",
-    color: "#9C27B0",
-    bg: "#F3E5F5",
-    icon: "people",
-  },
-  IN_PROGRESS: {
-    label: "Đang diễn ra",
-    color: "#FF9800",
-    bg: "#FFF3E0",
-    icon: "car",
-  },
-  COMPLETED: {
-    label: "Hoàn thành",
-    color: "#4CAF50",
-    bg: "#E8F5E9",
-    icon: "checkmark-circle",
-  },
-  CANCELLED: {
-    label: "Đã hủy",
-    color: "#F44336",
-    bg: "#FFEBEE",
-    icon: "close-circle",
-  },
+  PENDING: { label: "Chờ xử lý", color: "#FF9800", bg: "#FFF3E0", icon: "time" },
+  WAITING: { label: "Đang chờ", color: "#2196F3", bg: "#E3F2FD", icon: "radio-button-on" },
+  ACCEPTED: { label: "Đã chấp nhận", color: "#9C27B0", bg: "#F3E5F5", icon: "people" },
+  IN_PROGRESS: { label: "Đang diễn ra", color: "#FF9800", bg: "#FFF3E0", icon: "car" },
+  COMPLETED: { label: "Hoàn thành", color: "#4CAF50", bg: "#E8F5E9", icon: "checkmark-circle" },
+  CANCELLED: { label: "Đã hủy", color: "#F44336", bg: "#FFEBEE", icon: "close-circle" },
 };
 
 const TripManagement = () => {
   const [selectedTab, setSelectedTab] = useState("all");
   const [trips, setTrips] = useState([]);
   const [statistics, setStatistics] = useState(null);
-  const [loading, setLoading] = useState(true);
+  
+  const [initialLoading, setInitialLoading] = useState(true); 
+  const [loading, setLoading] = useState(false); 
+
   const [refreshing, setRefreshing] = useState(false);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedTrip, setSelectedTrip] = useState(null);
 
+  const [searchTerm, setSearchTerm] = useState("");
+  const debouncedSearchTerm = useDebounce(searchTerm, 500);
+
   const fetchTrips = useCallback(
-    async (pageNum = 0, refresh = false) => {
+    async (pageNum = 0, refresh = false, search = "") => {
       try {
+        if (pageNum === 0 && !refresh) {
+            if (!search) {
+                setInitialLoading(true);
+            }
+
+        }
+
         if (refresh) {
           setRefreshing(true);
-        } else if (pageNum === 0) {
-          setLoading(true);
+        } else if (pageNum > 0) {
+          setLoading(true); 
         }
 
         const params = {
@@ -94,6 +79,7 @@ const TripManagement = () => {
           size: 20,
           sortBy: "createdAt",
           sortDirection: "DESC",
+          search: search,
         };
 
         if (selectedTab !== "all") {
@@ -102,9 +88,7 @@ const TripManagement = () => {
 
         const response = await adminService.getTrips(params);
         const pageData = unwrapApiData(response) || {};
-        const content = Array.isArray(pageData?.content)
-          ? pageData.content
-          : [];
+        const content = Array.isArray(pageData?.content) ? pageData.content : [];
 
         if (refresh || pageNum === 0) {
           setTrips(content);
@@ -116,8 +100,8 @@ const TripManagement = () => {
         setPage(pageNum);
       } catch (error) {
         console.error("Error fetching trips:", error);
-        Alert.alert("Lỗi", "Không thể tải danh sách chuyến đi");
       } finally {
+        setInitialLoading(false);
         setLoading(false);
         setRefreshing(false);
       }
@@ -136,20 +120,20 @@ const TripManagement = () => {
   }, []);
 
   useEffect(() => {
-    fetchTrips(0);
+    fetchTrips(0, false, debouncedSearchTerm);
     fetchStatistics();
-  }, [selectedTab]);
+  }, [selectedTab, debouncedSearchTerm]);
 
   const onRefresh = useCallback(() => {
-    fetchTrips(0, true);
+    fetchTrips(0, true, debouncedSearchTerm);
     fetchStatistics();
-  }, [fetchTrips, fetchStatistics]);
+  }, [fetchTrips, fetchStatistics, debouncedSearchTerm]);
 
   const loadMore = useCallback(() => {
-    if (!loading && hasMore) {
-      fetchTrips(page + 1);
+    if (!loading && hasMore && !initialLoading) {
+      fetchTrips(page + 1, false, debouncedSearchTerm);
     }
-  }, [loading, hasMore, page, fetchTrips]);
+  }, [loading, hasMore, page, fetchTrips, debouncedSearchTerm, initialLoading]);
 
   const handleTripPress = async (trip) => {
     try {
@@ -179,7 +163,7 @@ const TripManagement = () => {
     return new Intl.NumberFormat("vi-VN", {
       style: "currency",
       currency: "VND",
-    }).format(amount);
+    }).format(amount || 0);
   };
 
   const formatLocation = (locationData) => {
@@ -203,7 +187,6 @@ const TripManagement = () => {
       return locationData;
     }
   };
-  // ------------------------------------------
 
   const renderStatCard = (icon, label, value, color) => (
     <View style={[styles.statCard, { borderLeftColor: color }]}>
@@ -230,32 +213,29 @@ const TripManagement = () => {
         </View>
       </View>
 
+      <View style={styles.searchContainer}>
+        <Ionicons name="search" size={20} color={COLORS.GRAY} style={styles.searchIcon} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Tìm theo tên TX, KH hoặc mã chuyến..."
+          value={searchTerm}
+          onChangeText={setSearchTerm} 
+          autoCapitalize="none"
+          placeholderTextColor={COLORS.GRAY}
+        />
+        {searchTerm.length > 0 && (
+          <TouchableOpacity onPress={() => setSearchTerm("")}>
+            <Ionicons name="close-circle" size={20} color={COLORS.GRAY} />
+          </TouchableOpacity>
+        )}
+      </View>
+
       {/* Statistics Cards */}
       <View style={styles.statsContainer}>
-        {renderStatCard(
-          "car",
-          "Tổng chuyến",
-          statistics?.totalTrips || 0,
-          COLORS.PRIMARY
-        )}
-        {renderStatCard(
-          "radio-button-on",
-          "Đang chờ",
-          statistics?.waitingTrips || 0,
-          "#2196F3"
-        )}
-        {renderStatCard(
-          "time",
-          "Đang đi",
-          statistics?.inProgressTrips || 0,
-          "#FF9800"
-        )}
-        {renderStatCard(
-          "checkmark-circle",
-          "Hoàn thành",
-          statistics?.completedTrips || 0,
-          "#4CAF50"
-        )}
+        {renderStatCard("car", "Tổng chuyến", statistics?.totalTrips || 0, COLORS.PRIMARY)}
+        {renderStatCard("radio-button-on", "Đang chờ", statistics?.waitingTrips || 0, "#2196F3")}
+        {renderStatCard("time", "Đang đi", statistics?.inProgressTrips || 0, "#FF9800")}
+        {renderStatCard("checkmark-circle", "Hoàn thành", statistics?.completedTrips || 0, "#4CAF50")}
       </View>
 
       {/* Filter Tabs */}
@@ -295,6 +275,10 @@ const TripManagement = () => {
 
   const renderTripCard = ({ item }) => {
     const status = statusConfig[item.status] || statusConfig.WAITING;
+    const driverName = item.driver?.fullName; 
+    const driverRating = item.driver?.rating;
+    
+    const passengerCount = item.matchedRidersCount || (item.passengers ? item.passengers.length : 0);
 
     return (
       <TouchableOpacity
@@ -333,18 +317,18 @@ const TripManagement = () => {
           </View>
         </View>
 
-        {/* Driver Info */}
-        {item.driverName && (
+        {/* Driver Info - Chỉ hiện khi có tài xế */}
+        {driverName && (
           <View style={styles.driverSection}>
             <View style={styles.driverAvatar}>
               <Ionicons name="person" size={20} color={COLORS.PRIMARY} />
             </View>
             <View style={styles.driverInfo}>
-              <Text style={styles.driverName}>{item.driverName}</Text>
+              <Text style={styles.driverName}>{driverName}</Text>
               <View style={styles.driverMeta}>
                 <Ionicons name="star" size={12} color="#FFB300" />
                 <Text style={styles.driverRating}>
-                  {item.driverRating?.toFixed(1) || "N/A"}
+                  {driverRating?.toFixed(1) || "N/A"}
                 </Text>
               </View>
             </View>
@@ -356,18 +340,20 @@ const TripManagement = () => {
           <View style={styles.metaItem}>
             <Ionicons name="people" size={16} color={COLORS.PRIMARY} />
             <Text style={styles.metaText}>
-              {item.matchedRidersCount || 0} hành khách
+              {passengerCount} hành khách
             </Text>
           </View>
-          {item.fare && (
+          
+          {item.fare != null && (
             <View style={styles.metaItem}>
               <Ionicons name="wallet" size={16} color="#4CAF50" />
               <Text style={styles.metaText}>{formatCurrency(item.fare)}</Text>
             </View>
           )}
+
           <View style={styles.metaItem}>
             <Ionicons name="time" size={16} color={COLORS.GRAY} />
-            <Text style={styles.metaText}>{formatDate(item.startTime)}</Text>
+            <Text style={styles.metaText}>{formatDate(item.startTime || item.createdAt)}</Text>
           </View>
         </View>
       </TouchableOpacity>
@@ -378,6 +364,8 @@ const TripManagement = () => {
     if (!selectedTrip) return null;
 
     const status = statusConfig[selectedTrip.status] || statusConfig.WAITING;
+    const driver = selectedTrip.driver;
+    const passengers = selectedTrip.passengers || [];
 
     return (
       <Modal
@@ -444,7 +432,7 @@ const TripManagement = () => {
               </View>
 
               {/* Driver Info */}
-              {selectedTrip.driverName && (
+              {driver && (
                 <View style={styles.detailSection}>
                   <Text style={styles.sectionTitle}>Tài xế</Text>
                   <View style={styles.driverDetailCard}>
@@ -457,15 +445,15 @@ const TripManagement = () => {
                     </View>
                     <View style={styles.driverDetailInfo}>
                       <Text style={styles.driverDetailName}>
-                        {selectedTrip.driverName}
+                        {driver.fullName}
                       </Text>
                       <Text style={styles.driverDetailPhone}>
-                        {selectedTrip.driverPhone || "N/A"}
+                        {driver.phoneNumber || "N/A"}
                       </Text>
                       <View style={styles.driverDetailRating}>
                         <Ionicons name="star" size={14} color="#FFB300" />
                         <Text style={styles.driverDetailRatingText}>
-                          {selectedTrip.driverRating?.toFixed(1) || "N/A"}
+                          {driver.rating?.toFixed(1) || "N/A"}
                         </Text>
                       </View>
                     </View>
@@ -474,21 +462,20 @@ const TripManagement = () => {
               )}
 
               {/* Matched Riders */}
-              {selectedTrip.matchedRiders &&
-                selectedTrip.matchedRiders.length > 0 && (
+              {passengers.length > 0 && (
                   <View style={styles.detailSection}>
                     <Text style={styles.sectionTitle}>
-                      Hành khách ({selectedTrip.matchedRiders.length})
+                      Hành khách ({passengers.length})
                     </Text>
-                    {selectedTrip.matchedRiders.map((rider, index) => (
+                    {passengers.map((rider, index) => (
                       <View key={index} style={styles.riderCard}>
                         <View style={styles.riderAvatar}>
                           <Ionicons name="person" size={20} color="#9C27B0" />
                         </View>
                         <View style={styles.riderInfo}>
-                          <Text style={styles.riderName}>{rider.name}</Text>
+                          <Text style={styles.riderName}>{rider.fullName}</Text>
                           <Text style={styles.riderPhone}>
-                            {rider.phone || "N/A"}
+                            {rider.phoneNumber || "N/A"}
                           </Text>
                         </View>
                         <View style={styles.riderRating}>
@@ -503,7 +490,7 @@ const TripManagement = () => {
                 )}
 
               {/* Fare */}
-              {selectedTrip.fare && (
+              {selectedTrip.fare != null && (
                 <View style={styles.detailSection}>
                   <Text style={styles.sectionTitle}>Giá cước</Text>
                   <View style={styles.fareCard}>
@@ -523,7 +510,7 @@ const TripManagement = () => {
                     <Ionicons name="calendar" size={16} color={COLORS.GRAY} />
                     <Text style={styles.timeLabel}>Khởi hành:</Text>
                     <Text style={styles.timeValue}>
-                      {formatDate(selectedTrip.startTime)}
+                      {formatDate(selectedTrip.startTime || selectedTrip.createdAt)}
                     </Text>
                   </View>
                   {selectedTrip.endTime && (
@@ -569,7 +556,7 @@ const TripManagement = () => {
     );
   };
 
-  if (loading && page === 0) {
+  if (initialLoading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={COLORS.PRIMARY} />
@@ -594,6 +581,7 @@ const TripManagement = () => {
         onEndReachedThreshold={0.5}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContent}
+        keyboardShouldPersistTaps="handled" 
       />
       {renderTripDetail()}
     </SafeAreaView>
@@ -1043,6 +1031,28 @@ const styles = StyleSheet.create({
     color: COLORS.BLACK,
     fontWeight: "600",
     flex: 1,
+  },
+
+  searchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F5F5F5",
+    borderRadius: 12,
+    marginHorizontal: 20,
+    marginBottom: 20,
+    paddingHorizontal: 12,
+    height: 46,
+    borderWidth: 1,
+    borderColor: "#EEEEEE",
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: COLORS.BLACK,
+    height: "100%",
   },
 });
 
