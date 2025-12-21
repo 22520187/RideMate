@@ -13,8 +13,13 @@ import COLORS from "../../constant/colors";
 import Toast from "react-native-toast-message";
 import { completeRegistration } from "../../services/authService";
 import {
-  clearTokens,
+  saveToken,
+  saveRefreshToken,
+  saveChatToken,
+  saveUserData,
+  saveUserType,
 } from "../../utils/storage";
+import { chatClient } from "../../utils/StreamClient";
 
 const RegisterComplete = ({ navigation, route }) => {
   const { phoneNumber } = route.params;
@@ -63,17 +68,33 @@ const RegisterComplete = ({ navigation, route }) => {
         userType,
         email: email.trim() || undefined,
       });
-
-      // IMPORTANT: Do NOT auto-login after registration.
-      // Some backends return tokens here, but this app should require explicit login.
-      await clearTokens();
-
+      const apiResponse = res; // axiosClient returns ApiResponse object
+      const authData = apiResponse.data; // actual AuthResponse payload
+      // Save tokens
+      await saveToken(authData.accessToken);
+      if (authData.refreshToken) await saveRefreshToken(authData.refreshToken);
+      if (authData.chatToken) await saveChatToken(authData.chatToken);
+      if (authData?.user) {
+        await saveUserData(authData.user);
+        if (authData.user.userType) await saveUserType(authData.user.userType);
+      }
+      // Connect to chat client using chatToken
+      if (authData?.chatToken && authData?.user) {
+        await chatClient.connectUser(
+          {
+            id: authData.user.id.toString(),
+            name: authData.user.fullName,
+            image: null,
+          },
+          authData.chatToken
+        );
+      }
       Toast.show({
         type: "success",
         text1: "Thành công",
-        text2: "Đăng ký thành công. Vui lòng đăng nhập để tiếp tục.",
+        text2: "Đăng ký thành công",
       });
-      navigation.reset({ index: 0, routes: [{ name: "Login" }] });
+      navigation.reset({ index: 0, routes: [{ name: "MainTabs" }] });
     } catch (error) {
       console.error(error);
       Toast.show({
