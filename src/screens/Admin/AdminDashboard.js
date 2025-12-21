@@ -5,6 +5,7 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  Image,
   useWindowDimensions,
   ActivityIndicator,
   RefreshControl,
@@ -16,7 +17,9 @@ import { LinearGradient } from "expo-linear-gradient";
 import { LineChart, BarChart, PieChart } from "react-native-chart-kit";
 import COLORS from "../../constant/colors";
 import * as adminService from "../../services/adminService";
+import { getProfile } from "../../services/userService";
 import { unwrapApiData } from "../../utils/unwrapApiData";
+import SCREENS from "..";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -25,6 +28,7 @@ const AdminDashboard = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [dashboardStats, setDashboardStats] = useState(null);
+  const [profile, setProfile] = useState(null);
   const [chartData, setChartData] = useState({
     users: null,
     sessions: null,
@@ -38,10 +42,12 @@ const AdminDashboard = ({ navigation }) => {
   const fetchDashboardData = useCallback(async () => {
     try {
       setLoading(true);
-      const [statsRes, usersChartRes, sessionsChartRes] = await Promise.all([
+      const [statsRes, usersChartRes, sessionsChartRes, profileRes] =
+        await Promise.all([
         adminService.getDashboardStats(),
         adminService.getChartData("users"),
         adminService.getChartData("sessions"),
+        getProfile(),
       ]);
 
       setDashboardStats(unwrapApiData(statsRes));
@@ -49,6 +55,8 @@ const AdminDashboard = ({ navigation }) => {
         users: unwrapApiData(usersChartRes),
         sessions: unwrapApiData(sessionsChartRes),
       });
+
+      setProfile(unwrapApiData(profileRes));
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
     } finally {
@@ -133,14 +141,24 @@ const AdminDashboard = ({ navigation }) => {
     <View style={styles.header}>
       <View>
         <Text style={styles.welcomeLabel}>WELCOME BACK</Text>
-        <Text style={styles.userName}>Jack Doeson</Text>
+        <Text style={styles.userName}>{profile?.fullName || "Admin"}</Text>
       </View>
-      <TouchableOpacity style={styles.profileButton}>
-        <Ionicons
-          name="person-circle-outline"
-          size={40}
-          color={COLORS.PRIMARY}
-        />
+      <TouchableOpacity
+        style={styles.profileButton}
+        onPress={() => navigation.navigate(SCREENS.ADMIN_PROFILE)}
+      >
+        {profile?.profilePictureUrl ? (
+          <Image
+            source={{ uri: profile.profilePictureUrl }}
+            style={styles.profileAvatar}
+          />
+        ) : (
+          <Ionicons
+            name="person-circle-outline"
+            size={40}
+            color={COLORS.PRIMARY}
+          />
+        )}
       </TouchableOpacity>
     </View>
   );
@@ -447,6 +465,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  profileAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+  },
   periodContainer: {
     paddingHorizontal: 20,
     marginBottom: 20,
@@ -552,11 +575,6 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 14,
     color: COLORS.GRAY,
-  },
-  quickStatsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
   },
   quickStatsGrid: {
     flexDirection: "row",
