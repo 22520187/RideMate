@@ -1,16 +1,22 @@
 /* eslint-disable react-native/no-inline-styles */
-import React from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, Pressable } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
-import { Camera } from "lucide-react-native";
-import COLORS from '../constant/colors';
+import React from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  Modal,
+  TouchableOpacity,
+  Pressable,
+} from "react-native";
+import { MaterialIcons } from "@expo/vector-icons";
+import COLORS from "../constant/colors";
 
-const ImagePickerModal = ({ 
-  visible, 
-  onClose, 
-  onCameraPress, 
+const ImagePickerModal = ({
+  visible,
+  onClose,
+  onCameraPress,
   onLibraryPress,
-  title = "Chọn nguồn ảnh" 
+  title = "Chọn nguồn ảnh",
 }) => {
   return (
     <Modal
@@ -19,29 +25,26 @@ const ImagePickerModal = ({
       animationType="fade"
       onRequestClose={onClose}
     >
-      <Pressable
-        style={styles.modalOverlay}
-        onPress={onClose}
-      >
+      <Pressable style={styles.modalOverlay} onPress={onClose}>
         <Pressable onPress={(e) => e.stopPropagation()}>
           <View style={styles.imagePickerModal}>
             <Text style={styles.modalTitle}>{title}</Text>
-            
+
             <TouchableOpacity
               style={styles.modalOption}
               onPress={() => {
-                console.log('📸 Camera button pressed');
+                console.log("📸 Camera button pressed");
                 onCameraPress && onCameraPress();
               }}
             >
-              <Camera size={24} color={COLORS.PRIMARY} />
+              <MaterialIcons name="camera" size={24} color={COLORS.PRIMARY} />
               <Text style={styles.modalOptionText}>Chụp ảnh</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.modalOption}
               onPress={() => {
-                console.log('📚 Library button pressed');
+                console.log("📚 Library button pressed");
                 onLibraryPress && onLibraryPress();
               }}
             >
