@@ -12,6 +12,8 @@ import {
   Modal,
   TextInput,
   Platform,
+  StatusBar,
+  KeyboardAvoidingView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
@@ -41,6 +43,7 @@ import { clearTokens } from "../../utils/storage";
 import { chatClient } from "../../utils/StreamClient";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import VehicleRegistration from "../../components/VehicleRegistration";
+import ImagePickerModal from "../../components/ImagePickerModal";
 
 const Profile = () => {
   const navigation = useNavigation();
@@ -165,7 +168,7 @@ const Profile = () => {
         }
 
         if (!result.canceled && result.assets && result.assets.length > 0) {
-          await uploadProfileImage(result.assets[0].uri);
+          await uploadProfileImage(result.assets[0]);
         }
       } catch (error) {
         console.error("Pick image error:", error);
@@ -437,21 +440,58 @@ const Profile = () => {
         {/* Vehicle Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Phương tiện</Text>
-          <MenuItem
-            icon={Car}
-            title={vehicle ? "Thông tin xe" : "Đăng ký xe"}
-            subtitle={
-              vehicle
-                ? `${vehicle.make} ${vehicle.model} • ${vehicle.licensePlate}`
-                : "Đăng ký để làm tài xế"
-            }
-            onPress={() => {
-              // Always open modal, will show existing data if vehicle exists
-              setVehicleModalVisible(true);
-            }}
-            showBadge={!vehicle}
-            badgeColor="#FFC107"
-          />
+          
+          {/* Custom Vehicle Card with Status Badge */}
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => setVehicleModalVisible(true)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.menuIconContainer}>
+              <Car size={22} color={COLORS.PRIMARY} />
+            </View>
+            <View style={styles.menuContent}>
+              <Text style={styles.menuTitle}>
+                {vehicle ? "Thông tin xe" : "Đăng ký xe"}
+              </Text>
+              <Text style={styles.menuSubtitle}>
+                {vehicle
+                  ? `${vehicle.make} ${vehicle.model} • ${vehicle.licensePlate}`
+                  : "Đăng ký để làm tài xế"}
+              </Text>
+              {vehicle?.status && (
+                <View style={[
+                  styles.statusBadge,
+                  {
+                    backgroundColor: 
+                      vehicle.status === 'PENDING' ? '#FFF3CD' :
+                      vehicle.status === 'APPROVED' ? '#D1E7DD' :
+                      '#F8D7DA'
+                  }
+                ]}>
+                  <Text style={[
+                    styles.statusText,
+                    {
+                      color:
+                        vehicle.status === 'PENDING' ? '#856404' :
+                        vehicle.status === 'APPROVED' ? '#0F5132' :
+                        '#842029'
+                    }
+                  ]}>
+                    {vehicle.status === 'PENDING' ? 'Chờ duyệt' :
+                     vehicle.status === 'APPROVED' ? 'Đã duyệt' :
+                     'Bị từ chối'}
+                  </Text>
+                </View>
+              )}
+            </View>
+            {!vehicle && (
+              <View style={[styles.badge, { backgroundColor: '#FFC107' }]}>
+                <Text style={styles.badgeText}>!</Text>
+              </View>
+            )}
+            <ChevronRight size={20} color="#C7C7CC" />
+          </TouchableOpacity>
         </View>
 
         {/* Account Section */}
@@ -562,7 +602,7 @@ const Profile = () => {
         animationType="slide"
         onRequestClose={() => setEditModalVisible(false)}
       >
-        <SafeAreaView style={styles.editModal} edges={["top"]}>
+        <View style={styles.editModal}>
           <View style={styles.editHeader}>
             <TouchableOpacity onPress={() => setEditModalVisible(false)}>
               <Text style={styles.editCancel}>Hủy</Text>
@@ -698,7 +738,17 @@ const Profile = () => {
               />
             </View>
           </ScrollView>
-        </SafeAreaView>
+          </KeyboardAvoidingView>
+          
+          {/* Image Picker Modal - Inside Edit Modal like VehicleRegistration */}
+          <ImagePickerModal
+            visible={imagePickerVisible}
+            onClose={() => setImagePickerVisible(false)}
+            onCameraPress={() => handlePickImage('camera')}
+            onLibraryPress={() => handlePickImage('library')}
+            title="Chọn ảnh đại diện"
+          />
+        </View>
       </Modal>
 
       {/* Vehicle Registration Modal */}
@@ -710,14 +760,6 @@ const Profile = () => {
           fetchData(); // Refresh data
         }}
         initialVehicle={vehicle} // Pass existing vehicle data
-      />
-      {/* Image Picker Modal */}
-      <ImagePickerModal
-        visible={imagePickerVisible}
-        onClose={() => setImagePickerVisible(false)}
-        onCameraPress={() => handlePickImage('camera')}
-        onLibraryPress={() => handlePickImage('library')}
-        title="Chọn ảnh đại diện"
       />
     </SafeAreaView>
   );
@@ -907,6 +949,17 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#8E8E93",
   },
+  statusBadge: {
+    marginTop: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
   badge: {
     width: 20,
     height: 20,
@@ -924,24 +977,17 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#F8F9FA",
+    backgroundColor: "#DC3545",
     marginHorizontal: 16,
     marginTop: 24,
     paddingVertical: 16,
     borderRadius: 16,
     gap: 8,
-    borderWidth: 1,
-    borderColor: "#FFE5E5",
-    shadowColor: COLORS.RED,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 2,
   },
   logoutText: {
     fontSize: 16,
     fontWeight: "700",
-    color: COLORS.RED,
+    color: COLORS.WHITE,
   },
   version: {
     textAlign: "center",
@@ -1001,7 +1047,8 @@ const styles = StyleSheet.create({
   // Edit Modal
   editModal: {
     flex: 1,
-    backgroundColor: "#F8F9FA",
+    backgroundColor: "#FFFFFF",
+    paddingTop: 30,
   },
   editHeader: {
     flexDirection: "row",
@@ -1032,34 +1079,81 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 20,
   },
+  avatarPickerContainer: {
+    alignItems: 'center',
+    marginBottom: 32,
+  },
+  avatarPickerButton: {
+    position: 'relative',
+  },
+  editAvatar: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#F0F0F0',
+    borderWidth: 3,
+    borderColor: COLORS.PRIMARY,
+  },
+  editUploadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  editCameraButton: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: COLORS.PRIMARY,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: COLORS.WHITE,
+  },
+  avatarPickerHint: {
+    marginTop: 12,
+    fontSize: 14,
+    color: '#8E8E93',
+    textAlign: 'center',
+  },
   inputGroup: {
-    marginBottom: 24,
+    marginBottom: 20,
   },
   inputLabel: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "600",
     color: "#1C1C1E",
-    marginBottom: 8,
+    marginBottom: 10,
   },
   textInput: {
-    backgroundColor: COLORS.WHITE,
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
-    color: "#1C1C1E",
     borderWidth: 1,
     borderColor: "#E5E5EA",
+    borderRadius: 12,
+    padding: 14,
+    fontSize: 16,
+    backgroundColor: "#F9F9F9",
+    marginBottom: 12,
+    color: "#1C1C1E",
   },
   textArea: {
     height: 100,
     textAlignVertical: "top",
   },
   dateButton: {
-    backgroundColor: COLORS.WHITE,
-    borderRadius: 12,
-    padding: 16,
     borderWidth: 1,
     borderColor: "#E5E5EA",
+    borderRadius: 12,
+    padding: 14,
+    backgroundColor: "#F9F9F9",
+    marginBottom: 12,
   },
   dateText: {
     fontSize: 16,
@@ -1067,6 +1161,56 @@ const styles = StyleSheet.create({
   },
   datePlaceholder: {
     color: "#999",
+  },
+  
+  // Bottom Sheet (for image picker in edit modal)
+  bottomSheetOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  bottomSheetBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  bottomSheet: {
+    backgroundColor: COLORS.WHITE,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 32,
+  },
+  bottomSheetTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#1C1C1E",
+    marginBottom: 20,
+    textAlign: "center",
+  },
+  bottomSheetOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: "#F8F9FA",
+    marginBottom: 12,
+    gap: 12,
+  },
+  bottomSheetOptionText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1C1C1E",
+  },
+  bottomSheetCancel: {
+    backgroundColor: COLORS.WHITE,
+    borderWidth: 1,
+    borderColor: "#E5E5EA",
+  },
+  bottomSheetCancelText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#8E8E93",
+    flex: 1,
+    textAlign: "center",
   },
 });
 
