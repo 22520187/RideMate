@@ -98,6 +98,8 @@ const Profile = () => {
       try {
         const vehicleResp = await getMyVehicle();
         const vehicleData = vehicleResp?.data?.data ?? vehicleResp?.data;
+        console.log('📦 Vehicle data loaded:', vehicleData);
+        console.log('🖼️ Registration document URL:', vehicleData?.registrationDocumentUrl);
         setVehicle(vehicleData);
       } catch (err) {
         console.log("No vehicle found");
@@ -118,44 +120,58 @@ const Profile = () => {
   };
 
   const handlePickImage = async (sourceType) => {
-    try {
-      setImagePickerVisible(false);
-
-      let result;
-      if (sourceType === "camera") {
-        const permission = await ImagePicker.requestCameraPermissionsAsync();
-        if (!permission.granted) {
-          Alert.alert("Lỗi", "Cần cấp quyền truy cập camera");
-          return;
+    console.log('handlePickImage called with:', sourceType);
+    setImagePickerVisible(false); // Close modal first
+    
+    // Wait for modal to close completely
+    setTimeout(async () => {
+      try {
+        console.log('Requesting permission...');
+        let result;
+        
+        if (sourceType === "camera") {
+          const permission = await ImagePicker.requestCameraPermissionsAsync();
+          if (!permission.granted) {
+            Alert.alert(
+              'Cần quyền truy cập',
+              'Vui lòng cho phép ứng dụng truy cập Camera để chụp ảnh đại diện.\n\nĐi tới Cài đặt > Quyền riêng tư > Camera.'
+            );
+            return;
+          }
+          console.log('Launching camera...');
+          result = await ImagePicker.launchCameraAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: true,
+            aspect: [1, 1],
+            quality: 0.8,
+          });
+        } else {
+          const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+          if (!permission.granted) {
+            Alert.alert(
+              'Cần quyền truy cập',
+              'Vui lòng cho phép ứng dụng truy cập Thư viện ảnh để chọn ảnh đại diện.\n\nĐi tới Cài đặt > Quyền riêng tư > Ảnh.'
+            );
+            return;
+          }
+          console.log('Launching image library...');
+          result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: true,
+            aspect: [1, 1],
+            quality: 0.8,
+          });
+          console.log('Library closed. Result:', result?.canceled);
         }
-        result = await ImagePicker.launchCameraAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
-          allowsEditing: true,
-          aspect: [1, 1],
-          quality: 0.8,
-        });
-      } else {
-        const permission =
-          await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (!permission.granted) {
-          Alert.alert("Lỗi", "Cần cấp quyền truy cập thư viện ảnh");
-          return;
-        }
-        result = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
-          allowsEditing: true,
-          aspect: [1, 1],
-          quality: 0.8,
-        });
-      }
 
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        await uploadProfileImage(result.assets[0]);
+        if (!result.canceled && result.assets && result.assets.length > 0) {
+          await uploadProfileImage(result.assets[0].uri);
+        }
+      } catch (error) {
+        console.error("Pick image error:", error);
+        Alert.alert("Lỗi", "Không thể chọn ảnh");
       }
-    } catch (error) {
-      console.error("Pick image error:", error);
-      Alert.alert("Lỗi", "Không thể chọn ảnh");
-    }
+    }, 600); // Same timeout as VehicleRegistration
   };
 
   const ensureFileUri = async (inputUri) => {
@@ -430,25 +446,8 @@ const Profile = () => {
                 : "Đăng ký để làm tài xế"
             }
             onPress={() => {
-              if (!vehicle) {
-                // Open vehicle registration modal
-                setVehicleModalVisible(true);
-              } else {
-                // Show vehicle info
-                Alert.alert(
-                  "Thông tin xe",
-                  `${vehicle.make} ${vehicle.model}\nBiển số: ${
-                    vehicle.licensePlate
-                  }\nMàu sắc: ${vehicle.color}\nSức chứa: ${
-                    vehicle.capacity
-                  } người\nTrạng thái: ${
-                    vehicle.status === "APPROVED"
-                      ? "✅ Đã duyệt"
-                      : "⏳ Chờ duyệt"
-                  }`,
-                  [{ text: "OK" }]
-                );
-              }
+              // Always open modal, will show existing data if vehicle exists
+              setVehicleModalVisible(true);
             }}
             showBadge={!vehicle}
             badgeColor="#FFC107"
@@ -578,7 +577,39 @@ const Profile = () => {
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.editContent}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={{ flex: 1 }}
+          >
+            <ScrollView style={styles.editContent}>
+            {/* Avatar Picker */}
+            <View style={styles.avatarPickerContainer}>
+              <TouchableOpacity
+                onPress={() => setImagePickerVisible(true)}
+                activeOpacity={0.8}
+                disabled={uploading}
+                style={styles.avatarPickerButton}
+              >
+                <Image
+                  source={{
+                    uri:
+                      profile?.profilePictureUrl ||
+                      "https://api.dicebear.com/7.x/avataaars/png?seed=user",
+                  }}
+                  style={styles.editAvatar}
+                />
+                {uploading && (
+                  <View style={styles.editUploadingOverlay}>
+                    <ActivityIndicator size="small" color={COLORS.WHITE} />
+                  </View>
+                )}
+                <View style={styles.editCameraButton}>
+                  <Camera size={20} color={COLORS.WHITE} />
+                </View>
+              </TouchableOpacity>
+              <Text style={styles.avatarPickerHint}>Nhấn để thay đổi ảnh đại diện</Text>
+            </View>
+            
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Họ và tên *</Text>
               <TextInput
@@ -678,6 +709,15 @@ const Profile = () => {
           setVehicle(vehicleData);
           fetchData(); // Refresh data
         }}
+        initialVehicle={vehicle} // Pass existing vehicle data
+      />
+      {/* Image Picker Modal */}
+      <ImagePickerModal
+        visible={imagePickerVisible}
+        onClose={() => setImagePickerVisible(false)}
+        onCameraPress={() => handlePickImage('camera')}
+        onLibraryPress={() => handlePickImage('library')}
+        title="Chọn ảnh đại diện"
       />
     </SafeAreaView>
   );

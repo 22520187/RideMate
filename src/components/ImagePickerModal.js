@@ -1,6 +1,6 @@
 /* eslint-disable react-native/no-inline-styles */
 import React from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, Pressable } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Camera } from "lucide-react-native";
 import COLORS from '../constant/colors';
@@ -16,49 +16,52 @@ const ImagePickerModal = ({
     <Modal
       visible={visible}
       transparent
-      animationType="slide"
+      animationType="fade"
       onRequestClose={onClose}
     >
-      <TouchableOpacity
+      <Pressable
         style={styles.modalOverlay}
-        activeOpacity={1}
         onPress={onClose}
       >
-        <View style={styles.imagePickerModal}>
-          <Text style={styles.modalTitle}>{title}</Text>
-          
-          <TouchableOpacity
-            style={styles.modalOption}
-            onPress={() => {
-              onCameraPress && onCameraPress();
-            }}
-          >
-            <Camera size={24} color={COLORS.PRIMARY} />
-            <Text style={styles.modalOptionText}>Chụp ảnh</Text>
-          </TouchableOpacity>
+        <Pressable onPress={(e) => e.stopPropagation()}>
+          <View style={styles.imagePickerModal}>
+            <Text style={styles.modalTitle}>{title}</Text>
+            
+            <TouchableOpacity
+              style={styles.modalOption}
+              onPress={() => {
+                console.log('📸 Camera button pressed');
+                onCameraPress && onCameraPress();
+              }}
+            >
+              <Camera size={24} color={COLORS.PRIMARY} />
+              <Text style={styles.modalOptionText}>Chụp ảnh</Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.modalOption}
-            onPress={() => {
-              onLibraryPress && onLibraryPress();
-            }}
-          >
-            <MaterialIcons
-              name="photo-library"
-              size={24}
-              color={COLORS.PRIMARY}
-            />
-            <Text style={styles.modalOptionText}>Chọn từ thư viện</Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.modalOption}
+              onPress={() => {
+                console.log('📚 Library button pressed');
+                onLibraryPress && onLibraryPress();
+              }}
+            >
+              <MaterialIcons
+                name="photo-library"
+                size={24}
+                color={COLORS.PRIMARY}
+              />
+              <Text style={styles.modalOptionText}>Chọn từ thư viện</Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.modalOption, styles.modalCancel]}
-            onPress={onClose}
-          >
-            <Text style={styles.modalCancelText}>Hủy</Text>
-          </TouchableOpacity>
-        </View>
-      </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modalOption, styles.modalCancel]}
+              onPress={onClose}
+            >
+              <Text style={styles.modalCancelText}>Hủy</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 };

@@ -70,9 +70,28 @@ const LicensePlateScanner = ({ onPlateDetected, initialImage = null }) => {
   };
 
   /**
+   * Request media library permissions
+   */
+  const requestMediaLibraryPermission = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert(
+        'Quyền truy cập thư viện',
+        'Ứng dụng cần quyền truy cập thư viện ảnh để chọn ảnh biển số xe.',
+        [{ text: 'OK' }]
+      );
+      return false;
+    }
+    return true;
+  };
+
+  /**
    * Pick image from gallery
    */
   const pickImage = async () => {
+    const hasPermission = await requestMediaLibraryPermission();
+    if (!hasPermission) return;
+
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,

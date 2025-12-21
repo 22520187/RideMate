@@ -83,10 +83,19 @@ export const detectLicensePlate = async (imageUri) => {
 2. Đọc chính xác các ký tự trên biển số
 3. Đánh giá độ rõ nét của biển số
 
+LƯU Ý QUAN TRỌNG về định dạng biển số Việt Nam:
+- Biển số cũ: XX-YZ NNNNN (VD: 29-B1 12345, 51-F 12345)
+- Biển số mới: XX-YZN NNNNN (VD: 29-B12 34567, 51-F1 23456)
+- XX: 2 chữ số (mã tỉnh)
+- Y: 1 chữ cái (A-Z)
+- Z: 1 chữ số hoặc 1 chữ cái (tùy loại xe)
+- N: các chữ số
+- Phải giữ CHÍNH XÁC khoảng trắng và dấu gạch ngang
+
 Trả về CHÍNH XÁC theo format JSON sau (không thêm markdown hay text khác):
 {
   "isLicensePlate": true/false,
-  "plateNumber": "biển số đọc được (nếu có)",
+  "plateNumber": "biển số đọc được CHÍNH XÁC (nếu có, giữ nguyên format)",
   "confidence": "high/medium/low",
   "reason": "lý do ngắn gọn"
 }`;
@@ -146,29 +155,45 @@ export const extractPlateNumber = async (imageUri) => {
 
 /**
  * Clean and format license plate number
- * Vietnamese license plate format: 
- * - Old: 12A-12345 (2 digits, 1 letter, 5 digits)
- * - New: 12A1-12345 (2 digits, 1 letter, 1 digit, 5 digits)
- * @param {string} rawText - Raw OCR text
+ * Vietnamese license plate formats:
+ * - Format 1: XX-XX YYYY (e.g., 29-B1 12345, 59-V1 2345)
+ * - Format 2: XX-XX YYY.YY (e.g., 69-D1 666.66)
+ * @param {string} rawText - Raw plate text from Gemini
  * @returns {string} Cleaned plate number
  */
 const cleanPlateNumber = (rawText) => {
-  // 1. Remove all non-alphanumeric chars first to get raw string
-  let cleaned = rawText.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+  if (!rawText) return '';
   
-  // 2. Format: XX-XX YYYY or XX-XX YYYYY
-  // Example: 54L19999 -> 54-L1 9999
-  if (cleaned.length >= 7) {
-    // Group 1: Area code (2 chars)
-    // Group 2: Series (1-2 chars)
-    // Group 3: Numbers (4-5 digits)
-    const match = cleaned.match(/^([A-Z0-9]{2})([A-Z0-9]+)(\d{4,5})$/);
-    if (match) {
-      return `${match[1]}-${match[2]} ${match[3]}`;
-    }
+  // Remove extra spaces and normalize
+  let cleaned = rawText.trim().toUpperCase();
+  
+  // If already in correct format, just validate and return
+  // Format: XX-XX YYYY or XX-XX YYY.YY
+  const validFormat = /^\d{2}-[A-Z0-9]{1,3}[\s-]([0-9]{4,5}|[0-9]{3}\.[0-9]{2})$/;
+  if (validFormat.test(cleaned)) {
+    // Normalize spaces (ensure single space)
+    cleaned = cleaned.replace(/\s+/g, ' ');
+    console.log('✅ Plate already in valid format:', cleaned);
+    return cleaned;
   }
   
-  console.log('Cleaned plate number:', cleaned);
+  // If not in correct format, try to parse and reformat
+  // Remove all spaces and dashes (but keep dots!)
+  const raw = cleaned.replace(/[\s-]/g, '');
+  
+  // Match: 2 digits + 1-3 alphanumeric + (4-5 digits OR 3 digits.2 digits)
+  // Examples: 29B112345 -> 29-B1 12345, 69D1666.66 -> 69-D1 666.66
+  const match = raw.match(/^(\d{2})([A-Z0-9]{1,3})(\d{4,5}|\d{3}\.\d{2})$/);
+  
+  if (match) {
+    const [, area, series, numbers] = match;
+    cleaned = `${area}-${series} ${numbers}`;
+    console.log('✅ Reformatted plate:', raw, '->', cleaned);
+    return cleaned;
+  }
+  
+  // If no match, return as-is
+  console.warn('⚠️ Could not parse plate format:', rawText);
   return cleaned;
 };
 
