@@ -102,7 +102,9 @@ const TripManagement = () => {
 
         const response = await adminService.getTrips(params);
         const pageData = unwrapApiData(response) || {};
-        const content = Array.isArray(pageData?.content) ? pageData.content : [];
+        const content = Array.isArray(pageData?.content)
+          ? pageData.content
+          : [];
 
         if (refresh || pageNum === 0) {
           setTrips(content);
@@ -179,6 +181,29 @@ const TripManagement = () => {
       currency: "VND",
     }).format(amount);
   };
+
+  const formatLocation = (locationData) => {
+    if (!locationData) return "Chưa xác định";
+
+    try {
+      if (typeof locationData === "object") {
+        return locationData.address || locationData.name || "Vị trí bản đồ";
+      }
+
+      if (
+        typeof locationData === "string" &&
+        (locationData.trim().startsWith("{") ||
+          locationData.trim().startsWith("["))
+      ) {
+        const parsed = JSON.parse(locationData);
+        return parsed.address || parsed.name || locationData;
+      }
+      return locationData;
+    } catch (error) {
+      return locationData;
+    }
+  };
+  // ------------------------------------------
 
   const renderStatCard = (icon, label, value, color) => (
     <View style={[styles.statCard, { borderLeftColor: color }]}>
@@ -300,10 +325,10 @@ const TripManagement = () => {
           </View>
           <View style={styles.routeInfo}>
             <Text style={styles.routeLocation} numberOfLines={1}>
-              {item.startLocation || "Điểm đi"}
+              {formatLocation(item.startLocation) || "Điểm đi"}
             </Text>
             <Text style={styles.routeLocation} numberOfLines={1}>
-              {item.endLocation || "Điểm đến"}
+              {formatLocation(item.endLocation) || "Điểm đến"}
             </Text>
           </View>
         </View>
@@ -403,7 +428,7 @@ const TripManagement = () => {
                       <Ionicons name="location" size={18} color="#4CAF50" />
                     </View>
                     <Text style={styles.routeDetailText}>
-                      {selectedTrip.startLocation || "Điểm đi"}
+                      {formatLocation(selectedTrip.startLocation) || "Điểm đi"}
                     </Text>
                   </View>
                   <View style={styles.routeLineDetail} />
@@ -412,7 +437,7 @@ const TripManagement = () => {
                       <Ionicons name="location" size={18} color="#F44336" />
                     </View>
                     <Text style={styles.routeDetailText}>
-                      {selectedTrip.endLocation || "Điểm đến"}
+                      {formatLocation(selectedTrip.endLocation) || "Điểm đến"}
                     </Text>
                   </View>
                 </View>
