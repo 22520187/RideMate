@@ -133,7 +133,8 @@ export const getReportStatistics = () => {
 
 // Get all vouchers
 export const getVouchers = () => {
-  return axiosClient.get(endpoints.vouchers.list);
+  // Admin should see both active & inactive vouchers
+  return axiosClient.get(endpoints.admin.vouchers);
 };
 
 // Create voucher

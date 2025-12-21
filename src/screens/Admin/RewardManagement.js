@@ -171,25 +171,40 @@ const RewardManagement = () => {
     [rewards]
   );
 
+  // Build a safe payload that matches backend voucher DTO
+  // (avoid sending extra fields like `id` and avoid `expiryDate: null`).
+  const buildVoucherPayloadForUpdate = (reward, nextIsActive) => {
+    const payload = {
+      voucherCode: String(reward?.voucherCode || "").trim(),
+      description: String(reward?.description || "").trim(),
+      voucherType: reward?.voucherType || "FOOD_AND_BEVERAGE",
+      cost: Number(reward?.cost || 0),
+      expiryDate: reward?.expiryDate || undefined,
+      isActive: Boolean(nextIsActive),
+    };
+
+    if (!payload.expiryDate) delete payload.expiryDate;
+    return payload;
+  };
+
   const handleToggleStatus = async (reward) => {
     try {
-      const updatedData = {
-        ...reward,
-        isActive: !reward.isActive,
-      };
+      if (!reward?.id) {
+        Alert.alert("Lỗi", "Không tìm thấy ID voucher để cập nhật.");
+        return;
+      }
 
-      await updateVoucher(reward.id, updatedData);
+      const nextIsActive = !reward.isActive;
+      const payload = buildVoucherPayloadForUpdate(reward, nextIsActive);
 
-      // Update local state
-      setRewards((prev) =>
-        prev.map((r) =>
-          r.id === reward.id ? { ...r, isActive: !r.isActive } : r
-        )
-      );
+      await updateVoucher(reward.id, payload);
+
+      // Refresh list to ensure UI reflects server truth
+      await fetchVouchers();
 
       Alert.alert(
         "Thành công",
-        `Đã ${!reward.isActive ? "kích hoạt" : "tạm dừng"} voucher`
+        `Đã ${nextIsActive ? "kích hoạt" : "tạm dừng"} voucher`
       );
     } catch (error) {
       console.error("Error toggling voucher status:", error);
