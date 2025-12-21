@@ -126,6 +126,9 @@ export default {
     updateMission: (id) => `/admin/missions/${id}`,
     deleteMission: (id) => `/admin/missions/${id}`,
     missionStats: "/admin/missions/stats",
+
+    // Voucher management (Admin)
+    vouchers: "/admin/vouchers",
   },
 
   // User mission endpoints
