@@ -29,11 +29,13 @@ import {
   Camera,
 } from "lucide-react-native";
 import * as ImagePicker from "expo-image-picker";
+import * as ImageManipulator from "expo-image-manipulator";
+import * as FileSystem from "expo-file-system";
 import { useNavigation } from "@react-navigation/native";
 import COLORS from "../../constant/colors";
 import { getProfile, updateProfile } from "../../services/userService";
 import { getMyVehicle } from "../../services/vehicleService";
-import { uploadImage } from "../../services/uploadService";
+import { normalizeMimeType, uploadImage } from "../../services/uploadService";
 import { logout } from "../../services/authService";
 import { clearTokens } from "../../utils/storage";
 import { chatClient } from "../../utils/StreamClient";
@@ -148,7 +150,7 @@ const Profile = () => {
       }
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        await uploadProfileImage(result.assets[0].uri);
+        await uploadProfileImage(result.assets[0]);
       }
     } catch (error) {
       console.error("Pick image error:", error);
@@ -156,25 +158,63 @@ const Profile = () => {
     }
   };
 
-  const uploadProfileImage = async (imageUri) => {
+  const ensureFileUri = async (inputUri) => {
+    let uri = inputUri;
+    if (!uri) return uri;
+
+    // Android: content:// -> copy to cache => file://
+    if (Platform.OS === "android" && uri.startsWith("content://")) {
+      const dest = `${FileSystem.cacheDirectory}upload_${Date.now()}.jpg`;
+      await FileSystem.copyAsync({ from: uri, to: dest });
+      uri = dest;
+    }
+
+    // Android: plain path -> file://
+    if (
+      Platform.OS === "android" &&
+      !uri.startsWith("file://") &&
+      !uri.startsWith("http")
+    ) {
+      uri = `file://${uri}`;
+    }
+
+    return uri;
+  };
+
+  const uploadProfileImage = async (asset) => {
     try {
       setUploading(true);
 
-      // Prepare image for upload
-      let uri = imageUri;
-      if (
-        Platform.OS === "android" &&
-        !uri.startsWith("file://") &&
-        !uri.startsWith("http")
-      ) {
-        uri = `file://${uri}`;
+      const rawUri = asset?.uri;
+      if (!rawUri) {
+        Alert.alert("Lỗi", "Không tìm thấy ảnh để upload");
+        return;
       }
 
-      const fileName = `profile_${Date.now()}.jpg`;
+      // Normalize uri for upload
+      let uri = await ensureFileUri(rawUri);
+
+      // Resize/compress to reduce upload failures (server limits / connection reset)
+      try {
+        const manipulated = await ImageManipulator.manipulateAsync(
+          uri,
+          [{ resize: { width: 1024 } }],
+          { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
+        );
+        uri = await ensureFileUri(manipulated?.uri || uri);
+      } catch (manipErr) {
+        console.log("[UPLOAD] Image compress skipped:", manipErr?.message);
+      }
+
+      const fileName = asset?.fileName || asset?.name || `profile_${Date.now()}.jpg`;
+      const mimeType = normalizeMimeType(asset?.mimeType || asset?.type, fileName);
+
+      console.log("[UPLOAD] Uploading with:", { uri, type: mimeType, name: fileName });
+
       const formData = new FormData();
       formData.append("file", {
-        uri: uri,
-        type: "image/jpeg",
+        uri,
+        type: mimeType,
         name: fileName,
       });
 
