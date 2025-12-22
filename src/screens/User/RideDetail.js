@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
-  Linking,
   ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -14,74 +13,149 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import COLORS from "../../constant/colors";
 import { getMatchDetail } from "../../services/matchService";
+import { getProfile } from "../../services/userService";
 
 const RideDetail = ({ route, navigation }) => {
   const { rideId } = route.params;
   const [loading, setLoading] = useState(true);
   const [ride, setRide] = useState(null);
+  const [currentUserId, setCurrentUserId] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
 
     const normalizeRideDetail = (raw) => {
       const status =
-        raw?.status ?? raw?.matchStatus ?? raw?.rideStatus ?? raw?.state ?? "UNKNOWN";
+        raw?.status ??
+        raw?.matchStatus ??
+        raw?.rideStatus ??
+        raw?.state ??
+        "UNKNOWN";
 
       const pickupAddress =
-        raw?.pickupAddress ?? raw?.pickup_address ?? raw?.startLocation ?? raw?.from ??
+        raw?.pickupAddress ??
+        raw?.pickup_address ??
+        raw?.startLocation ??
+        raw?.from ??
         "Điểm đón";
       const destinationAddress =
-        raw?.destinationAddress ?? raw?.destination_address ?? raw?.endLocation ?? raw?.to ??
+        raw?.destinationAddress ??
+        raw?.destination_address ??
+        raw?.endLocation ??
+        raw?.to ??
         "Điểm đến";
 
-      const priceRaw = raw?.price ?? raw?.estimatedPrice ?? raw?.fare ?? 0;
-      const price = typeof priceRaw === "number" ? priceRaw : Number(priceRaw) || 0;
+      // Use coin instead of price
+      const coinRaw =
+        raw?.coin ??
+        raw?.coins ??
+        raw?.price ??
+        raw?.estimatedPrice ??
+        raw?.fare ??
+        0;
+      const coin = typeof coinRaw === "number" ? coinRaw : Number(coinRaw) || 0;
 
-      const distanceRaw = raw?.distance ?? raw?.distanceMeters ?? raw?.distance_meters ?? 0;
+      const distanceRaw =
+        raw?.distance ?? raw?.distanceMeters ?? raw?.distance_meters ?? 0;
       const distance =
-        typeof distanceRaw === "number" ? distanceRaw : Number(distanceRaw) || 0;
+        typeof distanceRaw === "number"
+          ? distanceRaw
+          : Number(distanceRaw) || 0;
 
       const durationRaw =
-        raw?.duration ?? raw?.durationMinutes ?? raw?.estimatedDuration ?? raw?.estimatedDurationMinutes ?? 0;
+        raw?.duration ??
+        raw?.durationMinutes ??
+        raw?.estimatedDuration ??
+        raw?.estimatedDurationMinutes ??
+        0;
       const duration =
-        typeof durationRaw === "number" ? durationRaw : Number(durationRaw) || 0;
+        typeof durationRaw === "number"
+          ? durationRaw
+          : Number(durationRaw) || 0;
 
       const createdAt =
-        raw?.createdAt ?? raw?.created_at ?? raw?.createdDate ?? raw?.created_date ??
+        raw?.createdAt ??
+        raw?.created_at ??
+        raw?.createdDate ??
+        raw?.created_date ??
         new Date().toISOString();
 
-      const driverRaw = raw?.driver ?? raw?.driverInfo ?? raw?.driverUser ?? null;
-      const vehicleRaw = raw?.vehicle ?? driverRaw?.vehicle ?? raw?.driverVehicle ?? null;
+      // Parse driver info from multiple possible sources
+      const driverId = raw?.driverId ?? raw?.driver?.id;
+      const driverName =
+        raw?.driverName ?? raw?.driver?.fullName ?? raw?.driver?.name;
+      const driverPhone =
+        raw?.driverPhone ?? raw?.driver?.phoneNumber ?? raw?.driver?.phone;
+      const driverAvatar =
+        raw?.driverAvatar ??
+        raw?.driver?.profilePictureUrl ??
+        raw?.driver?.avatar;
+      const driverRating = raw?.driverRating ?? raw?.driver?.rating;
 
-      const driver = driverRaw
+      // Parse passenger info (less info available in MatchResponse)
+      const passengerId = raw?.passengerId ?? raw?.passenger?.id;
+      const passengerName =
+        raw?.passengerName ?? raw?.passenger?.fullName ?? raw?.passenger?.name;
+      const passengerPhone =
+        raw?.passengerPhone ??
+        raw?.passenger?.phoneNumber ??
+        raw?.passenger?.phone;
+      const passengerAvatar =
+        raw?.passengerAvatar ??
+        raw?.passenger?.profilePictureUrl ??
+        raw?.passenger?.avatar;
+      // Note: passengerRating exists in MatchResponse but we don't show it
+
+      // Parse vehicle info
+      const vehicleModel = raw?.vehicleModel ?? raw?.vehicle?.model;
+      const vehicleMake = raw?.vehicle?.make ?? "";
+      const vehicleColor = raw?.vehicle?.color ?? "";
+      const licensePlate = raw?.licensePlate ?? raw?.vehicle?.licensePlate;
+      const vehicleInfo = raw?.vehicleInfo;
+
+      const driver = driverId
         ? {
-            id: driverRaw?.id ?? driverRaw?.userId,
-            name: driverRaw?.name ?? driverRaw?.fullName ?? raw?.driverName ?? "Tài xế",
-            phone: driverRaw?.phone ?? raw?.driverPhone ?? "",
-            avatar: driverRaw?.avatar ?? raw?.driverAvatar,
-            rating: driverRaw?.rating ?? raw?.driverRating ?? 0,
-            vehicle: vehicleRaw
-              ? {
-                  brand: vehicleRaw?.brand ?? vehicleRaw?.make ?? "",
-                  model: vehicleRaw?.model ?? vehicleRaw?.vehicleModel ?? "",
-                  color: vehicleRaw?.color ?? "",
-                  licensePlate:
-                    vehicleRaw?.licensePlate ?? vehicleRaw?.plate ?? raw?.licensePlate ?? "",
-                }
-              : null,
+            id: driverId,
+            name: driverName ?? "Tài xế",
+            phone: driverPhone ?? "",
+            avatar: driverAvatar,
+            rating: driverRating ?? 0,
+            vehicle:
+              vehicleModel || licensePlate || vehicleInfo
+                ? {
+                    brand: vehicleMake,
+                    model: vehicleModel ?? "",
+                    color: vehicleColor,
+                    licensePlate: licensePlate ?? "",
+                    info: vehicleInfo,
+                  }
+                : null,
+          }
+        : null;
+
+      const passenger = passengerId
+        ? {
+            id: passengerId,
+            name: passengerName ?? "Khách hàng",
+            phone: passengerPhone ?? "",
+            avatar: passengerAvatar,
+            // Don't include rating for passenger
           }
         : null;
 
       return {
         id: raw?.id ?? rideId,
+        passengerId,
+        driverId,
         status,
         pickupAddress,
         destinationAddress,
-        price,
+        coin,
         distance,
         duration,
         createdAt,
         driver,
+        passenger,
         messages: raw?.messages ?? [],
       };
     };
@@ -89,6 +163,12 @@ const RideDetail = ({ route, navigation }) => {
     const fetchDetail = async () => {
       try {
         setLoading(true);
+
+        // Fetch user profile to get current user ID
+        const profileResp = await getProfile();
+        const userData = profileResp?.data?.data ?? profileResp?.data;
+        if (isMounted) setCurrentUserId(userData?.id);
+
         const resp = await getMatchDetail(rideId);
         const payload = resp?.data?.data ?? resp?.data ?? null;
         const normalized = normalizeRideDetail(payload);
@@ -134,19 +214,21 @@ const RideDetail = ({ route, navigation }) => {
     }
   };
 
-  const handleCall = (phone) => {
-    if (!phone) return;
-    Linking.openURL(`tel:${phone}`);
-  };
-
   const handleMessage = () => {
-    if (!ride?.id || !ride?.driver) return;
+    if (!ride?.id) return;
+
+    // Determine who to message based on current user role
+    const isDriver = currentUserId === ride.driverId;
+    const otherPerson = isDriver ? ride.passenger : ride.driver;
+
+    if (!otherPerson) return;
+
     navigation.navigate("ChatScreen", {
       rideId: ride.id,
       driver: {
-        id: ride.driver.id || 1,
-        name: ride.driver.name,
-        avatar: ride.driver.avatar,
+        id: otherPerson.id || 1,
+        name: otherPerson.name,
+        avatar: otherPerson.avatar,
       },
       previousMessages: ride.messages || [],
     });
@@ -176,13 +258,22 @@ const RideDetail = ({ route, navigation }) => {
           <View style={{ width: 40 }} />
         </View>
         <View style={styles.loadingContainer}>
-          <Text style={{ color: "#8E8E93" }}>Không thể tải chi tiết chuyến đi</Text>
+          <Text style={{ color: "#8E8E93" }}>
+            Không thể tải chi tiết chuyến đi
+          </Text>
         </View>
       </SafeAreaView>
     );
   }
 
   const statusColor = getStatusColor(ride.status);
+
+  // Determine if current user is the driver
+  const isDriver = currentUserId === ride.driverId;
+  const otherPerson = isDriver ? ride.passenger : ride.driver;
+  const otherPersonLabel = isDriver
+    ? "Thông tin khách hàng"
+    : "Thông tin tài xế";
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -229,67 +320,67 @@ const RideDetail = ({ route, navigation }) => {
           </LinearGradient>
         </View>
 
-        {/* Driver Info */}
+        {/* Driver/Passenger Info */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Thông tin tài xế</Text>
-          {ride.driver ? (
+          <Text style={styles.sectionTitle}>{otherPersonLabel}</Text>
+          {otherPerson ? (
             <View style={styles.driverCard}>
               <Image
                 source={{
-                  uri:
-                    ride.driver.avatar ||
-                    "https://i.pravatar.cc/150?img=14",
+                  uri: otherPerson.avatar || "https://i.pravatar.cc/150?img=14",
                 }}
                 style={styles.driverAvatar}
               />
               <View style={styles.driverInfo}>
-                <Text style={styles.driverName}>{ride.driver.name}</Text>
-                <View style={styles.ratingRow}>
-                  <Ionicons name="star" size={16} color="#FFB800" />
-                  <Text style={styles.ratingText}>{ride.driver.rating}</Text>
-                </View>
-                {ride.driver.vehicle ? (
-                  <>
-                    <Text style={styles.vehicleText}>
-                      {ride.driver.vehicle.brand} {ride.driver.vehicle.model} •{" "}
-                      {ride.driver.vehicle.color}
-                    </Text>
-                    <Text style={styles.licensePlate}>
-                      {ride.driver.vehicle.licensePlate}
-                    </Text>
-                  </>
-                ) : (
-                  <Text style={styles.vehicleText}>
-                    Chưa có thông tin xe
-                  </Text>
+                <Text style={styles.driverName}>{otherPerson.name}</Text>
+                {/* Show phone number */}
+                {otherPerson.phone && (
+                  <Text style={styles.phoneText}>{otherPerson.phone}</Text>
                 )}
-              </View>
-              <View style={styles.driverActions}>
-                <TouchableOpacity
-                  style={styles.actionButton}
-                  onPress={() => handleCall(ride.driver.phone)}
-                  disabled={!ride.driver.phone}
-                >
-                  <Ionicons name="call" size={20} color={COLORS.PRIMARY} />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.actionButton}
-                  onPress={handleMessage}
-                >
-                  <Ionicons
-                    name="chatbubble"
-                    size={20}
-                    color={COLORS.PRIMARY}
-                  />
-                </TouchableOpacity>
+                {/* Show rating only for driver, not for passenger */}
+                {!isDriver && otherPerson.rating !== undefined && (
+                  <View style={styles.ratingRow}>
+                    <Ionicons name="star" size={16} color="#FFB800" />
+                    <Text style={styles.ratingText}>{otherPerson.rating}</Text>
+                  </View>
+                )}
+                {/* Show vehicle info only for driver */}
+                {!isDriver && ride.driver?.vehicle ? (
+                  <>
+                    {ride.driver.vehicle.info ? (
+                      <Text style={styles.vehicleText}>
+                        {ride.driver.vehicle.info}
+                      </Text>
+                    ) : (
+                      <>
+                        <Text style={styles.vehicleText}>
+                          {ride.driver.vehicle.brand}{" "}
+                          {ride.driver.vehicle.model}
+                          {ride.driver.vehicle.color
+                            ? ` • ${ride.driver.vehicle.color}`
+                            : ""}
+                        </Text>
+                        {ride.driver.vehicle.licensePlate && (
+                          <Text style={styles.licensePlate}>
+                            {ride.driver.vehicle.licensePlate}
+                          </Text>
+                        )}
+                      </>
+                    )}
+                  </>
+                ) : null}
               </View>
             </View>
           ) : (
             <View style={styles.driverCard}>
               <View style={styles.driverInfo}>
-                <Text style={styles.driverName}>Chưa có tài xế</Text>
+                <Text style={styles.driverName}>
+                  {isDriver ? "Chưa có khách hàng" : "Chưa có tài xế"}
+                </Text>
                 <Text style={styles.vehicleText}>
-                  Hệ thống đang tìm tài xế phù hợp cho chuyến đi này.
+                  {isDriver
+                    ? "Đang chờ khách hàng đặt chuyến."
+                    : "Hệ thống đang tìm tài xế phù hợp cho chuyến đi này."}
                 </Text>
               </View>
             </View>
@@ -302,7 +393,9 @@ const RideDetail = ({ route, navigation }) => {
           <View style={styles.routeCard}>
             <View style={styles.routeRow}>
               <View style={styles.routeIconContainer}>
-                <View style={[styles.routeDot, { backgroundColor: COLORS.PRIMARY }]} />
+                <View
+                  style={[styles.routeDot, { backgroundColor: COLORS.PRIMARY }]}
+                />
                 <View style={styles.routeLine} />
               </View>
               <View style={styles.routeContent}>
@@ -313,11 +406,15 @@ const RideDetail = ({ route, navigation }) => {
 
             <View style={styles.routeRow}>
               <View style={styles.routeIconContainer}>
-                <View style={[styles.routeDot, { backgroundColor: COLORS.RED }]} />
+                <View
+                  style={[styles.routeDot, { backgroundColor: COLORS.RED }]}
+                />
               </View>
               <View style={styles.routeContent}>
                 <Text style={styles.routeLabel}>Điểm đến</Text>
-                <Text style={styles.routeAddress}>{ride.destinationAddress}</Text>
+                <Text style={styles.routeAddress}>
+                  {ride.destinationAddress}
+                </Text>
               </View>
             </View>
           </View>
@@ -329,25 +426,39 @@ const RideDetail = ({ route, navigation }) => {
           <View style={styles.detailsCard}>
             <View style={styles.detailRow}>
               <View style={styles.detailItem}>
-                <Ionicons name="cash-outline" size={24} color={COLORS.PRIMARY} />
-                <Text style={styles.detailLabel}>Tổng tiền</Text>
+                <Ionicons
+                  name="wallet-outline"
+                  size={24}
+                  color={COLORS.PRIMARY}
+                />
+                <Text style={styles.detailLabel}>Coin</Text>
                 <Text style={styles.detailValue}>
-                  {ride.price.toLocaleString()}đ
+                  {ride.coin ? ride.coin.toLocaleString() : "0"} coin
                 </Text>
               </View>
               <View style={styles.detailDivider} />
               <View style={styles.detailItem}>
-                <Ionicons name="navigate-outline" size={24} color={COLORS.PRIMARY} />
+                <Ionicons
+                  name="navigate-outline"
+                  size={24}
+                  color={COLORS.PRIMARY}
+                />
                 <Text style={styles.detailLabel}>Quãng đường</Text>
                 <Text style={styles.detailValue}>
-                  {(ride.distance / 1000).toFixed(1)} km
+                  {ride.distance ? (ride.distance / 1000).toFixed(1) : "0"} km
                 </Text>
               </View>
               <View style={styles.detailDivider} />
               <View style={styles.detailItem}>
-                <Ionicons name="time-outline" size={24} color={COLORS.PRIMARY} />
+                <Ionicons
+                  name="time-outline"
+                  size={24}
+                  color={COLORS.PRIMARY}
+                />
                 <Text style={styles.detailLabel}>Thời gian</Text>
-                <Text style={styles.detailValue}>{ride.duration} phút</Text>
+                <Text style={styles.detailValue}>
+                  {ride.duration ? ride.duration : "0"} phút
+                </Text>
               </View>
             </View>
           </View>
@@ -363,7 +474,7 @@ const RideDetail = ({ route, navigation }) => {
               </TouchableOpacity>
             </View>
             <View style={styles.messagesCard}>
-              <ScrollView 
+              <ScrollView
                 style={styles.messagesScroll}
                 showsVerticalScrollIndicator={false}
                 nestedScrollEnabled={true}
@@ -379,13 +490,15 @@ const RideDetail = ({ route, navigation }) => {
                     <View
                       style={[
                         styles.messageBubble,
-                        message.sender === "passenger" && styles.messageBubbleRight,
+                        message.sender === "passenger" &&
+                          styles.messageBubbleRight,
                       ]}
                     >
                       <Text
                         style={[
                           styles.messageText,
-                          message.sender === "passenger" && styles.messageTextRight,
+                          message.sender === "passenger" &&
+                            styles.messageTextRight,
                         ]}
                       >
                         {message.text}
@@ -393,7 +506,8 @@ const RideDetail = ({ route, navigation }) => {
                       <Text
                         style={[
                           styles.messageTime,
-                          message.sender === "passenger" && styles.messageTimeRight,
+                          message.sender === "passenger" &&
+                            styles.messageTimeRight,
                         ]}
                       >
                         {message.time}
@@ -408,12 +522,26 @@ const RideDetail = ({ route, navigation }) => {
 
         {/* Action Buttons */}
         <View style={styles.actionSection}>
-          {ride.status === "COMPLETED" && (
-            <TouchableOpacity style={styles.primaryButton}>
-              <Text style={styles.primaryButtonText}>Đặt lại chuyến này</Text>
+          {otherPerson && (
+            <TouchableOpacity
+              style={styles.primaryButton}
+              onPress={handleMessage}
+            >
+              <Ionicons
+                name="chatbubble-outline"
+                size={20}
+                color="#fff"
+                style={{ marginRight: 8 }}
+              />
+              <Text style={styles.primaryButtonText}>
+                {isDriver ? "Nhắn tin với khách hàng" : "Nhắn tin với tài xế"}
+              </Text>
             </TouchableOpacity>
           )}
-          <TouchableOpacity style={styles.secondaryButton}>
+          <TouchableOpacity
+            style={styles.secondaryButton}
+            onPress={() => navigation.navigate("Report")}
+          >
             <Text style={styles.secondaryButtonText}>Báo cáo vấn đề</Text>
           </TouchableOpacity>
         </View>
@@ -425,7 +553,7 @@ const RideDetail = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5F5F5",
+    backgroundColor: "#FFFFFF",
   },
   loadingContainer: {
     flex: 1,
@@ -498,14 +626,14 @@ const styles = StyleSheet.create({
   // Driver Card
   driverCard: {
     flexDirection: "row",
-    backgroundColor: "#fff",
+    backgroundColor: "#F8F9FA",
     borderRadius: 16,
     padding: 16,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.04,
     shadowRadius: 8,
-    elevation: 3,
+    elevation: 2,
   },
   driverAvatar: {
     width: 64,
@@ -521,6 +649,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     color: "#1C1C1E",
+  },
+  phoneText: {
+    fontSize: 14,
+    color: "#8E8E93",
+    marginTop: 4,
   },
   ratingRow: {
     flexDirection: "row",
@@ -544,29 +677,17 @@ const styles = StyleSheet.create({
     color: COLORS.PRIMARY,
     marginTop: 2,
   },
-  driverActions: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  actionButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#F5F5F5",
-    justifyContent: "center",
-    alignItems: "center",
-  },
 
   // Route Card
   routeCard: {
-    backgroundColor: "#fff",
+    backgroundColor: "#F8F9FA",
     borderRadius: 16,
     padding: 20,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.04,
     shadowRadius: 8,
-    elevation: 3,
+    elevation: 2,
   },
   routeRow: {
     flexDirection: "row",
@@ -604,14 +725,14 @@ const styles = StyleSheet.create({
 
   // Details Card
   detailsCard: {
-    backgroundColor: "#fff",
+    backgroundColor: "#F8F9FA",
     borderRadius: 16,
     padding: 20,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.04,
     shadowRadius: 8,
-    elevation: 3,
+    elevation: 2,
   },
   detailRow: {
     flexDirection: "row",
@@ -651,14 +772,14 @@ const styles = StyleSheet.create({
     color: COLORS.PRIMARY,
   },
   messagesCard: {
-    backgroundColor: "#fff",
+    backgroundColor: "#F8F9FA",
     borderRadius: 16,
     padding: 16,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.04,
     shadowRadius: 8,
-    elevation: 3,
+    elevation: 2,
   },
   messagesScroll: {
     maxHeight: 200,
@@ -710,6 +831,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
     shadowColor: COLORS.PRIMARY,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
@@ -722,12 +845,12 @@ const styles = StyleSheet.create({
     color: "#fff",
   },
   secondaryButton: {
-    backgroundColor: "#fff",
+    backgroundColor: "#F8F9FA",
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#E0E0E0",
+    borderColor: "#E5E5EA",
   },
   secondaryButtonText: {
     fontSize: 16,
