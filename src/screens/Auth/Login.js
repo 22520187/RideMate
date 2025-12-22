@@ -25,7 +25,7 @@ import {
 } from "../../config/auth";
 import SCREENS from "..";
 import { chatClient } from "../../utils/StreamClient";
-import { API_BASE_URL } from "@env";
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL;
 import {
   saveToken,
   saveRefreshToken,

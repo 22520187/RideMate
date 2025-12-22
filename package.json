@@ -63,8 +63,5 @@
     "stream-chat-expo": "^8.8.1",
     "tailwind-merge": "^3.3.1"
   },
-  "private": true,
-  "devDependencies": {
-    "react-native-dotenv": "^3.4.11"
-  }
+  "private": true
 }
