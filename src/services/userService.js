@@ -20,11 +20,16 @@ export const getProfile = () => {
 };
 
 export const updateProfile = (data) => {
-  console.log("✏️  Calling updateProfile API...", endpoints.user.update);
+  console.log(
+    "✏️  Calling updateProfile API...",
+    endpoints.user.update,
+    "with data:",
+    data
+  );
   return axiosClient
     .patch(endpoints.user.update, data)
     .then((response) => {
-      console.log("✅ updateProfile success");
+      console.log("✅ updateProfile success, response:", response.data);
       return response;
     })
     .catch((error) => {

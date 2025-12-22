@@ -185,19 +185,25 @@ const AdminProfile = () => {
 
       const fileName =
         asset?.fileName || asset?.name || `admin_profile_${Date.now()}.jpg`;
-      const mimeType = normalizeMimeType(asset?.mimeType || asset?.type, fileName);
+      const mimeType = normalizeMimeType(
+        asset?.mimeType || asset?.type,
+        fileName
+      );
 
-      console.log("[UPLOAD] Uploading with:", { uri, type: mimeType, name: fileName });
-
-      const formData = new FormData();
-      formData.append("file", {
+      console.log("[UPLOAD] Uploading with:", {
         uri,
         type: mimeType,
         name: fileName,
       });
 
+      const fileInfo = {
+        uri,
+        type: mimeType,
+        name: fileName,
+      };
+
       // Upload image
-      const uploadResp = await uploadImage(formData);
+      const uploadResp = await uploadImage(fileInfo);
       const imageUrl = uploadResp?.data?.url;
 
       if (imageUrl) {
@@ -254,7 +260,10 @@ const AdminProfile = () => {
             try {
               await logout();
             } catch (apiErr) {
-              console.log("⚠️ Logout API failed (continuing local logout):", apiErr?.message);
+              console.log(
+                "⚠️ Logout API failed (continuing local logout):",
+                apiErr?.message
+              );
             }
 
             // Disconnect from Stream Chat
@@ -373,10 +382,10 @@ const AdminProfile = () => {
                 {profile?.fullName || "Quản trị viên"}
               </Text>
               <Text style={styles.profilePhone}>
-            {profile?.email || "Chưa cập nhật email"}
-          </Text>
-          <Text style={styles.profileSub}>
-            {profile?.phoneNumber || "Chưa cập nhật số điện thoại"}
+                {profile?.email || "Chưa cập nhật email"}
+              </Text>
+              <Text style={styles.profileSub}>
+                {profile?.phoneNumber || "Chưa cập nhật số điện thoại"}
               </Text>
             </View>
           </View>
@@ -419,13 +428,17 @@ const AdminProfile = () => {
             icon={Shield}
             title="Bảo mật"
             subtitle="Mật khẩu và xác thực"
-            onPress={() => Alert.alert("Thông báo", "Tính năng đang phát triển")}
+            onPress={() =>
+              Alert.alert("Thông báo", "Tính năng đang phát triển")
+            }
           />
           <MenuItem
             icon={HelpCircle}
             title="Trợ giúp"
             subtitle="Câu hỏi thường gặp"
-            onPress={() => Alert.alert("Thông báo", "Tính năng đang phát triển")}
+            onPress={() =>
+              Alert.alert("Thông báo", "Tính năng đang phát triển")
+            }
           />
         </View>
 

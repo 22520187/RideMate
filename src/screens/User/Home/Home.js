@@ -42,6 +42,7 @@ import COLORS from "../../../constant/colors";
 import SCREENS from "../../../screens";
 import { getProfile } from "../../../services/userService";
 import { getMyVehicle } from "../../../services/vehicleService";
+import { getUserData, getToken } from "../../../utils/storage";
 import { LinearGradient } from "expo-linear-gradient";
 
 const { width } = Dimensions.get("window");
@@ -84,15 +85,43 @@ const Home = ({ navigation }) => {
   const loadUserData = async () => {
     try {
       console.log("🔄 Home: Loading user data...");
-      const profileResp = await getProfile();
-      console.log("✅ Home: Profile response:", profileResp);
-      const profile = profileResp?.data?.data; // Fix: nested data
-      console.log("👤 Home: Profile data:", profile);
-      setUserProfile(profile);
+
+      // Load from storage first
+      const storedUser = await getUserData();
+      if (storedUser) {
+        console.log("👤 Home: Loaded from storage:", storedUser);
+        setUserProfile(storedUser);
+      }
+
+      // Then try to fetch from API if token exists
+      const token = await getToken();
+      if (token) {
+        try {
+          const profileResp = await getProfile();
+          console.log("✅ Home: Profile response:", profileResp);
+          const profile = profileResp?.data?.data; // Fix: nested data
+          console.log("👤 Home: Profile data:", profile);
+          setUserProfile(profile);
+
+          // Update storage with fresh data
+          if (profile) {
+            // Note: getUserData returns object, but we can update if needed
+          }
+        } catch (apiErr) {
+          console.warn(
+            "⚠️ Home: API failed, using stored data:",
+            apiErr.message
+          );
+          // Keep stored data
+        }
+      } else {
+        console.log("⚠️ Home: No token, using stored data only");
+      }
 
       if (
-        profile &&
-        (profile.userType === "DRIVER" || profile.userType === "PASSENGER")
+        userProfile &&
+        (userProfile.userType === "DRIVER" ||
+          userProfile.userType === "PASSENGER")
       ) {
         try {
           const vehicleResp = await getMyVehicle();
@@ -298,8 +327,12 @@ const Home = ({ navigation }) => {
           <Star size={12} color={COLORS.YELLOW} />
           <Text style={styles.badgeText}>{item.badge}</Text>
         </View>
-        <Text style={styles.promotionTitle} numberOfLines={2}>{item.title}</Text>
-        <Text style={styles.promotionSubtitle} numberOfLines={1}>{item.subtitle}</Text>
+        <Text style={styles.promotionTitle} numberOfLines={2}>
+          {item.title}
+        </Text>
+        <Text style={styles.promotionSubtitle} numberOfLines={1}>
+          {item.subtitle}
+        </Text>
       </View>
     </TouchableOpacity>
   );
@@ -400,12 +433,19 @@ const Home = ({ navigation }) => {
               onPress={handleCreateRide}
               activeOpacity={0.85}
             >
-              <View style={[styles.quickActionGradient, { backgroundColor: '#004553' }]}>
+              <View
+                style={[
+                  styles.quickActionGradient,
+                  { backgroundColor: "#004553" },
+                ]}
+              >
                 <View style={styles.quickActionEmoji}>
                   <Text style={styles.emojiText}>🚗</Text>
                 </View>
                 <Text style={styles.quickActionTitle}>Tạo chuyến</Text>
-                <Text style={styles.quickActionSubtitle}>Lái xe & kiếm tiền</Text>
+                <Text style={styles.quickActionSubtitle}>
+                  Lái xe & kiếm tiền
+                </Text>
               </View>
             </TouchableOpacity>
 
@@ -414,7 +454,12 @@ const Home = ({ navigation }) => {
               onPress={() => navigation.navigate("PassengerRide")}
               activeOpacity={0.85}
             >
-              <View style={[styles.quickActionGradient, { backgroundColor: '#00796B' }]}>
+              <View
+                style={[
+                  styles.quickActionGradient,
+                  { backgroundColor: "#00796B" },
+                ]}
+              >
                 <View style={styles.quickActionEmoji}>
                   <Text style={styles.emojiText}>🧑‍🤝‍🧑</Text>
                 </View>
@@ -439,7 +484,9 @@ const Home = ({ navigation }) => {
               <Text style={styles.pointsValueLabel}>Điểm thưởng</Text>
               <View style={styles.pointsValueRow}>
                 <Star size={16} color="#004553" />
-                <Text style={styles.pointsValue}>{userProfile?.coins || userPoints}</Text>
+                <Text style={styles.pointsValue}>
+                  {userProfile?.coins || userPoints}
+                </Text>
               </View>
             </View>
           </View>
@@ -456,7 +503,9 @@ const Home = ({ navigation }) => {
               style={styles.serviceItem}
               onPress={() => navigation.navigate("Mission")}
             >
-              <View style={[styles.serviceIcon, { backgroundColor: '#F3E5F5' }]}>
+              <View
+                style={[styles.serviceIcon, { backgroundColor: "#F3E5F5" }]}
+              >
                 <Text style={styles.serviceEmoji}>🎁</Text>
               </View>
               <Text style={styles.serviceLabel}>Nhiệm vụ</Text>
@@ -466,7 +515,9 @@ const Home = ({ navigation }) => {
               style={styles.serviceItem}
               onPress={() => navigation.navigate("Voucher")}
             >
-              <View style={[styles.serviceIcon, { backgroundColor: '#E0F7FA' }]}>
+              <View
+                style={[styles.serviceIcon, { backgroundColor: "#E0F7FA" }]}
+              >
                 <Text style={styles.serviceEmoji}>🎟️</Text>
               </View>
               <Text style={styles.serviceLabel}>Voucher</Text>
@@ -476,7 +527,9 @@ const Home = ({ navigation }) => {
               style={styles.serviceItem}
               onPress={() => navigation.navigate("Member")}
             >
-              <View style={[styles.serviceIcon, { backgroundColor: '#FFF8E1' }]}>
+              <View
+                style={[styles.serviceIcon, { backgroundColor: "#FFF8E1" }]}
+              >
                 <Text style={styles.serviceEmoji}>👑</Text>
               </View>
               <Text style={styles.serviceLabel}>Hội viên</Text>
@@ -486,7 +539,9 @@ const Home = ({ navigation }) => {
               style={styles.serviceItem}
               onPress={() => navigation.navigate("Notification")}
             >
-              <View style={[styles.serviceIcon, { backgroundColor: '#FCE4EC' }]}>
+              <View
+                style={[styles.serviceIcon, { backgroundColor: "#FCE4EC" }]}
+              >
                 <Text style={styles.serviceEmoji}>🔔</Text>
               </View>
               <Text style={styles.serviceLabel}>Thông báo</Text>

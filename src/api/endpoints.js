@@ -44,6 +44,12 @@ export default {
     byId: (id) => `/matches/${id}`,
   },
 
+  reports: {
+    create: "/reports",
+    my: "/reports/my",
+    byId: (id) => `/reports/${id}`,
+  },
+
   vouchers: {
     list: "/vouchers",
     myVouchers: "/vouchers/my-vouchers",
@@ -102,6 +108,9 @@ export default {
     updateMission: (id) => `/admin/missions/${id}`,
     deleteMission: (id) => `/admin/missions/${id}`,
     missionStats: "/admin/missions/stats",
+
+    // Voucher management (Admin)
+    vouchers: "/admin/vouchers",
   },
 
   // User mission endpoints
