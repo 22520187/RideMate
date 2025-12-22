@@ -67,8 +67,5 @@
     "tailwind-merge": "^3.3.1",
     "vision-camera-face-detector": "^0.1.8"
   },
-  "private": true,
-  "devDependencies": {
-    "react-native-dotenv": "^3.4.11"
-  }
+  "private": true
 }

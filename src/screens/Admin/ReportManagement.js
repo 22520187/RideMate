@@ -128,7 +128,9 @@ const ReportManagement = () => {
 
         const response = await adminService.getReports(params);
         const pageData = unwrapApiData(response) || {};
-        const content = Array.isArray(pageData?.content) ? pageData.content : [];
+        
+        // --- SỬA LỖI: Lấy trường 'reports' thay vì 'content' ---
+        const content = Array.isArray(pageData?.reports) ? pageData.reports : [];
 
         if (refresh || pageNum === 0) {
           setReports(content);
@@ -182,11 +184,15 @@ const ReportManagement = () => {
     setModalVisible(true);
   };
 
-  const handleSubmitAction = async () => {
-    if (!selectedAction) {
+  // --- SỬA LỖI: Hàm xử lý hỗ trợ cả REJECTED và RESOLVED ---
+  const handleSubmitAction = async (statusType) => {
+    // Validate: Nếu là RESOLVED thì bắt buộc phải chọn Action
+    if (statusType === "RESOLVED" && !selectedAction) {
       Alert.alert("Thông báo", "Vui lòng chọn hành động xử lý");
       return;
     }
+    
+    // Validate: Luôn bắt buộc nhập ghi chú
     if (!adminNote.trim()) {
       Alert.alert("Thông báo", "Vui lòng nhập ghi chú xử lý");
       return;
@@ -195,13 +201,14 @@ const ReportManagement = () => {
     try {
       setSubmitting(true);
 
+      // Gọi service với status tương ứng
       await adminService.updateReportStatus(selectedReport.id, {
-        status: "RESOLVED",
-        resolutionAction: selectedAction,
+        status: statusType, // "RESOLVED" hoặc "REJECTED"
+        resolutionAction: statusType === "RESOLVED" ? selectedAction : null,
         resolutionNotes: adminNote,
       });
 
-      Alert.alert("Thành công", "Đã xử lý báo cáo thành công");
+      Alert.alert("Thành công", statusType === "RESOLVED" ? "Đã xử lý báo cáo thành công" : "Đã từ chối báo cáo");
       setModalVisible(false);
       fetchReports(0, true);
       fetchStatistics();
@@ -371,13 +378,31 @@ const ReportManagement = () => {
           </TouchableOpacity>
         )}
 
-        {item.status === "RESOLVED" && item.resolutionNotes && (
-          <View style={styles.resolutionBox}>
+        {/* Hiển thị kết quả xử lý hoặc lý do từ chối */}
+        {(item.status === "RESOLVED" || item.status === "REJECTED") && item.resolutionNotes && (
+          <View style={[
+              styles.resolutionBox, 
+              item.status === "REJECTED" && { backgroundColor: "#FFEBEE", borderLeftColor: "#F44336" }
+            ]}>
             <View style={styles.resolutionHeader}>
-              <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
-              <Text style={styles.resolutionTitle}>Kết quả xử lý</Text>
+              <Ionicons 
+                name={item.status === "RESOLVED" ? "checkmark-circle" : "close-circle"} 
+                size={16} 
+                color={item.status === "RESOLVED" ? "#4CAF50" : "#F44336"} 
+              />
+              <Text style={[
+                  styles.resolutionTitle,
+                  item.status === "REJECTED" && { color: "#F44336" }
+                ]}>
+                {item.status === "RESOLVED" ? "Kết quả xử lý" : "Lý do từ chối"}
+              </Text>
             </View>
-            <Text style={styles.resolutionText}>{item.resolutionNotes}</Text>
+            <Text style={[
+                styles.resolutionText,
+                item.status === "REJECTED" && { color: "#B71C1C" }
+              ]}>
+              {item.resolutionNotes}
+            </Text>
           </View>
         )}
       </View>
@@ -477,11 +502,22 @@ const ReportManagement = () => {
                 style={styles.cancelButton}
                 onPress={() => setModalVisible(false)}
               >
-                <Text style={styles.cancelButtonText}>Hủy</Text>
+                <Text style={styles.cancelButtonText}>Đóng</Text>
               </TouchableOpacity>
+              
+              {/* --- THÊM: Nút Từ chối --- */}
+              <TouchableOpacity
+                style={[styles.submitButton, { backgroundColor: "#FFEBEE", marginRight: 8, flex: 0.8 }]}
+                onPress={() => handleSubmitAction("REJECTED")}
+                disabled={submitting}
+              >
+                <Text style={[styles.submitButtonText, { color: "#D32F2F" }]}>Từ chối</Text>
+              </TouchableOpacity>
+
+              {/* Nút Xác nhận (RESOLVED) */}
               <TouchableOpacity
                 style={styles.submitButton}
-                onPress={handleSubmitAction}
+                onPress={() => handleSubmitAction("RESOLVED")}
                 disabled={submitting}
               >
                 {submitting ? (
@@ -874,7 +910,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   cancelButton: {
-    flex: 1,
+    flex: 0.6,
     paddingVertical: 14,
     borderRadius: 12,
     backgroundColor: "#F8F9FA",
