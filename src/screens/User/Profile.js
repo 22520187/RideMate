@@ -101,8 +101,11 @@ const Profile = () => {
       try {
         const vehicleResp = await getMyVehicle();
         const vehicleData = vehicleResp?.data?.data ?? vehicleResp?.data;
-        console.log('📦 Vehicle data loaded:', vehicleData);
-        console.log('🖼️ Registration document URL:', vehicleData?.registrationDocumentUrl);
+        console.log("📦 Vehicle data loaded:", vehicleData);
+        console.log(
+          "🖼️ Registration document URL:",
+          vehicleData?.registrationDocumentUrl
+        );
         setVehicle(vehicleData);
       } catch (err) {
         console.log("No vehicle found");
@@ -123,25 +126,25 @@ const Profile = () => {
   };
 
   const handlePickImage = async (sourceType) => {
-    console.log('handlePickImage called with:', sourceType);
+    console.log("handlePickImage called with:", sourceType);
     setImagePickerVisible(false); // Close modal first
-    
+
     // Wait for modal to close completely
     setTimeout(async () => {
       try {
-        console.log('Requesting permission...');
+        console.log("Requesting permission...");
         let result;
-        
+
         if (sourceType === "camera") {
           const permission = await ImagePicker.requestCameraPermissionsAsync();
           if (!permission.granted) {
             Alert.alert(
-              'Cần quyền truy cập',
-              'Vui lòng cho phép ứng dụng truy cập Camera để chụp ảnh đại diện.\n\nĐi tới Cài đặt > Quyền riêng tư > Camera.'
+              "Cần quyền truy cập",
+              "Vui lòng cho phép ứng dụng truy cập Camera để chụp ảnh đại diện.\n\nĐi tới Cài đặt > Quyền riêng tư > Camera."
             );
             return;
           }
-          console.log('Launching camera...');
+          console.log("Launching camera...");
           result = await ImagePicker.launchCameraAsync({
             mediaTypes: ImagePicker.MediaTypeOptions.Images,
             allowsEditing: true,
@@ -149,22 +152,23 @@ const Profile = () => {
             quality: 0.8,
           });
         } else {
-          const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+          const permission =
+            await ImagePicker.requestMediaLibraryPermissionsAsync();
           if (!permission.granted) {
             Alert.alert(
-              'Cần quyền truy cập',
-              'Vui lòng cho phép ứng dụng truy cập Thư viện ảnh để chọn ảnh đại diện.\n\nĐi tới Cài đặt > Quyền riêng tư > Ảnh.'
+              "Cần quyền truy cập",
+              "Vui lòng cho phép ứng dụng truy cập Thư viện ảnh để chọn ảnh đại diện.\n\nĐi tới Cài đặt > Quyền riêng tư > Ảnh."
             );
             return;
           }
-          console.log('Launching image library...');
+          console.log("Launching image library...");
           result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ImagePicker.MediaTypeOptions.Images,
             allowsEditing: true,
             aspect: [1, 1],
             quality: 0.8,
           });
-          console.log('Library closed. Result:', result?.canceled);
+          console.log("Library closed. Result:", result?.canceled);
         }
 
         if (!result.canceled && result.assets && result.assets.length > 0) {
@@ -225,10 +229,18 @@ const Profile = () => {
         console.log("[UPLOAD] Image compress skipped:", manipErr?.message);
       }
 
-      const fileName = asset?.fileName || asset?.name || `profile_${Date.now()}.jpg`;
-      const mimeType = normalizeMimeType(asset?.mimeType || asset?.type, fileName);
+      const fileName =
+        asset?.fileName || asset?.name || `profile_${Date.now()}.jpg`;
+      const mimeType = normalizeMimeType(
+        asset?.mimeType || asset?.type,
+        fileName
+      );
 
-      console.log("[UPLOAD] Uploading with:", { uri, type: mimeType, name: fileName });
+      console.log("[UPLOAD] Uploading with:", {
+        uri,
+        type: mimeType,
+        name: fileName,
+      });
 
       const formData = new FormData();
       formData.append("file", {
@@ -299,7 +311,10 @@ const Profile = () => {
             try {
               await logout();
             } catch (apiErr) {
-              console.log("⚠️ Logout API failed (continuing local logout):", apiErr?.message);
+              console.log(
+                "⚠️ Logout API failed (continuing local logout):",
+                apiErr?.message
+              );
             }
             await chatClient.disconnectUser();
             await clearTokens();
@@ -440,7 +455,7 @@ const Profile = () => {
         {/* Vehicle Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Phương tiện</Text>
-          
+
           {/* Custom Vehicle Card with Status Badge */}
           <TouchableOpacity
             style={styles.menuItem}
@@ -460,33 +475,43 @@ const Profile = () => {
                   : "Đăng ký để làm tài xế"}
               </Text>
               {vehicle?.status && (
-                <View style={[
-                  styles.statusBadge,
-                  {
-                    backgroundColor: 
-                      vehicle.status === 'PENDING' ? '#FFF3CD' :
-                      vehicle.status === 'APPROVED' ? '#D1E7DD' :
-                      '#F8D7DA'
-                  }
-                ]}>
-                  <Text style={[
-                    styles.statusText,
+                <View
+                  style={[
+                    styles.statusBadge,
                     {
-                      color:
-                        vehicle.status === 'PENDING' ? '#856404' :
-                        vehicle.status === 'APPROVED' ? '#0F5132' :
-                        '#842029'
-                    }
-                  ]}>
-                    {vehicle.status === 'PENDING' ? 'Chờ duyệt' :
-                     vehicle.status === 'APPROVED' ? 'Đã duyệt' :
-                     'Bị từ chối'}
+                      backgroundColor:
+                        vehicle.status === "PENDING"
+                          ? "#FFF3CD"
+                          : vehicle.status === "APPROVED"
+                          ? "#D1E7DD"
+                          : "#F8D7DA",
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.statusText,
+                      {
+                        color:
+                          vehicle.status === "PENDING"
+                            ? "#856404"
+                            : vehicle.status === "APPROVED"
+                            ? "#0F5132"
+                            : "#842029",
+                      },
+                    ]}
+                  >
+                    {vehicle.status === "PENDING"
+                      ? "Chờ duyệt"
+                      : vehicle.status === "APPROVED"
+                      ? "Đã duyệt"
+                      : "Bị từ chối"}
                   </Text>
                 </View>
               )}
             </View>
             {!vehicle && (
-              <View style={[styles.badge, { backgroundColor: '#FFC107' }]}>
+              <View style={[styles.badge, { backgroundColor: "#FFC107" }]}>
                 <Text style={styles.badgeText}>!</Text>
               </View>
             )}
@@ -495,22 +520,49 @@ const Profile = () => {
 
           {/* Driver Status - Show if user has vehicle (any status) */}
           {vehicle && (
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => navigation.navigate('DriverStatus')}
-              activeOpacity={0.7}
-            >
-              <View style={styles.menuIconContainer}>
-                <MaterialIcons name="online-prediction" size={22} color={COLORS.PRIMARY} />
-              </View>
-              <View style={styles.menuContent}>
-                <Text style={styles.menuTitle}>Trạng thái tài xế</Text>
-                <Text style={styles.menuSubtitle}>
-                  Bật/tắt chế độ nhận chuyến
-                </Text>
-              </View>
-              <ChevronRight size={20} color="#C7C7CC" />
-            </TouchableOpacity>
+            <>
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => navigation.navigate("DriverStatus")}
+                activeOpacity={0.7}
+              >
+                <View style={styles.menuIconContainer}>
+                  <MaterialIcons
+                    name="online-prediction"
+                    size={22}
+                    color={COLORS.PRIMARY}
+                  />
+                </View>
+                <View style={styles.menuContent}>
+                  <Text style={styles.menuTitle}>Trạng thái tài xế</Text>
+                  <Text style={styles.menuSubtitle}>
+                    Bật/tắt chế độ nhận chuyến
+                  </Text>
+                </View>
+                <ChevronRight size={20} color="#C7C7CC" />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => navigation.navigate("DriverStatistics")}
+                activeOpacity={0.7}
+              >
+                <View style={styles.menuIconContainer}>
+                  <MaterialIcons
+                    name="bar-chart"
+                    size={22}
+                    color={COLORS.PRIMARY}
+                  />
+                </View>
+                <View style={styles.menuContent}>
+                  <Text style={styles.menuTitle}>Thống kê & Báo cáo</Text>
+                  <Text style={styles.menuSubtitle}>
+                    Xem hiệu suất và thu nhập
+                  </Text>
+                </View>
+                <ChevronRight size={20} color="#C7C7CC" />
+              </TouchableOpacity>
+            </>
           )}
         </View>
 
@@ -642,130 +694,132 @@ const Profile = () => {
             style={{ flex: 1 }}
           >
             <ScrollView style={styles.editContent}>
-            {/* Avatar Picker */}
-            <View style={styles.avatarPickerContainer}>
-              <TouchableOpacity
-                onPress={() => setImagePickerVisible(true)}
-                activeOpacity={0.8}
-                disabled={uploading}
-                style={styles.avatarPickerButton}
-              >
-                <Image
-                  source={{
-                    uri:
-                      profile?.profilePictureUrl ||
-                      "https://api.dicebear.com/7.x/avataaars/png?seed=user",
-                  }}
-                  style={styles.editAvatar}
-                />
-                {uploading && (
-                  <View style={styles.editUploadingOverlay}>
-                    <ActivityIndicator size="small" color={COLORS.WHITE} />
-                  </View>
-                )}
-                <View style={styles.editCameraButton}>
-                  <Camera size={20} color={COLORS.WHITE} />
-                </View>
-              </TouchableOpacity>
-              <Text style={styles.avatarPickerHint}>Nhấn để thay đổi ảnh đại diện</Text>
-            </View>
-            
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Họ và tên *</Text>
-              <TextInput
-                style={styles.textInput}
-                value={editForm.fullName}
-                onChangeText={(text) =>
-                  setEditForm({ ...editForm, fullName: text })
-                }
-                placeholder="Nhập họ tên"
-                placeholderTextColor="#999"
-              />
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Ngày sinh</Text>
-              <TouchableOpacity
-                style={styles.dateButton}
-                onPress={() => setShowDatePicker(true)}
-              >
-                <Text
-                  style={[
-                    styles.dateText,
-                    !editForm.dob && styles.datePlaceholder,
-                  ]}
+              {/* Avatar Picker */}
+              <View style={styles.avatarPickerContainer}>
+                <TouchableOpacity
+                  onPress={() => setImagePickerVisible(true)}
+                  activeOpacity={0.8}
+                  disabled={uploading}
+                  style={styles.avatarPickerButton}
                 >
-                  {editForm.dob
-                    ? editForm.dob.toLocaleDateString("vi-VN")
-                    : "Chọn ngày sinh"}
+                  <Image
+                    source={{
+                      uri:
+                        profile?.profilePictureUrl ||
+                        "https://api.dicebear.com/7.x/avataaars/png?seed=user",
+                    }}
+                    style={styles.editAvatar}
+                  />
+                  {uploading && (
+                    <View style={styles.editUploadingOverlay}>
+                      <ActivityIndicator size="small" color={COLORS.WHITE} />
+                    </View>
+                  )}
+                  <View style={styles.editCameraButton}>
+                    <Camera size={20} color={COLORS.WHITE} />
+                  </View>
+                </TouchableOpacity>
+                <Text style={styles.avatarPickerHint}>
+                  Nhấn để thay đổi ảnh đại diện
                 </Text>
-              </TouchableOpacity>
-              {showDatePicker && (
-                <DateTimePicker
-                  value={editForm.dob || new Date(1990, 0, 1)}
-                  mode="date"
-                  display="default"
-                  maximumDate={new Date()}
-                  onChange={(event, selectedDate) => {
-                    setShowDatePicker(false);
-                    if (selectedDate) {
-                      setEditForm({ ...editForm, dob: selectedDate });
-                    }
-                  }}
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Họ và tên *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editForm.fullName}
+                  onChangeText={(text) =>
+                    setEditForm({ ...editForm, fullName: text })
+                  }
+                  placeholder="Nhập họ tên"
+                  placeholderTextColor="#999"
                 />
-              )}
-            </View>
+              </View>
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Địa chỉ</Text>
-              <TextInput
-                style={[styles.textInput, styles.textArea]}
-                value={editForm.address}
-                onChangeText={(text) =>
-                  setEditForm({ ...editForm, address: text })
-                }
-                placeholder="Nhập địa chỉ"
-                placeholderTextColor="#999"
-                multiline
-                numberOfLines={3}
-              />
-            </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Ngày sinh</Text>
+                <TouchableOpacity
+                  style={styles.dateButton}
+                  onPress={() => setShowDatePicker(true)}
+                >
+                  <Text
+                    style={[
+                      styles.dateText,
+                      !editForm.dob && styles.datePlaceholder,
+                    ]}
+                  >
+                    {editForm.dob
+                      ? editForm.dob.toLocaleDateString("vi-VN")
+                      : "Chọn ngày sinh"}
+                  </Text>
+                </TouchableOpacity>
+                {showDatePicker && (
+                  <DateTimePicker
+                    value={editForm.dob || new Date(1990, 0, 1)}
+                    mode="date"
+                    display="default"
+                    maximumDate={new Date()}
+                    onChange={(event, selectedDate) => {
+                      setShowDatePicker(false);
+                      if (selectedDate) {
+                        setEditForm({ ...editForm, dob: selectedDate });
+                      }
+                    }}
+                  />
+                )}
+              </View>
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Tên ngân hàng</Text>
-              <TextInput
-                style={styles.textInput}
-                value={editForm.bankName}
-                onChangeText={(text) =>
-                  setEditForm({ ...editForm, bankName: text })
-                }
-                placeholder="Ví dụ: Vietcombank"
-                placeholderTextColor="#999"
-              />
-            </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Địa chỉ</Text>
+                <TextInput
+                  style={[styles.textInput, styles.textArea]}
+                  value={editForm.address}
+                  onChangeText={(text) =>
+                    setEditForm({ ...editForm, address: text })
+                  }
+                  placeholder="Nhập địa chỉ"
+                  placeholderTextColor="#999"
+                  multiline
+                  numberOfLines={3}
+                />
+              </View>
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Số tài khoản</Text>
-              <TextInput
-                style={styles.textInput}
-                value={editForm.bankAccountNumber}
-                onChangeText={(text) =>
-                  setEditForm({ ...editForm, bankAccountNumber: text })
-                }
-                placeholder="Nhập số tài khoản"
-                placeholderTextColor="#999"
-                keyboardType="numeric"
-              />
-            </View>
-          </ScrollView>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Tên ngân hàng</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editForm.bankName}
+                  onChangeText={(text) =>
+                    setEditForm({ ...editForm, bankName: text })
+                  }
+                  placeholder="Ví dụ: Vietcombank"
+                  placeholderTextColor="#999"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Số tài khoản</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editForm.bankAccountNumber}
+                  onChangeText={(text) =>
+                    setEditForm({ ...editForm, bankAccountNumber: text })
+                  }
+                  placeholder="Nhập số tài khoản"
+                  placeholderTextColor="#999"
+                  keyboardType="numeric"
+                />
+              </View>
+            </ScrollView>
           </KeyboardAvoidingView>
-          
+
           {/* Image Picker Modal - Inside Edit Modal like VehicleRegistration */}
           <ImagePickerModal
             visible={imagePickerVisible}
             onClose={() => setImagePickerVisible(false)}
-            onCameraPress={() => handlePickImage('camera')}
-            onLibraryPress={() => handlePickImage('library')}
+            onCameraPress={() => handlePickImage("camera")}
+            onLibraryPress={() => handlePickImage("library")}
             title="Chọn ảnh đại diện"
           />
         </View>
@@ -974,11 +1028,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 8,
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
   },
   statusText: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   badge: {
     width: 20,
@@ -1100,49 +1154,49 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   avatarPickerContainer: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 32,
   },
   avatarPickerButton: {
-    position: 'relative',
+    position: "relative",
   },
   editAvatar: {
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: '#F0F0F0',
+    backgroundColor: "#F0F0F0",
     borderWidth: 3,
     borderColor: COLORS.PRIMARY,
   },
   editUploadingOverlay: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: "rgba(0,0,0,0.5)",
     borderRadius: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   editCameraButton: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 0,
     right: 0,
     width: 32,
     height: 32,
     borderRadius: 16,
     backgroundColor: COLORS.PRIMARY,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     borderWidth: 3,
     borderColor: COLORS.WHITE,
   },
   avatarPickerHint: {
     marginTop: 12,
     fontSize: 14,
-    color: '#8E8E93',
-    textAlign: 'center',
+    color: "#8E8E93",
+    textAlign: "center",
   },
   inputGroup: {
     marginBottom: 20,
@@ -1182,15 +1236,15 @@ const styles = StyleSheet.create({
   datePlaceholder: {
     color: "#999",
   },
-  
+
   // Bottom Sheet (for image picker in edit modal)
   bottomSheetOverlay: {
     flex: 1,
-    justifyContent: 'flex-end',
+    justifyContent: "flex-end",
   },
   bottomSheetBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
   },
   bottomSheet: {
     backgroundColor: COLORS.WHITE,

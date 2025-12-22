@@ -14,6 +14,7 @@ import DriverRideScreen from "../screens/User/Rider/DriverRideScreen";
 import DriverRideRequestsScreen from "../screens/User/Driver/DriverRideRequestsScreen";
 import DriverStatusScreen from "../screens/User/Driver/DriverStatusScreen";
 import DriverMapScreen from "../screens/User/Driver/DriverMapScreen";
+import DriverStatistics from "../screens/User/Driver/DriverStatistics";
 import PassengerRideScreen from "../screens/User/Rider/PassengerRideScreen";
 import MatchedRideScreen from "../screens/User/Rider/MatchedRideScreen";
 import Report from "../screens/User/Report";
@@ -249,9 +250,16 @@ const MainStackNavigator = () => {
       <Stack.Screen name={SCREENS.HOME_SEARCH} component={HomeSearch} />
       <Stack.Screen name={SCREENS.MEMBER} component={Member} />
       <Stack.Screen name={SCREENS.DRIVER_RIDE} component={DriverRideScreen} />
-      <Stack.Screen name={SCREENS.DRIVER_RIDE_REQUESTS} component={DriverRideRequestsScreen} />
-      <Stack.Screen name={SCREENS.DRIVER_STATUS} component={DriverStatusScreen} />
+      <Stack.Screen
+        name={SCREENS.DRIVER_RIDE_REQUESTS}
+        component={DriverRideRequestsScreen}
+      />
+      <Stack.Screen
+        name={SCREENS.DRIVER_STATUS}
+        component={DriverStatusScreen}
+      />
       <Stack.Screen name={SCREENS.DRIVER_MAP} component={DriverMapScreen} />
+      <Stack.Screen name="DriverStatistics" component={DriverStatistics} />
       <Stack.Screen
         name={SCREENS.PASSENGER_RIDE}
         component={PassengerRideScreen}
