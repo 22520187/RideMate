@@ -272,6 +272,9 @@ const MainStackNavigator = () => {
       <Stack.Screen name={SCREENS.HOME_SEARCH} component={HomeSearch} />
       <Stack.Screen name={SCREENS.MEMBER} component={Member} />
       <Stack.Screen name={SCREENS.DRIVER_RIDE} component={DriverRideScreen} />
+      <Stack.Screen name={SCREENS.DRIVER_RIDE_REQUESTS} component={DriverRideRequestsScreen} />
+      <Stack.Screen name={SCREENS.DRIVER_STATUS} component={DriverStatusScreen} />
+      <Stack.Screen name={SCREENS.DRIVER_MAP} component={DriverMapScreen} />
       <Stack.Screen
         name={SCREENS.DRIVER_RIDE_REQUESTS}
         component={DriverRideRequestsScreen}

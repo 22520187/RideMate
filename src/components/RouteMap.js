@@ -458,7 +458,7 @@ const RouteMap = ({
     }
 
     // Lưu vị trí hiện tại cho lần tính toán tiếp theo
-    prevVehicleLocation.current = syncedLocation;
+    prevVehicleLocation.current = vehicleLocation;
 
     // a. Animate Vehicle Marker - Khớp với interval 2s
     const DURATION = 1800; // 1.8s animation cho mỗi lần update 2s -> Mượt + còn buffer 0.2s
@@ -466,7 +466,7 @@ const RouteMap = ({
     if (Platform.OS === "android") {
       if (driverMarkerRef.current) {
         driverMarkerRef.current.animateMarkerToCoordinate(
-          syncedLocation,
+          vehicleLocation,
           DURATION
         );
       }
@@ -474,8 +474,8 @@ const RouteMap = ({
       // Sử dụng easing function để animation mượt mà như Grab
       carCoordinate
         .timing({
-          latitude: syncedLocation.latitude,
-          longitude: syncedLocation.longitude,
+          latitude: vehicleLocation.latitude,
+          longitude: vehicleLocation.longitude,
           duration: DURATION,
           easing: Easing.inOut(Easing.ease), // Smooth acceleration & deceleration
           useNativeDriver: false,
@@ -484,11 +484,11 @@ const RouteMap = ({
     }
 
     // c. Truncate Path (Cắt path theo vị trí xe)
-    truncatePath(syncedLocation);
+    truncatePath(vehicleLocation);
 
     // Check arrival (nếu khoảng cách đến đích < 50m)
-    checkArrival(syncedLocation);
-  }, [vehicleLocation, showVehicle, osmRoute]);
+    checkArrival(vehicleLocation);
+  }, [vehicleLocation, showVehicle]);
 
   // FIX: Khởi tạo vị trí xe ngay lập tức khi showVehicle bật lên hoặc driverLocation có data
   useEffect(() => {
@@ -642,11 +642,7 @@ const RouteMap = ({
     }
   }, [rideStatus]);
 
-  // Viewport logic - Use default Ho Chi Minh City center if no coordinates
-  const DEFAULT_CENTER = {
-    latitude: 10.7730765,
-    longitude: 106.6583347,
-  };
+  // Viewport logic
   const mapRegion = start || end || DEFAULT_CENTER;
 
   return (
@@ -704,48 +700,24 @@ const RouteMap = ({
 
         {/* --- LOGIC MARKER --- */}
 
-        {/* PREVIEW MODE (!showVehicle): Hiển thị start (green) và end (red) */}
-        {/* Green marker: CHỈ hiển thị ở PassengerRideScreen (chưa match) */}
-        {/* Red marker: Hiển thị cả PassengerRideScreen và MatchedRideScreen khi !showVehicle */}
-        {!showVehicle && (
-          <>
-            {/* Điểm Xuất Phát (Origin/Start) - Green Marker - CHỈ ở PassengerRideScreen */}
-            {start && start.latitude && start.longitude && !driverLocation && (
-              <Marker
-                coordinate={start}
-                title="Điểm xuất phát"
-                pinColor="green"
-              />
-            )}
-            {/* Điểm Đến (Destination) - Red Marker - Hiển thị cả 2 màn hình */}
-            {end && end.latitude && end.longitude && (
-              <Marker coordinate={end} title="Điểm đến" pinColor="red" />
-            )}
-          </>
+        {/* Điểm Xuất Phát ban đầu (Driver Start) - Chỉ hiện ở phase 1 và khi CHƯA hiện xe */}
+        {start && phase === "to_pickup" && !showVehicle && (
+          <Marker coordinate={start} title="Vị trí tài xế" pinColor="green" />
         )}
 
-        {/* DRIVER MODE (showVehicle = true): Hiển thị theo phase */}
-        {showVehicle && (
-          <>
-            {/* Điểm Đón Khách (Pickup Point) - LUÔN hiển thị marker đỏ, không có điều kiện */}
-            {pickupLocation &&
-              pickupLocation.latitude &&
-              pickupLocation.longitude && (
-                <Marker
-                  coordinate={pickupLocation}
-                  title="Điểm đón khách"
-                  pinColor="red"
-                />
-              )}
+        {/* Điểm Đón Khách (Pickup Point) */}
+        {/* Phase 1 (Target): ĐỎ. Phase 2 (Start): XANH */}
+        {pickupLocation && (
+          <Marker
+            coordinate={pickupLocation}
+            title="Điểm đón khách"
+            pinColor={phase === "to_pickup" ? "red" : "green"}
+          />
+        )}
 
-            {/* Điểm Đến (Destination) - Chỉ hiện ở phase 2 */}
-            {end && phase === "to_destination" && (
-              <Marker coordinate={end} title="Điểm đến" pinColor="red" />
-            )}
-
-            {/* KHÔNG hiển thị marker xanh ở start/origin khi showVehicle = true */}
-            {/* Vì đã có icon xe ở vị trí đó rồi - icon xe đã thay thế marker xanh */}
-          </>
+        {/* Điểm Đến (Destination) - Chỉ hiện khi ở phase 2 hoặc preview */}
+        {end && phase === "to_destination" && (
+          <Marker coordinate={end} title="Điểm đến" pinColor="red" />
         )}
 
         {/* Xe Máy Di Chuyển - CHỈ hiển thị khi showVehicle = true */}
@@ -787,14 +759,31 @@ const RouteMap = ({
               }}
               anchor={{ x: 0.5, y: 0.5 }}
             >
-              <View style={styles.nearbyDriverMarker}>
-                <View style={styles.nearbyDriverIconContainer}>
-                  <MaterialIcons
-                    name="two-wheeler"
-                    size={20}
-                    color={COLORS.WHITE}
-                  />
-                </View>
+              <View
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 18,
+                  backgroundColor: COLORS.PRIMARY,
+                  justifyContent: "center",
+                  alignItems: "center",
+                  borderWidth: 3,
+                  borderColor: "white",
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.3,
+                  shadowRadius: 3,
+                  elevation: 5,
+                }}
+              >
+                <View
+                  style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: 5,
+                    backgroundColor: "white",
+                  }}
+                />
               </View>
             </Marker>
           ))}
