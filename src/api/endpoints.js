@@ -68,6 +68,12 @@ export default {
     getById: (id) => `/matches/${id}`,
   },
 
+  reports: {
+    create: "/reports",
+    my: "/reports/my",
+    byId: (id) => `/reports/${id}`,
+  },
+
   vouchers: {
     list: "/vouchers",
     myVouchers: "/vouchers/my-vouchers",
