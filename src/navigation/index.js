@@ -32,7 +32,7 @@ import InitialScreen from "../screens/Auth/InitialScreen";
 import PhoneVerification from "../screens/Auth/PhoneVerification";
 import RegisterComplete from "../screens/Auth/RegisterComplete";
 import MessageListScreen from "../screens/User/Message/MessageListScreen";
-import ChatScreen from "../screens/User/Message/ChatScreen";
+import ChatScreenCustom from "../screens/User/Message/ChatScreenCustom";
 import AdminDashboard from "../screens/Admin/AdminDashboard";
 import TripManagement from "../screens/Admin/TripManagement";
 import UserManagement from "../screens/Admin/UserManagement";
@@ -42,6 +42,13 @@ import RewardManagement from "../screens/Admin/RewardManagement";
 import AdminProfile from "../screens/Admin/AdminProfile";
 import MembershipManagement from "../screens/Admin/MembershipManagement";
 import { getUserType } from "../utils/storage";
+
+// Fixed Routes screens
+import CreateFixedRouteScreen from "../screens/User/Driver/CreateFixedRouteScreen";
+import MyFixedRoutesScreen from "../screens/User/Driver/MyFixedRoutesScreen";
+import RouteBookingsScreen from "../screens/User/Driver/RouteBookingsScreen";
+import FixedRoutesScreen from "../screens/User/Rider/FixedRoutesScreen";
+import RouteBookingScreen from "../screens/User/Rider/RouteBookingScreen";
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -53,7 +60,6 @@ const MessageStackNavigator = () => {
   return (
     <MessageStack.Navigator screenOptions={{ headerShown: false }}>
       <MessageStack.Screen name="MessageList" component={MessageListScreen} />
-      <MessageStack.Screen name="ChatScreen" component={ChatScreen} />
     </MessageStack.Navigator>
   );
 };
@@ -272,7 +278,32 @@ const MainStackNavigator = () => {
       <Stack.Screen name={SCREENS.MISSION} component={Mission} />
       <Stack.Screen name={SCREENS.RIDE_HISTORY} component={RideHistory} />
       <Stack.Screen name="RideDetail" component={RideDetail} />
-      <Stack.Screen name="ChatScreen" component={ChatScreen} />
+
+      {/* Chat Screen - Full screen without bottom tabs */}
+      <Stack.Screen
+        name="ChatScreen"
+        component={ChatScreenCustom}
+        options={{
+          presentation: "card",
+          headerShown: false,
+        }}
+      />
+
+      {/* Fixed Routes screens */}
+      <Stack.Screen
+        name="CreateFixedRouteScreen"
+        component={CreateFixedRouteScreen}
+      />
+      <Stack.Screen
+        name="MyFixedRoutesScreen"
+        component={MyFixedRoutesScreen}
+      />
+      <Stack.Screen
+        name="RouteBookingsScreen"
+        component={RouteBookingsScreen}
+      />
+      <Stack.Screen name="FixedRoutesScreen" component={FixedRoutesScreen} />
+      <Stack.Screen name="RouteBookingScreen" component={RouteBookingScreen} />
       <Stack.Screen
         name={SCREENS.ADMIN_MEMBERSHIP_MANAGEMENT}
         component={MembershipManagement}
