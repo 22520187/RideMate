@@ -387,37 +387,33 @@ const RideHistory = ({ navigation }) => {
   const renderHeader = () => (
     <>
       {/* Header */}
-      <View style={styles.header}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>Order History</Text>
-          <Text style={styles.headerSubtitle}>
-            Showing all your order history
-          </Text>
+      <View style={styles.headerWrapper}>
+        <View style={styles.filterContainer}>
+          <TouchableOpacity
+            style={[
+              styles.filterButton,
+              (fromDate || toDate) && styles.filterButtonActive,
+            ]}
+            onPress={openFilterModal}
+          >
+            <Ionicons
+              name="filter"
+              size={20}
+              color={fromDate || toDate ? COLORS.WHITE : COLORS.PRIMARY}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.notificationButton}
+            onPress={() => navigation.navigate("Notification")}
+          >
+            <Ionicons
+              name="notifications-outline"
+              size={24}
+              color={COLORS.PRIMARY}
+            />
+            <View style={styles.notificationBadge} />
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity
-          style={[
-            styles.filterButton,
-            (fromDate || toDate) && styles.filterButtonActive,
-          ]}
-          onPress={openFilterModal}
-        >
-          <Ionicons
-            name="filter"
-            size={20}
-            color={fromDate || toDate ? COLORS.WHITE : COLORS.PRIMARY}
-          />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.notificationButton}
-          onPress={() => navigation.navigate("Notification")}
-        >
-          <Ionicons
-            name="notifications-outline"
-            size={24}
-            color={COLORS.PRIMARY}
-          />
-          <View style={styles.notificationBadge} />
-        </TouchableOpacity>
       </View>
 
       {/* Active Filter Display */}

@@ -7,15 +7,16 @@ import {
   Switch,
   Alert,
   ActivityIndicator,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { MaterialIcons } from '@expo/vector-icons';
-import COLORS from '../../../constant/colors';
-import DriverLocationService from '../../../services/driverLocationService';
-import axiosClient from '../../../api/axiosClient';
-import { getProfile } from '../../../services/userService';
-import useDriverOnlineStatus from '../../../hooks/useDriverOnlineStatus';
-import SCREENS from '../../index';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { MaterialIcons } from "@expo/vector-icons";
+import COLORS from "../../../constant/colors";
+import DriverLocationService from "../../../services/driverLocationService";
+import axiosClient from "../../../api/axiosClient";
+import { getProfile } from "../../../services/userService";
+import useDriverOnlineStatus from "../../../hooks/useDriverOnlineStatus";
+import SCREENS from "../../index";
+import GradientHeader from "../../../components/GradientHeader";
 
 const DriverStatusScreen = ({ navigation }) => {
   const { isOnline, setOnlineStatus, loading } = useDriverOnlineStatus();
@@ -25,12 +26,12 @@ const DriverStatusScreen = ({ navigation }) => {
     if (value) {
       // Going ONLINE
       Alert.alert(
-        'Bật chế độ Online',
-        'Bạn có muốn bật chế độ online và chuyển đến màn hình bản đồ để nhận chuyến không?',
+        "Bật chế độ Online",
+        "Bạn có muốn bật chế độ online và chuyển đến màn hình bản đồ để nhận chuyến không?",
         [
-          { text: 'Hủy', style: 'cancel' },
+          { text: "Hủy", style: "cancel" },
           {
-            text: 'Đồng ý',
+            text: "Đồng ý",
             onPress: () => {
               setOnlineStatus(true);
               navigation.navigate(SCREENS.DRIVER_MAP);
@@ -41,7 +42,7 @@ const DriverStatusScreen = ({ navigation }) => {
     } else {
       // Going OFFLINE
       setOnlineStatus(false);
-      Alert.alert('Đã Offline', 'Bạn đã tắt chế độ nhận chuyến.');
+      Alert.alert("Đã Offline", "Bạn đã tắt chế độ nhận chuyến.");
     }
   };
 
@@ -80,8 +81,8 @@ const DriverStatusScreen = ({ navigation }) => {
               value={isOnline}
               onValueChange={handleToggleStatus}
               disabled={loading}
-              trackColor={{ false: '#D1D5DB', true: COLORS.PRIMARY }}
-              thumbColor={isOnline ? '#fff' : '#f4f3f4'}
+              trackColor={{ false: "#D1D5DB", true: COLORS.PRIMARY }}
+              thumbColor={isOnline ? "#fff" : "#f4f3f4"}
             />
           </View>
 
@@ -117,7 +118,9 @@ const DriverStatusScreen = ({ navigation }) => {
             <View style={styles.viewRequestsContent}>
               <MaterialIcons name="map" size={24} color="#fff" />
               <View style={styles.viewRequestsTextContainer}>
-                <Text style={styles.viewRequestsTitle}>Mở Bản Đồ & Nhận Chuyến</Text>
+                <Text style={styles.viewRequestsTitle}>
+                  Mở Bản Đồ & Nhận Chuyến
+                </Text>
                 <Text style={styles.viewRequestsSubtitle}>
                   Xem vị trí và nhận yêu cầu trực tiếp trên bản đồ
                 </Text>
@@ -234,18 +237,18 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   viewRequestsButton: {
-    backgroundColor: '#004553',
+    backgroundColor: "#004553",
     borderRadius: 16,
     marginBottom: 20,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 12,
     elevation: 5,
   },
   viewRequestsContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     padding: 20,
     gap: 16,
   },
@@ -254,13 +257,13 @@ const styles = StyleSheet.create({
   },
   viewRequestsTitle: {
     fontSize: 16,
-    fontWeight: '700',
-    color: '#fff',
+    fontWeight: "700",
+    color: "#fff",
     marginBottom: 4,
   },
   viewRequestsSubtitle: {
     fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: "rgba(255, 255, 255, 0.8)",
     lineHeight: 16,
   },
   infoCard: {
