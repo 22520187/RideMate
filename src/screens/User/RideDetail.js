@@ -25,6 +25,7 @@ import { getProfile } from "../../services/userService";
 import { createReport } from "../../services/reportService";
 import ImagePickerModal from "../../components/ImagePickerModal";
 import { uploadImage, normalizeMimeType } from "../../services/uploadService";
+import { getProfile } from "../../services/userService";
 
 const RideDetail = ({ route, navigation }) => {
   const { rideId } = route.params;
