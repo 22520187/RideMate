@@ -14,68 +14,34 @@ import COLORS from '../../../constant/colors';
 import DriverLocationService from '../../../services/driverLocationService';
 import axiosClient from '../../../api/axiosClient';
 import { getProfile } from '../../../services/userService';
+import useDriverOnlineStatus from '../../../hooks/useDriverOnlineStatus';
+import SCREENS from '../../index';
 
 const DriverStatusScreen = ({ navigation }) => {
-  const [isOnline, setIsOnline] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [userProfile, setUserProfile] = useState(null);
+  const { isOnline, setOnlineStatus, loading } = useDriverOnlineStatus();
   const [currentLocation, setCurrentLocation] = useState(null);
 
-  useEffect(() => {
-    loadUserProfile();
-    checkDriverStatus();
-  }, []);
-
-  const loadUserProfile = async () => {
-    try {
-      const profileResp = await getProfile();
-      setUserProfile(profileResp?.data);
-    } catch (error) {
-      console.error('Failed to load profile:', error);
-    }
-  };
-
-  const checkDriverStatus = async () => {
-    try {
-      const profileResp = await getProfile();
-      const profile = profileResp?.data;
-      setIsOnline(profile?.driverStatus === 'ONLINE');
-    } catch (error) {
-      console.error('Failed to check driver status:', error);
-    }
-  };
-
   const handleToggleStatus = async (value) => {
-    try {
-      setIsLoading(true);
-
-      if (value) {
-        const location = await DriverLocationService.getCurrentLocation();
-        setCurrentLocation(location);
-
-        await axiosClient.post('/api/driver/location/status', null, {
-          params: { status: 'ONLINE' },
-        });
-
-        await DriverLocationService.startLocationTracking();
-        
-        Alert.alert('Thành công', 'Bạn đã online và sẵn sàng nhận chuyến');
-      } else {
-        await axiosClient.post('/api/driver/location/status', null, {
-          params: { status: 'OFFLINE' },
-        });
-
-        await DriverLocationService.stopLocationTracking();
-        
-        Alert.alert('Thông báo', 'Bạn đã offline');
-      }
-
-      setIsOnline(value);
-    } catch (error) {
-      console.error('Error toggling status:', error);
-      Alert.alert('Lỗi', 'Không thể thay đổi trạng thái. Vui lòng thử lại.');
-    } finally {
-      setIsLoading(false);
+    if (value) {
+      // Going ONLINE
+      Alert.alert(
+        'Bật chế độ Online',
+        'Bạn có muốn bật chế độ online và chuyển đến màn hình bản đồ để nhận chuyến không?',
+        [
+          { text: 'Hủy', style: 'cancel' },
+          {
+            text: 'Đồng ý',
+            onPress: () => {
+              setOnlineStatus(true);
+              navigation.navigate(SCREENS.DRIVER_MAP);
+            },
+          },
+        ]
+      );
+    } else {
+      // Going OFFLINE
+      setOnlineStatus(false);
+      Alert.alert('Đã Offline', 'Bạn đã tắt chế độ nhận chuyến.');
     }
   };
 
@@ -119,13 +85,13 @@ const DriverStatusScreen = ({ navigation }) => {
             <Switch
               value={isOnline}
               onValueChange={handleToggleStatus}
-              disabled={isLoading}
+              disabled={loading}
               trackColor={{ false: '#D1D5DB', true: COLORS.PRIMARY }}
               thumbColor={isOnline ? '#fff' : '#f4f3f4'}
             />
           </View>
 
-          {isLoading && (
+          {loading && (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="small" color={COLORS.PRIMARY} />
               <Text style={styles.loadingText}>Đang cập nhật...</Text>
@@ -142,6 +108,26 @@ const DriverStatusScreen = ({ navigation }) => {
             </View>
           )}
         </View>
+
+        {/* View Map Button - Only show when online */}
+        {isOnline && (
+          <TouchableOpacity
+            style={styles.viewRequestsButton}
+            onPress={() => navigation.navigate(SCREENS.DRIVER_MAP)}
+            activeOpacity={0.8}
+          >
+            <View style={styles.viewRequestsContent}>
+              <MaterialIcons name="map" size={24} color="#fff" />
+              <View style={styles.viewRequestsTextContainer}>
+                <Text style={styles.viewRequestsTitle}>Mở Bản Đồ & Nhận Chuyến</Text>
+                <Text style={styles.viewRequestsSubtitle}>
+                  Xem vị trí và nhận yêu cầu trực tiếp trên bản đồ
+                </Text>
+              </View>
+              <MaterialIcons name="chevron-right" size={24} color="#fff" />
+            </View>
+          </TouchableOpacity>
+        )}
 
         <View style={styles.infoCard}>
           <Text style={styles.infoTitle}>Lưu ý khi Online:</Text>
@@ -267,6 +253,36 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6B7280',
     flex: 1,
+  },
+  viewRequestsButton: {
+    backgroundColor: '#004553',
+    borderRadius: 16,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  viewRequestsContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 20,
+    gap: 16,
+  },
+  viewRequestsTextContainer: {
+    flex: 1,
+  },
+  viewRequestsTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#fff',
+    marginBottom: 4,
+  },
+  viewRequestsSubtitle: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.8)',
+    lineHeight: 16,
   },
   infoCard: {
     backgroundColor: '#fff',

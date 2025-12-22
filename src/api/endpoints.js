@@ -42,6 +42,23 @@ export default {
     broadcastPassenger: "/matches/broadcast/passenger",
     findMatches: "/matches/find",
     byId: (id) => `/matches/${id}`,
+    getById: (id) => `/matches/${id}`,
+  },
+
+  // Alias for matches (for consistency)
+  match: {
+    book: "/matches/book",
+    accept: (id) => `/matches/${id}/accept`,
+    cancel: (id) => `/matches/${id}/cancel`,
+    status: (id) => `/matches/${id}/status`,
+    detail: (id) => `/matches/${id}`,
+    history: "/matches/history",
+    waiting: "/matches/waiting",
+    broadcastDriver: "/matches/broadcast/driver",
+    broadcastPassenger: "/matches/broadcast/passenger",
+    findMatches: "/matches/find",
+    byId: (id) => `/matches/${id}`,
+    getById: (id) => `/matches/${id}`,
   },
 
   vouchers: {
@@ -111,5 +128,9 @@ export default {
     accept: (id) => `/missions/${id}/accept`,
     claim: (id) => `/missions/${id}/claim`,
     stats: "/missions/stats",
+  },
+  
+  driver: {
+    location: "/driver/location",
   },
 };

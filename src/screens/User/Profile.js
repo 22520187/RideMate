@@ -492,6 +492,26 @@ const Profile = () => {
             )}
             <ChevronRight size={20} color="#C7C7CC" />
           </TouchableOpacity>
+
+          {/* Driver Status - Show if user has vehicle (any status) */}
+          {vehicle && (
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => navigation.navigate('DriverStatus')}
+              activeOpacity={0.7}
+            >
+              <View style={styles.menuIconContainer}>
+                <MaterialIcons name="online-prediction" size={22} color={COLORS.PRIMARY} />
+              </View>
+              <View style={styles.menuContent}>
+                <Text style={styles.menuTitle}>Trạng thái tài xế</Text>
+                <Text style={styles.menuSubtitle}>
+                  Bật/tắt chế độ nhận chuyến
+                </Text>
+              </View>
+              <ChevronRight size={20} color="#C7C7CC" />
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Account Section */}

@@ -88,6 +88,7 @@ axiosClient.interceptors.response.use(
       url: originalRequest?.url,
       method: originalRequest?.method?.toUpperCase(),
       timeout: error.config?.timeout,
+      data: error.response?.data,
     });
 
     if (status === 401 && !originalRequest._retry) {
