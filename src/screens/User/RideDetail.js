@@ -8,17 +8,47 @@ import {
   Image,
   Linking,
   ActivityIndicator,
+  Modal,
+  TextInput,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import * as ImagePicker from "expo-image-picker";
+import * as FileSystem from "expo-file-system";
 import COLORS from "../../constant/colors";
 import { getMatchDetail } from "../../services/matchService";
+import { createReport } from "../../services/reportService";
+import ImagePickerModal from "../../components/ImagePickerModal";
+import { uploadImage, normalizeMimeType } from "../../services/uploadService";
 
 const RideDetail = ({ route, navigation }) => {
   const { rideId } = route.params;
   const [loading, setLoading] = useState(true);
   const [ride, setRide] = useState(null);
+
+  const [reportModalVisible, setReportModalVisible] = useState(false);
+  const [reportSubmitting, setReportSubmitting] = useState(false);
+  const [reportCategory, setReportCategory] = useState("SAFETY");
+  const [reportTitle, setReportTitle] = useState("");
+  const [reportDescription, setReportDescription] = useState("");
+  const [evidenceUrl, setEvidenceUrl] = useState("");
+
+  const [imagePickerVisible, setImagePickerVisible] = useState(false);
+  const [evidenceUploading, setEvidenceUploading] = useState(false);
+
+  const REPORT_CATEGORIES = [
+    { key: "SAFETY", label: "An toàn" },
+    { key: "BEHAVIOR", label: "Hành vi / Thái độ" },
+    { key: "LOST_ITEM", label: "Quên đồ" },
+    { key: "PAYMENT", label: "Thanh toán" },
+    { key: "APP_ISSUE", label: "Lỗi ứng dụng" },
+    { key: "OTHER", label: "Khác" },
+  ];
 
   useEffect(() => {
     let isMounted = true;
@@ -150,6 +180,179 @@ const RideDetail = ({ route, navigation }) => {
       },
       previousMessages: ride.messages || [],
     });
+  };
+
+  const openReportModal = () => {
+    setReportCategory("SAFETY");
+    setReportTitle("");
+    setReportDescription("");
+    setEvidenceUrl("");
+    setReportModalVisible(true);
+  };
+
+  const closeReportModal = () => {
+    if (reportSubmitting || evidenceUploading) return;
+    setReportModalVisible(false);
+  };
+
+  const ensureFileUri = async (inputUri) => {
+    let uri = inputUri;
+    if (!uri) return uri;
+
+    if (Platform.OS === "android" && uri.startsWith("content://")) {
+      const dest = `${FileSystem.cacheDirectory}upload_${Date.now()}.jpg`;
+      await FileSystem.copyAsync({ from: uri, to: dest });
+      uri = dest;
+    }
+
+    if (
+      Platform.OS === "android" &&
+      !uri.startsWith("file://") &&
+      !uri.startsWith("http")
+    ) {
+      uri = `file://${uri}`;
+    }
+
+    return uri;
+  };
+
+  const uploadEvidenceImage = async (asset) => {
+    try {
+      setEvidenceUploading(true);
+
+      const rawUri = asset?.uri;
+      if (!rawUri) {
+        Alert.alert("Lỗi", "Không tìm thấy ảnh để upload");
+        return;
+      }
+
+      const uri = await ensureFileUri(rawUri);
+      const fileName =
+        asset?.fileName || asset?.name || `evidence_${Date.now()}.jpg`;
+      const mimeType = normalizeMimeType(
+        asset?.mimeType || asset?.type,
+        fileName
+      );
+
+      const uploadResp = await uploadImage({ uri, name: fileName, type: mimeType });
+      const url = uploadResp?.data?.url;
+      if (!url) throw new Error("No image URL returned");
+
+      setEvidenceUrl(url);
+      Alert.alert("Thành công", "Đã tải ảnh minh chứng");
+    } catch (err) {
+      console.error("Upload evidence error:", err);
+      Alert.alert("Lỗi", err?.message || "Không thể tải ảnh lên. Vui lòng thử lại.");
+    } finally {
+      setEvidenceUploading(false);
+    }
+  };
+
+  const handlePickEvidence = async (sourceType) => {
+    setImagePickerVisible(false);
+
+    setTimeout(async () => {
+      try {
+        let result;
+        if (sourceType === "camera") {
+          const permission = await ImagePicker.requestCameraPermissionsAsync();
+          if (!permission.granted) {
+            Alert.alert(
+              "Cần quyền truy cập",
+              "Vui lòng cho phép ứng dụng truy cập Camera để chụp ảnh minh chứng."
+            );
+            return;
+          }
+          result = await ImagePicker.launchCameraAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: true,
+            quality: 0.8,
+          });
+        } else {
+          const permission =
+            await ImagePicker.requestMediaLibraryPermissionsAsync();
+          if (!permission.granted) {
+            Alert.alert(
+              "Cần quyền truy cập",
+              "Vui lòng cho phép ứng dụng truy cập Thư viện ảnh để chọn ảnh minh chứng."
+            );
+            return;
+          }
+          result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: true,
+            quality: 0.8,
+          });
+        }
+
+        if (!result?.canceled && result?.assets?.length > 0) {
+          await uploadEvidenceImage(result.assets[0]);
+        }
+      } catch (err) {
+        console.error("Pick evidence error:", err);
+        Alert.alert("Lỗi", "Không thể chọn ảnh");
+      }
+    }, 400);
+  };
+
+  const submitReport = async () => {
+    if (!ride?.id) {
+      Alert.alert("Lỗi", "Không tìm thấy matchId.");
+      return;
+    }
+    if (!ride?.driver?.id) {
+      Alert.alert("Lỗi", "Chưa có thông tin người bị báo cáo (tài xế).");
+      return;
+    }
+    if (!reportTitle.trim()) {
+      Alert.alert("Thiếu thông tin", "Vui lòng nhập tiêu đề.");
+      return;
+    }
+    if (!reportDescription.trim()) {
+      Alert.alert("Thiếu thông tin", "Vui lòng nhập mô tả chi tiết.");
+      return;
+    }
+    if (!reportCategory) {
+      Alert.alert("Thiếu thông tin", "Vui lòng chọn loại vấn đề.");
+      return;
+    }
+
+    try {
+      setReportSubmitting(true);
+      const payload = {
+        matchId: ride.id,
+        reportedUserId: ride.driver.id,
+        title: reportTitle.trim(),
+        description: reportDescription.trim(),
+        category: reportCategory,
+        evidenceUrl: evidenceUrl?.trim() || null,
+      };
+
+      const resp = await createReport(payload);
+      const message =
+        resp?.data?.message ||
+        resp?.data?.meta?.message ||
+        "Báo cáo đã được gửi.";
+
+      Alert.alert("Thành công", message, [
+        {
+          text: "OK",
+          onPress: () => {
+            setReportModalVisible(false);
+          },
+        },
+      ]);
+    } catch (err) {
+      console.error("Create report error:", err);
+      const apiMsg =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        err?.message ||
+        "Không thể gửi báo cáo. Vui lòng thử lại.";
+      Alert.alert("Lỗi", apiMsg);
+    } finally {
+      setReportSubmitting(false);
+    }
   };
 
   if (loading) {
@@ -413,11 +616,174 @@ const RideDetail = ({ route, navigation }) => {
               <Text style={styles.primaryButtonText}>Đặt lại chuyến này</Text>
             </TouchableOpacity>
           )}
-          <TouchableOpacity style={styles.secondaryButton}>
+          <TouchableOpacity
+            style={styles.secondaryButton}
+            onPress={openReportModal}
+          >
             <Text style={styles.secondaryButtonText}>Báo cáo vấn đề</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Report modal */}
+      <Modal
+        visible={reportModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={closeReportModal}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={closeReportModal}>
+          <Pressable onPress={(e) => e.stopPropagation()} style={{ width: "100%" }}>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === "ios" ? "padding" : undefined}
+              style={styles.modalContainer}
+            >
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Báo cáo vấn đề</Text>
+                <TouchableOpacity onPress={closeReportModal} disabled={reportSubmitting || evidenceUploading}>
+                  <Ionicons name="close" size={22} color="#1C1C1E" />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView
+                style={styles.modalBody}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+              >
+                <View style={styles.reportInfoCard}>
+                  <Text style={styles.reportInfoTitle}>Chuyến #{ride?.id}</Text>
+                  <Text style={styles.reportInfoSub}>
+                    Người bị báo cáo: {ride?.driver?.name || "Tài xế"}
+                  </Text>
+                </View>
+
+                <Text style={styles.inputLabel}>Loại vấn đề *</Text>
+                <View style={styles.categoryGrid}>
+                  {REPORT_CATEGORIES.map((c) => {
+                    const active = reportCategory === c.key;
+                    return (
+                      <TouchableOpacity
+                        key={c.key}
+                        style={[
+                          styles.categoryChip,
+                          active && styles.categoryChipActive,
+                        ]}
+                        onPress={() => setReportCategory(c.key)}
+                        activeOpacity={0.8}
+                      >
+                        <Text
+                          style={[
+                            styles.categoryChipText,
+                            active && styles.categoryChipTextActive,
+                          ]}
+                        >
+                          {c.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                <Text style={styles.inputLabel}>Tiêu đề *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={reportTitle}
+                  onChangeText={setReportTitle}
+                  placeholder="Ví dụ: Tài xế lái xe quá nhanh"
+                  placeholderTextColor="#8E8E93"
+                  maxLength={120}
+                />
+
+                <Text style={styles.inputLabel}>Mô tả chi tiết *</Text>
+                <TextInput
+                  style={styles.textArea}
+                  value={reportDescription}
+                  onChangeText={setReportDescription}
+                  placeholder="Mô tả cụ thể vấn đề bạn gặp phải..."
+                  placeholderTextColor="#8E8E93"
+                  multiline
+                  numberOfLines={6}
+                  textAlignVertical="top"
+                  maxLength={1000}
+                />
+
+                <Text style={styles.inputLabel}>Bằng chứng (URL ảnh)</Text>
+                <View style={styles.evidenceRow}>
+                  <TextInput
+                    style={[styles.textInput, { flex: 1, marginBottom: 0 }]}
+                    value={evidenceUrl}
+                    onChangeText={setEvidenceUrl}
+                    placeholder="https://res.cloudinary.com/..."
+                    placeholderTextColor="#8E8E93"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  <TouchableOpacity
+                    style={styles.uploadBtn}
+                    onPress={() => setImagePickerVisible(true)}
+                    disabled={evidenceUploading || reportSubmitting}
+                  >
+                    {evidenceUploading ? (
+                      <ActivityIndicator size="small" color={COLORS.WHITE} />
+                    ) : (
+                      <Ionicons name="cloud-upload-outline" size={18} color={COLORS.WHITE} />
+                    )}
+                  </TouchableOpacity>
+                </View>
+
+                {!!evidenceUrl?.trim() && (
+                  <View style={styles.evidenceActions}>
+                    <TouchableOpacity
+                      style={styles.evidenceLinkBtn}
+                      onPress={() => Linking.openURL(evidenceUrl.trim())}
+                    >
+                      <Ionicons name="open-outline" size={16} color={COLORS.PRIMARY} />
+                      <Text style={styles.evidenceLinkText}>Mở link</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.evidenceClearBtn}
+                      onPress={() => setEvidenceUrl("")}
+                      disabled={evidenceUploading || reportSubmitting}
+                    >
+                      <Ionicons name="trash-outline" size={16} color={COLORS.RED} />
+                      <Text style={styles.evidenceClearText}>Xóa</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                <View style={styles.modalActions}>
+                  <TouchableOpacity
+                    style={[styles.modalBtn, styles.modalCancel]}
+                    onPress={closeReportModal}
+                    disabled={reportSubmitting || evidenceUploading}
+                  >
+                    <Text style={styles.modalCancelText}>Hủy</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.modalBtn, styles.modalSubmit]}
+                    onPress={submitReport}
+                    disabled={reportSubmitting || evidenceUploading}
+                  >
+                    {reportSubmitting ? (
+                      <ActivityIndicator size="small" color={COLORS.WHITE} />
+                    ) : (
+                      <Text style={styles.modalSubmitText}>Gửi báo cáo</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
+
+              <ImagePickerModal
+                visible={imagePickerVisible}
+                onClose={() => setImagePickerVisible(false)}
+                onCameraPress={() => handlePickEvidence("camera")}
+                onLibraryPress={() => handlePickEvidence("library")}
+                title="Chọn ảnh minh chứng"
+              />
+            </KeyboardAvoidingView>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -733,6 +1099,184 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: "#1C1C1E",
+  },
+
+  // Report modal
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContainer: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    maxHeight: "90%",
+    paddingBottom: 12,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F0F0F0",
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#1C1C1E",
+  },
+  modalBody: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+  },
+  reportInfoCard: {
+    backgroundColor: "#F8FAFC",
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#EEF2F7",
+    marginBottom: 14,
+  },
+  reportInfoTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#1C1C1E",
+  },
+  reportInfoSub: {
+    marginTop: 4,
+    fontSize: 13,
+    color: "#6B7280",
+  },
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#1C1C1E",
+    marginBottom: 8,
+    marginTop: 10,
+  },
+  textInput: {
+    backgroundColor: "#F5F5F5",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    fontSize: 14,
+    color: "#1C1C1E",
+    marginBottom: 8,
+  },
+  textArea: {
+    backgroundColor: "#F5F5F5",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    fontSize: 14,
+    color: "#1C1C1E",
+    minHeight: 120,
+    marginBottom: 8,
+  },
+  categoryGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  categoryChip: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#E5E5EA",
+    backgroundColor: "#fff",
+  },
+  categoryChipActive: {
+    backgroundColor: COLORS.PRIMARY,
+    borderColor: COLORS.PRIMARY,
+  },
+  categoryChipText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#1C1C1E",
+  },
+  categoryChipTextActive: {
+    color: "#fff",
+  },
+  evidenceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  uploadBtn: {
+    height: 44,
+    width: 44,
+    borderRadius: 12,
+    backgroundColor: COLORS.PRIMARY,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  evidenceActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 8,
+  },
+  evidenceLinkBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: "#F0F7FF",
+  },
+  evidenceLinkText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: COLORS.PRIMARY,
+  },
+  evidenceClearBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: "#FFF5F5",
+  },
+  evidenceClearText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: COLORS.RED,
+  },
+  modalActions: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 16,
+    marginBottom: 20,
+  },
+  modalBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalCancel: {
+    backgroundColor: "#F5F5F5",
+  },
+  modalSubmit: {
+    backgroundColor: COLORS.PRIMARY,
+  },
+  modalCancelText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#1C1C1E",
+  },
+  modalSubmitText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#fff",
   },
 });
 
