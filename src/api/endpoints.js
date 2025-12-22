@@ -129,8 +129,32 @@ export default {
     claim: (id) => `/missions/${id}/claim`,
     stats: "/missions/stats",
   },
-  
+
   driver: {
     location: "/driver/location",
+  },
+
+  fixedRoutes: {
+    create: "/api/fixed-routes",
+    update: (id) => `/api/fixed-routes/${id}`,
+    delete: (id) => `/api/fixed-routes/${id}`,
+    byId: (id) => `/api/fixed-routes/${id}`,
+    myRoutes: "/api/fixed-routes/my-routes",
+    all: "/api/fixed-routes",
+    search: "/api/fixed-routes/search",
+    updateStatus: (id) => `/api/fixed-routes/${id}/status`,
+  },
+
+  routeBookings: {
+    create: "/api/route-bookings",
+    accept: (id) => `/api/route-bookings/${id}/accept`,
+    reject: (id) => `/api/route-bookings/${id}/reject`,
+    cancel: (id) => `/api/route-bookings/${id}/cancel`,
+    byId: (id) => `/api/route-bookings/${id}`,
+    myBookings: "/api/route-bookings/my-bookings",
+    pending: "/api/route-bookings/pending",
+    byRoute: (routeId) => `/api/route-bookings/route/${routeId}`,
+    start: (id) => `/api/route-bookings/${id}/start`,
+    complete: (id) => `/api/route-bookings/${id}/complete`,
   },
 };

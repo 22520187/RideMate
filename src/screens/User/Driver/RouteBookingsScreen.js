@@ -1,0 +1,472 @@
+import React, { useState, useEffect } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  ActivityIndicator,
+  RefreshControl,
+  Alert,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { MaterialIcons } from "@expo/vector-icons";
+import COLORS from "../../../constant/colors";
+import routeBookingService from "../../../services/routeBookingService";
+import Toast from "react-native-toast-message";
+import GradientHeader from "../../../components/GradientHeader";
+
+/**
+ * Screen for drivers to view and manage bookings for a specific route
+ */
+const RouteBookingsScreen = ({ navigation, route }) => {
+  const { routeId } = route.params;
+
+  const [bookings, setBookings] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [filter, setFilter] = useState("ALL"); // ALL, PENDING, ACCEPTED, IN_PROGRESS
+
+  useEffect(() => {
+    loadBookings();
+  }, [routeId]);
+
+  const loadBookings = async () => {
+    try {
+      setLoading(true);
+      const response = await routeBookingService.getBookingsByRoute(routeId);
+      setBookings(response.data || []);
+    } catch (error) {
+      console.error("Error loading bookings:", error);
+      Toast.show({
+        type: "error",
+        text1: "Lỗi",
+        text2: "Không thể tải danh sách đặt chỗ",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadBookings();
+    setRefreshing(false);
+  };
+
+  const handleAcceptBooking = async (bookingId) => {
+    try {
+      await routeBookingService.acceptBooking(bookingId);
+      Toast.show({
+        type: "success",
+        text1: "Thành công",
+        text2: "Đã chấp nhận yêu cầu",
+      });
+      loadBookings();
+    } catch (error) {
+      console.error("Error accepting booking:", error);
+      Alert.alert(
+        "Lỗi",
+        error.response?.data?.message || "Không thể chấp nhận yêu cầu"
+      );
+    }
+  };
+
+  const handleRejectBooking = async (bookingId) => {
+    Alert.alert("Xác nhận từ chối", "Bạn có chắc muốn từ chối yêu cầu này?", [
+      { text: "Hủy", style: "cancel" },
+      {
+        text: "Từ chối",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await routeBookingService.rejectBooking(bookingId);
+            Toast.show({
+              type: "success",
+              text1: "Đã từ chối yêu cầu",
+            });
+            loadBookings();
+          } catch (error) {
+            console.error("Error rejecting booking:", error);
+            Alert.alert("Lỗi", "Không thể từ chối yêu cầu");
+          }
+        },
+      },
+    ]);
+  };
+
+  const handleStartTrip = async (bookingId) => {
+    Alert.alert(
+      "Bắt đầu chuyến đi",
+      "Bạn có chắc muốn bắt đầu chuyến đi này?",
+      [
+        { text: "Hủy", style: "cancel" },
+        {
+          text: "Bắt đầu",
+          onPress: async () => {
+            try {
+              const response = await routeBookingService.startTrip(bookingId);
+              Toast.show({
+                type: "success",
+                text1: "Thành công",
+                text2: "Đã bắt đầu chuyến đi",
+              });
+
+              // Navigate to map/ride screen
+              if (response.data.matchId) {
+                navigation.navigate("DriverRideScreen", {
+                  matchId: response.data.matchId,
+                  bookingId: bookingId,
+                });
+              }
+            } catch (error) {
+              console.error("Error starting trip:", error);
+              Alert.alert("Lỗi", "Không thể bắt đầu chuyến đi");
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case "PENDING":
+        return COLORS.warning;
+      case "ACCEPTED":
+        return COLORS.success;
+      case "IN_PROGRESS":
+        return COLORS.info;
+      case "COMPLETED":
+        return COLORS.primary;
+      case "REJECTED":
+      case "CANCELLED":
+        return COLORS.error;
+      default:
+        return COLORS.gray;
+    }
+  };
+
+  const getStatusText = (status) => {
+    switch (status) {
+      case "PENDING":
+        return "Chờ xác nhận";
+      case "ACCEPTED":
+        return "Đã chấp nhận";
+      case "IN_PROGRESS":
+        return "Đang di chuyển";
+      case "COMPLETED":
+        return "Hoàn thành";
+      case "REJECTED":
+        return "Đã từ chối";
+      case "CANCELLED":
+        return "Đã hủy";
+      default:
+        return status;
+    }
+  };
+
+  const filteredBookings = bookings.filter((booking) => {
+    if (filter === "ALL") return true;
+    return booking.status === filter;
+  });
+
+  const renderBookingCard = ({ item }) => (
+    <View style={styles.bookingCard}>
+      <View style={styles.bookingHeader}>
+        <View style={styles.passengerInfo}>
+          <MaterialIcons name="person" size={24} color={COLORS.primary} />
+          <View style={styles.passengerDetails}>
+            <Text style={styles.passengerName}>{item.passengerName}</Text>
+            <Text style={styles.passengerPhone}>{item.passengerPhone}</Text>
+          </View>
+        </View>
+        <View
+          style={[
+            styles.statusBadge,
+            { backgroundColor: getStatusColor(item.status) },
+          ]}
+        >
+          <Text style={styles.statusText}>{getStatusText(item.status)}</Text>
+        </View>
+      </View>
+
+      <View style={styles.bookingDetails}>
+        <View style={styles.detailRow}>
+          <MaterialIcons name="event" size={18} color={COLORS.gray} />
+          <Text style={styles.detailText}>
+            {new Date(item.bookingDate).toLocaleDateString("vi-VN")}
+          </Text>
+        </View>
+        <View style={styles.detailRow}>
+          <MaterialIcons name="event-seat" size={18} color={COLORS.gray} />
+          <Text style={styles.detailText}>{item.numberOfSeats} chỗ</Text>
+        </View>
+      </View>
+
+      <View style={styles.locationInfo}>
+        <View style={styles.locationRow}>
+          <MaterialIcons name="trip-origin" size={16} color={COLORS.success} />
+          <Text style={styles.locationText} numberOfLines={1}>
+            {item.pickupAddress}
+          </Text>
+        </View>
+        <View style={styles.locationRow}>
+          <MaterialIcons name="location-on" size={16} color={COLORS.error} />
+          <Text style={styles.locationText} numberOfLines={1}>
+            {item.dropoffAddress}
+          </Text>
+        </View>
+      </View>
+
+      {item.status === "PENDING" && (
+        <View style={styles.actionButtons}>
+          <TouchableOpacity
+            style={[styles.actionButton, styles.acceptButton]}
+            onPress={() => handleAcceptBooking(item.id)}
+          >
+            <MaterialIcons name="check" size={20} color={COLORS.white} />
+            <Text style={styles.actionButtonText}>Chấp nhận</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.actionButton, styles.rejectButton]}
+            onPress={() => handleRejectBooking(item.id)}
+          >
+            <MaterialIcons name="close" size={20} color={COLORS.white} />
+            <Text style={styles.actionButtonText}>Từ chối</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {item.status === "ACCEPTED" && (
+        <TouchableOpacity
+          style={[styles.actionButton, styles.startButton]}
+          onPress={() => handleStartTrip(item.id)}
+        >
+          <MaterialIcons name="play-arrow" size={20} color={COLORS.white} />
+          <Text style={styles.actionButtonText}>Bắt đầu chuyến đi</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+
+  if (loading && !refreshing) {
+    return (
+      <View style={styles.centerContainer}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+        <Text style={styles.loadingText}>Đang tải...</Text>
+      </View>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.container} edges={["top"]}>
+      <GradientHeader title="Đặt chỗ" onBackPress={() => navigation.goBack()} />
+
+      <View style={styles.filterContainer}>
+        {["ALL", "PENDING", "ACCEPTED", "IN_PROGRESS"].map((filterOption) => (
+          <TouchableOpacity
+            key={filterOption}
+            style={[
+              styles.filterButton,
+              filter === filterOption && styles.filterButtonActive,
+            ]}
+            onPress={() => setFilter(filterOption)}
+          >
+            <Text
+              style={[
+                styles.filterButtonText,
+                filter === filterOption && styles.filterButtonTextActive,
+              ]}
+            >
+              {filterOption === "ALL" ? "Tất cả" : getStatusText(filterOption)}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {filteredBookings.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <MaterialIcons name="event-seat" size={80} color={COLORS.lightGray} />
+          <Text style={styles.emptyText}>Chưa có đặt chỗ nào</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={filteredBookings}
+          renderItem={renderBookingCard}
+          keyExtractor={(item) => item.id.toString()}
+          contentContainerStyle={styles.listContainer}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+        />
+      )}
+    </SafeAreaView>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.WHITE,
+  },
+  centerContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: COLORS.WHITE,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: COLORS.gray,
+  },
+  filterContainer: {
+    flexDirection: "row",
+    padding: 16,
+    backgroundColor: COLORS.WHITE,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E0E0E0",
+  },
+  filterButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: "#E0E0E0",
+    marginRight: 8,
+  },
+  filterButtonActive: {
+    backgroundColor: COLORS.PRIMARY,
+  },
+  filterButtonText: {
+    fontSize: 14,
+    color: COLORS.GRAY,
+  },
+  filterButtonTextActive: {
+    color: COLORS.WHITE,
+    fontWeight: "600",
+  },
+  listContainer: {
+    padding: 16,
+  },
+  bookingCard: {
+    backgroundColor: "#F5F5F5",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    elevation: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+  },
+  bookingHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  passengerInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  passengerDetails: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  passengerName: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: COLORS.dark,
+  },
+  passengerPhone: {
+    fontSize: 14,
+    color: COLORS.gray,
+    marginTop: 2,
+  },
+  statusBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: COLORS.white,
+  },
+  bookingDetails: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 12,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.lightGray,
+  },
+  detailRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  detailText: {
+    fontSize: 14,
+    color: COLORS.gray,
+    marginLeft: 4,
+  },
+  locationInfo: {
+    marginBottom: 12,
+  },
+  locationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  locationText: {
+    fontSize: 13,
+    color: COLORS.dark,
+    marginLeft: 8,
+    flex: 1,
+  },
+  actionButtons: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  actionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    flex: 1,
+  },
+  acceptButton: {
+    backgroundColor: COLORS.success,
+  },
+  rejectButton: {
+    backgroundColor: COLORS.error,
+  },
+  startButton: {
+    backgroundColor: COLORS.primary,
+  },
+  actionButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: COLORS.white,
+    marginLeft: 4,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 32,
+  },
+  emptyText: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: COLORS.dark,
+    marginTop: 16,
+    textAlign: "center",
+  },
+});
+
+export default RouteBookingsScreen;
