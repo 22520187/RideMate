@@ -1,5 +1,5 @@
 import axios from "axios";
-import { API_BASE_URL } from "@env";
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL;
 import {
   getToken,
   getRefreshToken,

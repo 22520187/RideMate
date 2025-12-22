@@ -82,3 +82,8 @@ yarn-error.*
 *.tsbuildinfo
 
 # @end expo-cli
+src/config/envTest.js
+babel.config.js
+package-lock.json
+package.json
+yarn.lock
