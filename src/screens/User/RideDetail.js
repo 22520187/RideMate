@@ -223,14 +223,26 @@ const RideDetail = ({ route, navigation }) => {
 
     if (!otherPerson) return;
 
+    // Create unique channel ID cho mỗi cặp user (sort để đảm bảo consistency)
+    const userIds = [currentUserId, otherPerson.id].sort();
+    const channelId = `dm-${userIds[0]}-${userIds[1]}`;
+
+    console.log("Opening chat:", {
+      channelId,
+      currentUserId,
+      otherUserId: otherPerson.id,
+      otherUserName: otherPerson.name,
+    });
+
     navigation.navigate("ChatScreen", {
-      rideId: ride.id,
-      driver: {
-        id: otherPerson.id || 1,
-        name: otherPerson.name,
-        avatar: otherPerson.avatar,
+      channelId: channelId,
+      otherUserId: otherPerson.id,
+      otherUserName: otherPerson.name,
+      otherUserAvatar: otherPerson.avatar,
+      rideInfo: {
+        from: ride.fromAddress || ride.pickupLocation,
+        to: ride.toAddress || ride.dropoffLocation,
       },
-      previousMessages: ride.messages || [],
     });
   };
 

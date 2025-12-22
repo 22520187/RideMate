@@ -26,6 +26,7 @@ import {
 } from "../../services/voucherService";
 import { getProfile } from "../../services/userService";
 import { useNavigation } from "@react-navigation/native";
+import GradientHeader from "../../components/GradientHeader";
 
 const { width: screenWidth } = Dimensions.get("window");
 
@@ -112,7 +113,6 @@ const Award = () => {
       const [vouchersResponse, myVouchersResponse, profileResponse] =
         await Promise.all([getAllVouchers(), getMyVouchers(), getProfile()]);
 
-   
       const unwrapApiPayload = (resp) => resp?.data?.data ?? resp?.data ?? resp;
 
       console.log(
@@ -134,11 +134,7 @@ const Award = () => {
 
       // Vouchers list
       if (Array.isArray(vouchersPayload)) {
-        console.log(
-          "✅ Setting promos:",
-          vouchersPayload.length,
-          "vouchers"
-        );
+        console.log("✅ Setting promos:", vouchersPayload.length, "vouchers");
         setPromos(vouchersPayload);
       } else {
         console.log("❌ Vouchers response has no data array");
@@ -275,10 +271,7 @@ const Award = () => {
 
       // Check if redeem was successful (payload exists or statusCode 200)
       if (response?.data?.statusCode === 200 || redeemPayload) {
-        Alert.alert(
-          "Thành công",
-          redeemMessage || "Đổi voucher thành công!"
-        );
+        Alert.alert("Thành công", redeemMessage || "Đổi voucher thành công!");
         // Reload data
         await loadData();
       } else {
@@ -586,14 +579,7 @@ const Award = () => {
   return (
     <SafeAreaView key={refreshKey} style={styles.container} edges={["top"]}>
       {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>Phần thưởng</Text>
-          <Text style={styles.headerSubtitle}>
-            Đổi điểm nhận voucher hấp dẫn
-          </Text>
-        </View>
-      </View>
+      <GradientHeader title="Phần thưởng" showBackButton={false} />
 
       {renderBannerSlider()}
 
@@ -772,27 +758,6 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.WHITE,
   },
   // Header styles
-  header: {
-    backgroundColor: "#004553",
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 24,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-  },
-  headerContent: {
-    alignItems: "center",
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#fff",
-    marginBottom: 6,
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: "rgba(255,255,255,0.85)",
-  },
   listContent: {
     paddingTop: 8,
     paddingBottom: 24,

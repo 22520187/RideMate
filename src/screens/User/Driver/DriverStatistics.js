@@ -23,6 +23,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import COLORS from "../../../constant/colors";
 import { getProfile } from "../../../services/userService";
 import { getMatchHistory } from "../../../services/matchService";
+import GradientHeader from "../../../components/GradientHeader";
 
 const { width } = Dimensions.get("window");
 const CHART_WIDTH = width - 40;
@@ -92,9 +93,21 @@ const DriverStatistics = ({ navigation }) => {
 
   // Calculate statistics
   const stats = React.useMemo(() => {
-    const completedRides = rides.filter(
-      (r) => r.status === "COMPLETED" || r.status === "FINISHED"
+    // Debug: Log all ride statuses
+    console.log("📊 [DriverStatistics] Total rides from API:", rides.length);
+    const statusCounts = {};
+    rides.forEach((r) => {
+      statusCounts[r.status] = (statusCounts[r.status] || 0) + 1;
+    });
+    console.log("📊 [DriverStatistics] Status breakdown:", statusCounts);
+
+    // Only count COMPLETED status to match backend totalRidesCompleted
+    const completedRides = rides.filter((r) => r.status === "COMPLETED");
+    console.log(
+      "✅ [DriverStatistics] Completed rides count:",
+      completedRides.length
     );
+
     const cancelledRides = rides.filter((r) => r.status === "CANCELLED");
     const totalEarnings = completedRides.reduce(
       (sum, r) => sum + (r.coin || 0),
@@ -161,7 +174,7 @@ const DriverStatistics = ({ navigation }) => {
           return (
             rideDate >= monthStart &&
             rideDate <= monthEnd &&
-            (r.status === "COMPLETED" || r.status === "FINISHED")
+            r.status === "COMPLETED"
           );
         });
 
@@ -185,7 +198,7 @@ const DriverStatistics = ({ navigation }) => {
           return (
             rideDate >= dayStart &&
             rideDate <= dayEnd &&
-            (r.status === "COMPLETED" || r.status === "FINISHED")
+            r.status === "COMPLETED"
           );
         });
 
@@ -235,7 +248,7 @@ const DriverStatistics = ({ navigation }) => {
           return (
             rideDate >= monthStart &&
             rideDate <= monthEnd &&
-            (r.status === "COMPLETED" || r.status === "FINISHED")
+            r.status === "COMPLETED"
           );
         }).length;
 
@@ -253,7 +266,7 @@ const DriverStatistics = ({ navigation }) => {
           return (
             rideDate >= dayStart &&
             rideDate <= dayEnd &&
-            (r.status === "COMPLETED" || r.status === "FINISHED")
+            r.status === "COMPLETED"
           );
         }).length;
 
@@ -266,9 +279,7 @@ const DriverStatistics = ({ navigation }) => {
 
   // Status distribution pie chart
   const statusDistribution = React.useMemo(() => {
-    const completed = rides.filter(
-      (r) => r.status === "COMPLETED" || r.status === "FINISHED"
-    ).length;
+    const completed = rides.filter((r) => r.status === "COMPLETED").length;
     const cancelled = rides.filter((r) => r.status === "CANCELLED").length;
     const rejected = rides.filter((r) => r.status === "REJECTED").length;
 
@@ -336,7 +347,7 @@ const DriverStatistics = ({ navigation }) => {
             return (
               rideDate >= monthStart &&
               rideDate <= monthEnd &&
-              (r.status === "COMPLETED" || r.status === "FINISHED")
+              r.status === "COMPLETED"
             );
           })
           .reduce((sum, r) => sum + (r.distance || 0), 0);
@@ -357,7 +368,7 @@ const DriverStatistics = ({ navigation }) => {
             return (
               rideDate >= dayStart &&
               rideDate <= dayEnd &&
-              (r.status === "COMPLETED" || r.status === "FINISHED")
+              r.status === "COMPLETED"
             );
           })
           .reduce((sum, r) => sum + (r.distance || 0), 0);
@@ -407,7 +418,7 @@ const DriverStatistics = ({ navigation }) => {
           return (
             rideDate >= monthStart &&
             rideDate <= monthEnd &&
-            (r.status === "COMPLETED" || r.status === "FINISHED")
+            r.status === "COMPLETED"
           );
         });
 
@@ -438,7 +449,7 @@ const DriverStatistics = ({ navigation }) => {
           return (
             rideDate >= dayStart &&
             rideDate <= dayEnd &&
-            (r.status === "COMPLETED" || r.status === "FINISHED")
+            r.status === "COMPLETED"
           );
         });
 
@@ -476,7 +487,7 @@ const DriverStatistics = ({ navigation }) => {
     const hourCounts = Array(24).fill(0);
 
     rides
-      .filter((r) => r.status === "COMPLETED" || r.status === "FINISHED")
+      .filter((r) => r.status === "COMPLETED")
       .forEach((ride) => {
         const hour = new Date(ride.createdAt).getHours();
         hourCounts[hour]++;
@@ -508,21 +519,12 @@ const DriverStatistics = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="arrow-back" size={24} color="#1C1C1E" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Thống kê</Text>
-        <TouchableOpacity
-          style={styles.customizeButton}
-          onPress={() => setCustomizeModalVisible(true)}
-        >
-          <Ionicons name="options" size={24} color={COLORS.PRIMARY} />
-        </TouchableOpacity>
-      </View>
+      <GradientHeader
+        title="Thống kê"
+        onBackPress={() => navigation.goBack()}
+        onRightPress={() => setCustomizeModalVisible(true)}
+        rightIcon="settings"
+      />
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -1040,7 +1042,7 @@ const DriverStatistics = ({ navigation }) => {
                     const rideDate = new Date(r.createdAt);
                     return (
                       rideDate.toDateString() === today.toDateString() &&
-                      (r.status === "COMPLETED" || r.status === "FINISHED")
+                      r.status === "COMPLETED"
                     );
                   }).length
                 }
@@ -1164,37 +1166,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#F5F5F5",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  customizeButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.PRIMARY + "15",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#1C1C1E",
   },
 
   // Stats Grid

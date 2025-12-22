@@ -147,11 +147,12 @@ const Home = ({ navigation }) => {
   };
 
   const handleCreateRide = () => {
-    if (checkCanCreateRide() == false) {
-      navigation.navigate("DriverRide");
-    } else {
-      navigation.navigate("DriverRide");
+    if (!checkCanCreateRide()) {
+      return;
     }
+
+    // Navigate directly to Create Fixed Route
+    navigation.navigate("CreateFixedRouteScreen");
   };
 
   const currentRide = {
@@ -176,7 +177,7 @@ const Home = ({ navigation }) => {
     {
       id: 2,
       title: "Tìm người đi cùng",
-      subtitle: "Người không có xe",
+      subtitle: "Matching tài xế",
       icon: Users,
       color: COLORS.BLUE,
       onPress: () => navigation.navigate("PassengerRide"),
@@ -298,8 +299,12 @@ const Home = ({ navigation }) => {
           <Star size={12} color={COLORS.YELLOW} />
           <Text style={styles.badgeText}>{item.badge}</Text>
         </View>
-        <Text style={styles.promotionTitle} numberOfLines={2}>{item.title}</Text>
-        <Text style={styles.promotionSubtitle} numberOfLines={1}>{item.subtitle}</Text>
+        <Text style={styles.promotionTitle} numberOfLines={2}>
+          {item.title}
+        </Text>
+        <Text style={styles.promotionSubtitle} numberOfLines={1}>
+          {item.subtitle}
+        </Text>
       </View>
     </TouchableOpacity>
   );
@@ -400,12 +405,19 @@ const Home = ({ navigation }) => {
               onPress={handleCreateRide}
               activeOpacity={0.85}
             >
-              <View style={[styles.quickActionGradient, { backgroundColor: '#004553' }]}>
+              <View
+                style={[
+                  styles.quickActionGradient,
+                  { backgroundColor: "#004553" },
+                ]}
+              >
                 <View style={styles.quickActionEmoji}>
                   <Text style={styles.emojiText}>🚗</Text>
                 </View>
                 <Text style={styles.quickActionTitle}>Tạo chuyến</Text>
-                <Text style={styles.quickActionSubtitle}>Lái xe & kiếm tiền</Text>
+                <Text style={styles.quickActionSubtitle}>
+                  Lái xe & kiếm tiền
+                </Text>
               </View>
             </TouchableOpacity>
 
@@ -414,12 +426,48 @@ const Home = ({ navigation }) => {
               onPress={() => navigation.navigate("PassengerRide")}
               activeOpacity={0.85}
             >
-              <View style={[styles.quickActionGradient, { backgroundColor: '#00796B' }]}>
+              <View
+                style={[
+                  styles.quickActionGradient,
+                  { backgroundColor: "#00796B" },
+                ]}
+              >
                 <View style={styles.quickActionEmoji}>
-                  <Text style={styles.emojiText}>🧑‍🤝‍🧑</Text>
+                  <Text style={styles.emojiText}>🔍</Text>
                 </View>
-                <Text style={styles.quickActionTitle}>Tìm chuyến</Text>
-                <Text style={styles.quickActionSubtitle}>Đi cùng bạn bè</Text>
+                <Text style={styles.quickActionTitle}>Tìm người đi</Text>
+                <Text style={styles.quickActionSubtitle}>Matching tài xế</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          {/* Add Row for Fixed Routes */}
+          <View style={[styles.quickActionsRow, { marginTop: 14 }]}>
+            <TouchableOpacity
+              style={styles.quickActionCardWide}
+              onPress={() => navigation.navigate("FixedRoutesScreen")}
+              activeOpacity={0.85}
+            >
+              <View
+                style={[
+                  styles.quickActionGradient,
+                  {
+                    backgroundColor: "#0097A7",
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  },
+                ]}
+              >
+                <View style={styles.quickActionEmoji}>
+                  <Text style={styles.emojiText}>🚌</Text>
+                </View>
+                <View style={{ marginLeft: 16 }}>
+                  <Text style={styles.quickActionTitle}>Chuyến đi cố định</Text>
+                  <Text style={styles.quickActionSubtitle}>
+                    Tìm chuyến theo lịch trình
+                  </Text>
+                </View>
               </View>
             </TouchableOpacity>
           </View>
@@ -439,7 +487,9 @@ const Home = ({ navigation }) => {
               <Text style={styles.pointsValueLabel}>Điểm thưởng</Text>
               <View style={styles.pointsValueRow}>
                 <Star size={16} color="#004553" />
-                <Text style={styles.pointsValue}>{userProfile?.coins || userPoints}</Text>
+                <Text style={styles.pointsValue}>
+                  {userProfile?.coins || userPoints}
+                </Text>
               </View>
             </View>
           </View>
@@ -456,7 +506,9 @@ const Home = ({ navigation }) => {
               style={styles.serviceItem}
               onPress={() => navigation.navigate("Mission")}
             >
-              <View style={[styles.serviceIcon, { backgroundColor: '#F3E5F5' }]}>
+              <View
+                style={[styles.serviceIcon, { backgroundColor: "#F3E5F5" }]}
+              >
                 <Text style={styles.serviceEmoji}>🎁</Text>
               </View>
               <Text style={styles.serviceLabel}>Nhiệm vụ</Text>
@@ -466,7 +518,9 @@ const Home = ({ navigation }) => {
               style={styles.serviceItem}
               onPress={() => navigation.navigate("Voucher")}
             >
-              <View style={[styles.serviceIcon, { backgroundColor: '#E0F7FA' }]}>
+              <View
+                style={[styles.serviceIcon, { backgroundColor: "#E0F7FA" }]}
+              >
                 <Text style={styles.serviceEmoji}>🎟️</Text>
               </View>
               <Text style={styles.serviceLabel}>Voucher</Text>
@@ -476,7 +530,9 @@ const Home = ({ navigation }) => {
               style={styles.serviceItem}
               onPress={() => navigation.navigate("Member")}
             >
-              <View style={[styles.serviceIcon, { backgroundColor: '#FFF8E1' }]}>
+              <View
+                style={[styles.serviceIcon, { backgroundColor: "#FFF8E1" }]}
+              >
                 <Text style={styles.serviceEmoji}>👑</Text>
               </View>
               <Text style={styles.serviceLabel}>Hội viên</Text>
@@ -486,7 +542,9 @@ const Home = ({ navigation }) => {
               style={styles.serviceItem}
               onPress={() => navigation.navigate("Notification")}
             >
-              <View style={[styles.serviceIcon, { backgroundColor: '#FCE4EC' }]}>
+              <View
+                style={[styles.serviceIcon, { backgroundColor: "#FCE4EC" }]}
+              >
                 <Text style={styles.serviceEmoji}>🔔</Text>
               </View>
               <Text style={styles.serviceLabel}>Thông báo</Text>
@@ -767,6 +825,16 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   quickActionCard: {
+    flex: 1,
+    borderRadius: 16,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  quickActionCardWide: {
     flex: 1,
     borderRadius: 16,
     overflow: "hidden",

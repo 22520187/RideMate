@@ -18,6 +18,7 @@ import { LineChart } from "react-native-chart-kit";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import COLORS from "../../constant/colors";
 import { getMatchHistory } from "../../services/matchService";
+import GradientHeader from "../../components/GradientHeader";
 
 const { width } = Dimensions.get("window");
 
@@ -386,37 +387,33 @@ const RideHistory = ({ navigation }) => {
   const renderHeader = () => (
     <>
       {/* Header */}
-      <View style={styles.header}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>Order History</Text>
-          <Text style={styles.headerSubtitle}>
-            Showing all your order history
-          </Text>
+      <View style={styles.headerWrapper}>
+        <View style={styles.filterContainer}>
+          <TouchableOpacity
+            style={[
+              styles.filterButton,
+              (fromDate || toDate) && styles.filterButtonActive,
+            ]}
+            onPress={openFilterModal}
+          >
+            <Ionicons
+              name="filter"
+              size={20}
+              color={fromDate || toDate ? COLORS.WHITE : COLORS.PRIMARY}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.notificationButton}
+            onPress={() => navigation.navigate("Notification")}
+          >
+            <Ionicons
+              name="notifications-outline"
+              size={24}
+              color={COLORS.PRIMARY}
+            />
+            <View style={styles.notificationBadge} />
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity
-          style={[
-            styles.filterButton,
-            (fromDate || toDate) && styles.filterButtonActive,
-          ]}
-          onPress={openFilterModal}
-        >
-          <Ionicons
-            name="filter"
-            size={20}
-            color={fromDate || toDate ? COLORS.WHITE : COLORS.PRIMARY}
-          />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.notificationButton}
-          onPress={() => navigation.navigate("Notification")}
-        >
-          <Ionicons
-            name="notifications-outline"
-            size={24}
-            color={COLORS.PRIMARY}
-          />
-          <View style={styles.notificationBadge} />
-        </TouchableOpacity>
       </View>
 
       {/* Active Filter Display */}
@@ -541,6 +538,7 @@ const RideHistory = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
+      <GradientHeader title="Lịch sử" showBackButton={false} />
       <FlatList
         data={pastRides}
         keyExtractor={(item) => (item._key ?? item.id)?.toString()}
@@ -780,24 +778,17 @@ const styles = StyleSheet.create({
   },
 
   // Header
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 20,
+  headerWrapper: {
     backgroundColor: "#fff",
+    paddingTop: 10,
+    paddingBottom: 16,
   },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#1C1C1E",
-  },
-  headerSubtitle: {
-    fontSize: 13,
-    color: "#8E8E93",
-    marginTop: 4,
+  filterContainer: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    gap: 12,
   },
   filterButton: {
     width: 44,

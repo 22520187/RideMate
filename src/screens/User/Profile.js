@@ -44,6 +44,7 @@ import { chatClient } from "../../utils/StreamClient";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import VehicleRegistration from "../../components/VehicleRegistration";
 import ImagePickerModal from "../../components/ImagePickerModal";
+import GradientHeader from "../../components/GradientHeader";
 
 const Profile = () => {
   const navigation = useNavigation();
@@ -86,6 +87,11 @@ const Profile = () => {
       // Some endpoints return UserDto directly in response.data,
       // others return ApiResponse { statusCode, message, data } in response.data.data
       const userData = profileResp?.data?.data ?? profileResp?.data;
+      console.log("👤 [Profile] User data from API:", {
+        totalRides: userData?.totalRides,
+        coins: userData?.coins,
+        rating: userData?.rating,
+      });
       setProfile(userData);
 
       // Initialize edit form
@@ -389,9 +395,7 @@ const Profile = () => {
         }
       >
         {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Tài khoản</Text>
-        </View>
+        <GradientHeader title="Tài khoản" showBackButton={false} />
 
         {/* Profile Card */}
         <View style={styles.profileCard}>
@@ -558,6 +562,27 @@ const Profile = () => {
                   <Text style={styles.menuTitle}>Thống kê & Báo cáo</Text>
                   <Text style={styles.menuSubtitle}>
                     Xem hiệu suất và thu nhập
+                  </Text>
+                </View>
+                <ChevronRight size={20} color="#C7C7CC" />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => navigation.navigate("MyFixedRoutesScreen")}
+                activeOpacity={0.7}
+              >
+                <View style={styles.menuIconContainer}>
+                  <MaterialIcons
+                    name="route"
+                    size={22}
+                    color={COLORS.PRIMARY}
+                  />
+                </View>
+                <View style={styles.menuContent}>
+                  <Text style={styles.menuTitle}>Chuyến đi của tôi</Text>
+                  <Text style={styles.menuSubtitle}>
+                    Quản lý chuyến đi cố định
                   </Text>
                 </View>
                 <ChevronRight size={20} color="#C7C7CC" />
@@ -848,19 +873,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-  },
-  header: {
-    backgroundColor: COLORS.WHITE,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: "800",
-    color: "#004553",
-    letterSpacing: -0.5,
   },
   profileCard: {
     flexDirection: "row",

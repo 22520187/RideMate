@@ -562,7 +562,11 @@ const RouteMap = ({
     }
   }, [rideStatus]);
 
-  // Viewport logic
+  // Viewport logic - Use default Ho Chi Minh City center if no coordinates
+  const DEFAULT_CENTER = {
+    latitude: 10.7730765,
+    longitude: 106.6583347,
+  };
   const mapRegion = start || end || DEFAULT_CENTER;
 
   return (
