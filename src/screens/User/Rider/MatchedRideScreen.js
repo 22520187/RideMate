@@ -1278,14 +1278,85 @@ const MatchedRideScreen = ({ navigation, route }) => {
         onClose={() => setCustomAlert({ ...customAlert, visible: false })}
       />
 
-      {/* Feedback Modal */}
-      <FeedbackModal
-        visible={showFeedbackModal}
-        onClose={() => setShowFeedbackModal(false)}
-        onSubmit={handleFeedbackSubmit}
-        isLoading={isSubmittingFeedback}
-        driverName={matchedRideData.driverName}
-      />
+      {/* Rating Modal */}
+      <Modal
+        visible={showRatingModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowRatingModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBox}>
+            <Text style={styles.modalTitle}>Đánh giá chuyến đi</Text>
+            <Text style={styles.modalSubtitle}>
+              Bạn nhận được{" "}
+              <Text style={{ color: COLORS.PRIMARY, fontWeight: "600" }}>
+                {rewardPoints}
+              </Text>{" "}
+              điểm thưởng 🎁!
+            </Text>
+
+            <View style={{ alignItems: "center", marginVertical: 10 }}>
+              <View style={{ flexDirection: "row", marginBottom: 8 }}>
+                {Array.from({ length: maxStars }).map((_, index) => {
+                  const value = index + 1;
+                  return (
+                    <TouchableOpacity
+                      key={index}
+                      onPress={() => handlePress(value)}
+                      activeOpacity={0.7}
+                      style={{ marginHorizontal: 4 }}
+                    >
+                      <FontAwesome
+                        name={value <= rating ? "star" : "star-o"}
+                        size={36}
+                        color={value <= rating ? "#FFD700" : "#CCC"}
+                      />
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {rating > 0 && (
+                <Text
+                  style={{
+                    fontSize: 16,
+                    fontWeight: "500",
+                    color: COLORS.BLACK,
+                  }}
+                >
+                  {getReviewText()}
+                </Text>
+              )}
+            </View>
+
+            <TextInput
+              placeholder="Nhận xét về đối phương..."
+              style={styles.commentInput}
+              multiline
+              value={comment}
+              onChangeText={setComment}
+            />
+
+            <TouchableOpacity
+              style={[
+                styles.actionBtn,
+                { backgroundColor: COLORS.PRIMARY, marginTop: 10 },
+              ]}
+              onPress={() => {
+                setShowRatingModal(false);
+                showCustomAlert(
+                  "Hoàn tất đánh giá",
+                  `Cảm ơn bạn đã gửi đánh giá ${rating} sao cho bạn đồng hành này.`
+                );
+                // TODO: Gửi rating + comment + matchedRideData lên backend
+              }}
+            >
+              <Text style={styles.actionBtnText}>Gửi đánh giá</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
