@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -23,6 +23,7 @@ import LocationSearch from "../../../components/LocationSearch";
 import RouteMap from "../../../components/RouteMap";
 import RadarScanning from "../../../components/RadarScanning";
 import DriverMapMarker from "../../../components/DriverMapMarker";
+import CustomAlert from "../../../components/CustomAlert";
 import { getCurrentLocation, reverseGeocode } from "../../../config/maps";
 import { searchPlaces as osmSearchPlaces, getRoute } from "../../../utils/api";
 import { getProfile } from "../../../services/userService";
@@ -101,8 +102,35 @@ const PassengerRideScreen = ({ navigation, route }) => {
   const [searchTimeLeft, setSearchTimeLeft] = useState(0);
   const [searchInterval, setSearchInterval] = useState(null);
   const [activeMatchId, setActiveMatchId] = useState(null);
+  // Use ref to avoid closure issue in setInterval
+  const activeMatchIdRef = useRef(null);
 
-  const { drivers, loading: driversLoading } = useDriverLocations(originCoordinate, 7);
+  // Custom Alert State
+  const [customAlert, setCustomAlert] = useState({
+    visible: false,
+    title: "",
+    message: "",
+    buttons: [],
+  });
+
+  // Custom Alert Helper
+  const showCustomAlert = (
+    title,
+    message,
+    buttons = [{ text: "OK", onPress: () => {} }]
+  ) => {
+    setCustomAlert({
+      visible: true,
+      title,
+      message,
+      buttons,
+    });
+  };
+
+  const { drivers, loading: driversLoading } = useDriverLocations(
+    originCoordinate,
+    7
+  );
 
   // Keep pricing consistent with DriverRideScreen
   const calculatePrice = (distanceKm) => {
@@ -119,7 +147,10 @@ const PassengerRideScreen = ({ navigation, route }) => {
   }, [searchInterval]);
 
   const formatVND = (value) => {
-    const numberValue = typeof value === "number" ? value : Number(String(value).replace(/[^\d]/g, ""));
+    const numberValue =
+      typeof value === "number"
+        ? value
+        : Number(String(value).replace(/[^\d]/g, ""));
     if (!Number.isFinite(numberValue)) return String(value ?? "");
     return new Intl.NumberFormat("vi-VN", {
       style: "currency",
@@ -139,13 +170,15 @@ const PassengerRideScreen = ({ navigation, route }) => {
 
   const handleCancelSearch = async () => {
     try {
-      if (activeMatchId) {
-        await cancelMatch(activeMatchId);
+      const currentMatchId = activeMatchIdRef.current;
+      if (currentMatchId) {
+        await cancelMatch(currentMatchId);
       }
     } catch (err) {
       console.warn("Cancel match failed:", err?.message);
     } finally {
       setActiveMatchId(null);
+      activeMatchIdRef.current = null;
       stopSearching();
     }
   };
@@ -327,7 +360,7 @@ const PassengerRideScreen = ({ navigation, route }) => {
         ]);
       } catch (locationError) {
         console.error("❌ Failed to get location:", locationError.message);
-        Alert.alert(
+        showCustomAlert(
           "Lỗi",
           locationError.message === "Location timeout"
             ? "Lấy vị trí quá lâu. Vui lòng thử lại hoặc nhập địa chỉ thủ công."
@@ -362,13 +395,12 @@ const PassengerRideScreen = ({ navigation, route }) => {
         setDestinationCoordinate(currentLocation);
       }
 
-      Alert.alert("Thành công", `Đã lấy vị trí: ${address}`);
+      showCustomAlert("Thành công", `Đã lấy vị trí: ${address}`);
     } catch (error) {
       console.error("❌ Unexpected error:", error);
-      Alert.alert(
+      showCustomAlert(
         "Lỗi",
-        "Có lỗi không mong muốn xảy ra. Vui lòng thử lại hoặc nhập địa chỉ thủ công.",
-        [{ text: "OK" }]
+        "Có lỗi không mong muốn xảy ra. Vui lòng thử lại hoặc nhập địa chỉ thủ công."
       );
     } finally {
       setIsGettingLocation(false);
@@ -404,9 +436,21 @@ const PassengerRideScreen = ({ navigation, route }) => {
     }
 
     const distanceKm = Number(routeDistance);
-    const estimatedPrice = calculatePrice(Number.isFinite(distanceKm) ? distanceKm : 0);
+    const estimatedPrice = calculatePrice(
+      Number.isFinite(distanceKm) ? distanceKm : 0
+    );
 
     try {
+      console.log("🚀 Calling bookRide API...", {
+        pickupAddress: fromLocation,
+        destinationAddress: toLocation,
+        pickupLatitude: originCoordinate.latitude,
+        pickupLongitude: originCoordinate.longitude,
+        destinationLatitude: destinationCoordinate.latitude,
+        destinationLongitude: destinationCoordinate.longitude,
+        vehicleType: "MOTORBIKE",
+      });
+
       const bookingResp = await bookRide({
         pickupAddress: fromLocation,
         destinationAddress: toLocation,
@@ -416,15 +460,48 @@ const PassengerRideScreen = ({ navigation, route }) => {
         destinationLongitude: destinationCoordinate.longitude,
         vehicleType: "MOTORBIKE",
       });
-      const matchId = bookingResp?.data?.data?.id;
+
+      console.log("✅ bookRide API response:", bookingResp);
+      console.log("✅ Response structure:", {
+        data: bookingResp?.data,
+        dataData: bookingResp?.data?.data,
+        id: bookingResp?.data?.data?.id,
+      });
+
+      // Try multiple possible response structures
+      const matchId =
+        bookingResp?.data?.data?.id || // ApiResponse<MatchResponse> structure
+        bookingResp?.data?.id || // Direct MatchResponse structure
+        bookingResp?.id; // Fallback
+
       if (!matchId) {
-        Alert.alert("Lỗi", "Không thể tạo yêu cầu chuyến đi (thiếu matchId).");
+        console.error("❌ Missing matchId in response:", {
+          fullResponse: bookingResp,
+          data: bookingResp?.data,
+          dataData: bookingResp?.data?.data,
+        });
+        Alert.alert(
+          "Lỗi",
+          "Không thể tạo yêu cầu chuyến đi (thiếu matchId). Vui lòng thử lại."
+        );
         return;
       }
+
+      console.log("✅ Match created successfully, matchId:", matchId);
       setActiveMatchId(matchId);
+      activeMatchIdRef.current = matchId; // Update ref as well
     } catch (error) {
-      console.error("Book ride error:", error);
-      Alert.alert("Lỗi", "Không thể tạo yêu cầu chuyến đi");
+      console.error("❌ Book ride error:", error);
+      console.error("❌ Error details:", {
+        message: error?.message,
+        response: error?.response?.data,
+        status: error?.response?.status,
+      });
+      Alert.alert(
+        "Lỗi",
+        error?.response?.data?.message ||
+          "Không thể tạo yêu cầu chuyến đi. Vui lòng thử lại."
+      );
       return;
     }
 
@@ -439,18 +516,31 @@ const PassengerRideScreen = ({ navigation, route }) => {
           clearInterval(interval);
           setIsSearching(false);
           setActiveMatchId(null);
-          Alert.alert("Thông báo", "Không tìm thấy tài xế nào trong thời gian quy định");
+          activeMatchIdRef.current = null;
+          Alert.alert(
+            "Thông báo",
+            "Không tìm thấy tài xế nào trong thời gian quy định"
+          );
           return 0;
         }
         return prev - 1;
       });
 
       try {
-        if (!activeMatchId) return;
-        const detailResp = await getMatchDetail(activeMatchId);
-        const detail = detailResp?.data?.data;
+        // Use ref to get current matchId value (avoid closure issue)
+        const currentMatchId = activeMatchIdRef.current;
+        if (!currentMatchId) {
+          console.log("⏭️ Skipping getMatchDetail - no activeMatchId");
+          return;
+        }
+        console.log("🔍 Polling getMatchDetail for matchId:", currentMatchId);
+        const detailResp = await getMatchDetail(currentMatchId);
+        const detail = detailResp?.data?.data || detailResp?.data;
+        console.log("📋 Match detail response:", detail);
 
-        const status = (detail?.status || detail?.matchStatus || "").toString().toUpperCase();
+        const status = (detail?.status || detail?.matchStatus || "")
+          .toString()
+          .toUpperCase();
         const driverId =
           detail?.driverId ??
           detail?.driver?.id ??
@@ -465,8 +555,45 @@ const PassengerRideScreen = ({ navigation, route }) => {
           clearInterval(interval);
           setSearchInterval(null);
           setIsSearching(false);
+          setActiveMatchId(null);
+          activeMatchIdRef.current = null;
 
           const driver = detail?.driver || detail?.driverInfo || {};
+          const driverRating =
+            detail?.driverRating ??
+            driver?.rating ??
+            detail?.driver?.rating ??
+            null;
+
+          // Get vehicle info from multiple sources
+          const vehicleInfo =
+            detail?.vehicleInfo ?? driver?.vehicleInfo ?? null;
+
+          let vehicleModel =
+            driver?.vehicleModel ??
+            detail?.vehicleModel ??
+            detail?.vehicle?.model ??
+            null;
+
+          let licensePlate =
+            driver?.licensePlate ??
+            detail?.licensePlate ??
+            detail?.vehicle?.licensePlate ??
+            null;
+
+          // If vehicleInfo exists, use it; otherwise try to parse from vehicleModel and licensePlate
+          // If vehicleModel is not available, try to parse from vehicleInfo
+          if (!vehicleModel && vehicleInfo) {
+            // vehicleInfo format: "Honda Wave - 59A1-12345" or "Honda Wave"
+            const vehicleInfoParts = vehicleInfo.split(" - ");
+            if (vehicleInfoParts.length > 0) {
+              vehicleModel = vehicleInfoParts[0].trim();
+            }
+            if (vehicleInfoParts.length > 1 && !licensePlate) {
+              licensePlate = vehicleInfoParts[1].trim();
+            }
+          }
+
           const fallbackDriverLocation = originCoordinate
             ? {
                 latitude: originCoordinate.latitude - 0.008,
@@ -480,8 +607,10 @@ const PassengerRideScreen = ({ navigation, route }) => {
             driverName: driver?.name ?? detail?.driverName ?? "Tài xế",
             driverPhone: driver?.phone ?? detail?.driverPhone ?? "",
             driverAvatar: driver?.avatar ?? detail?.driverAvatar,
-            vehicleModel: driver?.vehicleModel ?? detail?.vehicleModel,
-            licensePlate: driver?.licensePlate ?? detail?.licensePlate,
+            driverRating: driverRating,
+            vehicleInfo: vehicleInfo,
+            vehicleModel: vehicleModel,
+            licensePlate: licensePlate,
             from: fromLocation,
             to: toLocation,
             originCoordinate,
@@ -494,7 +623,7 @@ const PassengerRideScreen = ({ navigation, route }) => {
             price: formatVND(detail?.estimatedPrice ?? estimatedPrice),
             duration: `${routeDuration} phút`,
             distance: `${routeDistance} km`,
-            rideId: detail?.id ?? activeMatchId,
+            rideId: detail?.id ?? currentMatchId,
           });
         }
       } catch (error) {
@@ -538,15 +667,18 @@ const PassengerRideScreen = ({ navigation, route }) => {
           showVehicle={false}
         />
 
-        {!isSearching && drivers && drivers.length > 0 && drivers.map((driver) => (
-          <DriverMapMarker
-            key={driver.driver_id}
-            driver={driver}
-            onPress={(driver) => {
-              console.log('Driver selected:', driver);
-            }}
-          />
-        ))}
+        {!isSearching &&
+          drivers &&
+          drivers.length > 0 &&
+          drivers.map((driver) => (
+            <DriverMapMarker
+              key={driver.driver_id}
+              driver={driver}
+              onPress={(driver) => {
+                console.log("Driver selected:", driver);
+              }}
+            />
+          ))}
 
         {isSearching && (
           <View style={styles.searchingOverlay}>
@@ -554,7 +686,8 @@ const PassengerRideScreen = ({ navigation, route }) => {
               <RadarScanning size={250} />
               <Text style={styles.searchingText}>Đang tìm tài xế...</Text>
               <Text style={styles.searchingSubtext}>
-                Vui lòng chờ trong giây lát{searchTimeLeft ? ` (${searchTimeLeft}s)` : ""}
+                Vui lòng chờ trong giây lát
+                {searchTimeLeft ? ` (${searchTimeLeft}s)` : ""}
               </Text>
               <TouchableOpacity
                 style={styles.cancelSearchBtn}
@@ -572,7 +705,7 @@ const PassengerRideScreen = ({ navigation, route }) => {
             <View style={styles.topControls} pointerEvents="box-none">
               <View style={styles.inputContainerWrapper} pointerEvents="auto">
                 <View style={styles.inputContainer}>
-                  <View style={styles.locationInputRow}>
+                  <View style={[styles.locationInputRow, { zIndex: 10 }]}>
                     <MaterialIcons
                       name="radio-button-checked"
                       size={20}
@@ -634,7 +767,7 @@ const PassengerRideScreen = ({ navigation, route }) => {
                     )}
                   </View>
 
-                  <View style={styles.locationInputRow}>
+                  <View style={[styles.locationInputRow, { zIndex: 5 }]}>
                     <MaterialIcons
                       name="place"
                       size={20}
@@ -707,6 +840,14 @@ const PassengerRideScreen = ({ navigation, route }) => {
         </View>
       </View>
 
+      {/* Custom Alert Modal */}
+      <CustomAlert
+        visible={customAlert.visible}
+        title={customAlert.title}
+        message={customAlert.message}
+        buttons={customAlert.buttons}
+        onClose={() => setCustomAlert({ ...customAlert, visible: false })}
+      />
     </View>
   );
 };
@@ -814,12 +955,15 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: "#F0F0F0",
+    position: "relative",
   },
   locationIcon: {
     marginRight: 12,
   },
   inputWrapper: {
     flex: 1,
+    position: "relative",
+    zIndex: 1,
   },
   clearBtn: {
     padding: 4,

@@ -29,6 +29,7 @@ import { FontAwesome, MaterialIcons } from "@expo/vector-icons";
 import COLORS from "../../../constant/colors";
 import RouteMap from "../../../components/RouteMap";
 import ChatModal from "../../../components/ChatModal";
+import CustomAlert from "../../../components/CustomAlert";
 import { Modal } from "react-native";
 import { useSharedPath } from "../../../hooks/useSharedPath";
 import {
@@ -74,6 +75,14 @@ const MatchedRideScreen = ({ navigation, route }) => {
   const [comment, setComment] = useState("");
   const [rating, setRating] = useState(0);
   const maxStars = 5;
+
+  // Custom Alert Modal State
+  const [customAlert, setCustomAlert] = useState({
+    visible: false,
+    title: "",
+    message: "",
+    buttons: [],
+  });
 
   // State mới để quản lý việc tài xế đã đến điểm đón chưa
   const [driverArrived, setDriverArrived] = useState(false);
@@ -287,6 +296,20 @@ const MatchedRideScreen = ({ navigation, route }) => {
   // 🎯 Ref để track đã notify arrival chưa (tránh duplicate)
   const hasNotifiedArrival = useRef(false);
 
+  // Custom Alert Helper
+  const showCustomAlert = (
+    title,
+    message,
+    buttons = [{ text: "OK", onPress: () => {} }]
+  ) => {
+    setCustomAlert({
+      visible: true,
+      title,
+      message,
+      buttons,
+    });
+  };
+
   // 🎯 Callback khi tài xế đến điểm đón
   const handleDriverArrived = useCallback(() => {
     // Chỉ trigger một lần duy nhất
@@ -301,7 +324,7 @@ const MatchedRideScreen = ({ navigation, route }) => {
 
     // Chỉ hiện thông báo cho driver
     if (matchedRideData.isDriver) {
-      Alert.alert(
+      showCustomAlert(
         "Bạn đã đến điểm đón",
         "Hành khách đang chờ bạn. Hãy nhấn 'Bắt đầu chuyến đi' khi khách đã lên xe."
       );
@@ -317,10 +340,9 @@ const MatchedRideScreen = ({ navigation, route }) => {
 
     // Hiển thị thông báo cho driver
     if (matchedRideData.isDriver) {
-      Alert.alert(
+      showCustomAlert(
         "Đã đến điểm đích",
-        "Bạn đã đến nơi. Hãy nhấn 'Hoàn thành chuyến đi' để kết thúc.",
-        [{ text: "OK" }]
+        "Bạn đã đến nơi. Hãy nhấn 'Hoàn thành chuyến đi' để kết thúc."
       );
     }
   }, [matchedRideData.isDriver]);
@@ -621,7 +643,7 @@ const MatchedRideScreen = ({ navigation, route }) => {
       setInputText("");
     } catch (error) {
       console.warn("Error sending message:", error);
-      Alert.alert("Lỗi", "Không thể gửi tin nhắn. Vui lòng thử lại.");
+      showCustomAlert("Lỗi", "Không thể gửi tin nhắn. Vui lòng thử lại.");
     }
   };
 
@@ -685,7 +707,7 @@ const MatchedRideScreen = ({ navigation, route }) => {
 
       // 3. Nếu là Driver, thông báo xong và về Home
       if (matchedRideData.isDriver) {
-        Alert.alert(
+        showCustomAlert(
           "Hoàn thành chuyến đi",
           `Bạn đã hoàn thành chuyến đi thành công!\n+${earned} điểm thưởng`,
           [
@@ -715,7 +737,10 @@ const MatchedRideScreen = ({ navigation, route }) => {
       }
     } catch (error) {
       console.error("Failed to complete ride:", error);
-      Alert.alert("Lỗi", "Không thể hoàn thành chuyến đi. Vui lòng thử lại.");
+      showCustomAlert(
+        "Lỗi",
+        "Không thể hoàn thành chuyến đi. Vui lòng thử lại."
+      );
     }
   };
 
@@ -724,8 +749,8 @@ const MatchedRideScreen = ({ navigation, route }) => {
     try {
       // Initiate audio call through Stream
       // In a real implementation, this would use Stream's Video SDK
-      Alert.alert("Gọi điện thoại", `Đang gọi ${otherPerson.name}...`, [
-        { text: "Hủy" },
+      showCustomAlert("Gọi điện thoại", `Đang gọi ${otherPerson.name}...`, [
+        { text: "Hủy", onPress: () => {} },
       ]);
       // TODO: Implement actual audio call using Stream Video SDK
     } catch (error) {
@@ -737,8 +762,8 @@ const MatchedRideScreen = ({ navigation, route }) => {
     if (!channel) return;
     try {
       // Initiate video call through Stream
-      Alert.alert("Gọi video", `Đang gọi video ${otherPerson.name}...`, [
-        { text: "Hủy" },
+      showCustomAlert("Gọi video", `Đang gọi video ${otherPerson.name}...`, [
+        { text: "Hủy", onPress: () => {} },
       ]);
       // TODO: Implement actual video call using Stream Video SDK
     } catch (error) {
@@ -942,11 +967,15 @@ const MatchedRideScreen = ({ navigation, route }) => {
                       { backgroundColor: COLORS.PRIMARY, marginTop: 16 },
                     ]}
                     onPress={() => {
-                      Alert.alert(
+                      showCustomAlert(
                         "Bắt đầu chuyến đi",
                         "Xác nhận khách đã lên xe?",
                         [
-                          { text: "Hủy", style: "cancel" },
+                          {
+                            text: "Hủy",
+                            style: "cancel",
+                            onPress: () => {},
+                          },
                           {
                             text: "Bắt đầu",
                             onPress: () => {
@@ -966,12 +995,132 @@ const MatchedRideScreen = ({ navigation, route }) => {
               </View>
             )}
 
-            {/* GIAO DIỆN CHO PASSENGER - Chờ tài xế */}
+            {/* 🎯 THÔNG TIN TÀI XẾ - Hiển thị cho passenger khi matched */}
             {rideStatus === "matched" && !matchedRideData.isDriver && (
-              <View style={styles.waitingSection}>
-                <ActivityIndicator size="small" color={COLORS.PRIMARY} />
-                <Text style={styles.waitingText}>Tài xế đang đến...</Text>
-                <Text style={styles.waitingSubtext}>ETA: {driverETA}</Text>
+              <View style={styles.customerInfoCard}>
+                <View style={styles.customerHeader}>
+                  <Image
+                    source={{
+                      uri:
+                        matchedRideData.driverAvatar ||
+                        "https://i.pravatar.cc/150?img=1",
+                    }}
+                    style={styles.customerAvatar}
+                  />
+                  <View style={{ marginLeft: 12, flex: 1 }}>
+                    <Text style={styles.customerNameLabel}>Tài xế</Text>
+                    <Text style={styles.customerName}>
+                      {matchedRideData.driverName || "Tài xế"}
+                    </Text>
+                    <View style={styles.customerRatingRow}>
+                      <MaterialIcons
+                        name="star"
+                        size={16}
+                        color={COLORS.ORANGE}
+                      />
+                      <Text style={styles.customerRatingText}>
+                        {matchedRideData.driverRating
+                          ? matchedRideData.driverRating.toFixed(1)
+                          : "5.0"}
+                      </Text>
+                      <Text style={styles.customerPhone}>
+                        {" "}
+                        • {matchedRideData.driverPhone || ""}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Nút Chat Nhanh */}
+                  <TouchableOpacity
+                    style={styles.callButton}
+                    onPress={() => setShowChatModal(true)}
+                  >
+                    <MaterialIcons name="chat" size={24} color={COLORS.WHITE} />
+                    {messages.length > 0 && (
+                      <View style={styles.chatBadgeSmall}>
+                        <Text style={styles.chatBadgeTextSmall}>
+                          {messages.length}
+                        </Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.divider} />
+
+                {/* Vehicle Info - XanhSM Style */}
+                {(matchedRideData.vehicleInfo ||
+                  matchedRideData.vehicleModel ||
+                  matchedRideData.licensePlate) && (
+                  <View style={styles.vehicleInfoSection}>
+                    <View style={styles.vehicleInfoCard}>
+                      <View style={styles.vehicleInfoRow}>
+                        <View style={styles.vehicleIconContainer}>
+                          <MaterialIcons
+                            name="two-wheeler"
+                            size={24}
+                            color={COLORS.PRIMARY}
+                          />
+                        </View>
+                        <View style={styles.vehicleInfoContent}>
+                          {matchedRideData.vehicleInfo ? (
+                            <Text style={styles.vehicleModel}>
+                              {matchedRideData.vehicleInfo}
+                            </Text>
+                          ) : (
+                            <>
+                              <Text style={styles.vehicleModel}>
+                                {matchedRideData.vehicleModel || "Xe máy"}
+                              </Text>
+                              {matchedRideData.licensePlate && (
+                                <Text style={styles.licensePlate}>
+                                  {matchedRideData.licensePlate}
+                                </Text>
+                              )}
+                            </>
+                          )}
+                        </View>
+                      </View>
+                    </View>
+                  </View>
+                )}
+
+                <View style={styles.divider} />
+
+                <View style={styles.locationSummary}>
+                  <View style={styles.locationRow}>
+                    <MaterialIcons
+                      name="my-location"
+                      size={16}
+                      color={COLORS.BLUE}
+                    />
+                    <Text style={styles.locationText} numberOfLines={1}>
+                      {matchedRideData.from || matchedRideData.pickupAddress}
+                    </Text>
+                  </View>
+                  <View style={[styles.locationRow, { marginTop: 8 }]}>
+                    <MaterialIcons
+                      name="location-on"
+                      size={16}
+                      color={COLORS.RED}
+                    />
+                    <Text style={styles.locationText} numberOfLines={1}>
+                      {matchedRideData.to || matchedRideData.destinationAddress}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* ETA Info */}
+                <View style={styles.etaInfoRow}>
+                  <MaterialIcons
+                    name="schedule"
+                    size={16}
+                    color={COLORS.PRIMARY}
+                  />
+                  <Text style={styles.etaInfoText}>
+                    Tài xế đang đến • ETA: {driverETA}
+                  </Text>
+                </View>
               </View>
             )}
 
@@ -1080,6 +1229,15 @@ const MatchedRideScreen = ({ navigation, route }) => {
         otherPersonName={otherPerson.name}
       />
 
+      {/* Custom Alert Modal */}
+      <CustomAlert
+        visible={customAlert.visible}
+        title={customAlert.title}
+        message={customAlert.message}
+        buttons={customAlert.buttons}
+        onClose={() => setCustomAlert({ ...customAlert, visible: false })}
+      />
+
       {/* Rating Modal */}
       <Modal
         visible={showRatingModal}
@@ -1147,10 +1305,9 @@ const MatchedRideScreen = ({ navigation, route }) => {
               ]}
               onPress={() => {
                 setShowRatingModal(false);
-                Alert.alert(
+                showCustomAlert(
                   "Hoàn tất đánh giá",
-                  `Cảm ơn bạn đã gửi đánh giá ${rating} sao cho bạn đồng hành này.`,
-                  [{ text: "Đóng" }]
+                  `Cảm ơn bạn đã gửi đánh giá ${rating} sao cho bạn đồng hành này.`
                 );
                 // TODO: Gửi rating + comment + matchedRideData lên backend
               }}
@@ -1298,19 +1455,22 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
   },
   vehicleModel: {
-    fontSize: 12,
+    fontSize: 16,
     color: COLORS.BLACK,
     fontWeight: "600",
-    marginBottom: 2,
+    marginBottom: 6,
   },
   licensePlate: {
-    fontSize: 11,
+    fontSize: 14,
     fontWeight: "700",
-    color: COLORS.BLACK,
-    backgroundColor: "#f5f5f5",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 4,
+    color: COLORS.PRIMARY,
+    backgroundColor: COLORS.WHITE,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+    alignSelf: "flex-start",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
   },
   ratingSection: {
     marginBottom: 16,
@@ -1678,6 +1838,53 @@ const styles = StyleSheet.create({
     height: 60,
     borderRadius: 30,
     backgroundColor: COLORS.LIGHT_GRAY,
+  },
+  vehicleInfoSection: {
+    paddingVertical: 8,
+  },
+  vehicleInfoCard: {
+    backgroundColor: "#F8F9FA",
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  vehicleInfoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  vehicleIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: COLORS.WHITE,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    marginRight: 12,
+  },
+  vehicleInfoContent: {
+    flex: 1,
+  },
+  etaInfoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#f0f0f0",
+  },
+  etaInfoText: {
+    fontSize: 13,
+    color: COLORS.PRIMARY,
+    fontWeight: "600",
+    marginLeft: 8,
   },
   customerNameLabel: {
     fontSize: 12,

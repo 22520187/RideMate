@@ -384,7 +384,7 @@ const FixedRoutesScreen = ({ navigation, route }) => {
           <View style={styles.searchForm}>
             <Text style={styles.searchFormTitle}>Tìm kiếm chuyến đi</Text>
 
-            <View style={[styles.searchInputSection, { zIndex: 2 }]}>
+            <View style={[styles.searchInputSection, { zIndex: 10 }]}>
               <Text style={styles.searchLabel}>Điểm đón</Text>
               <LocationSearch
                 placeholder="Nhập điểm đón"
@@ -395,7 +395,7 @@ const FixedRoutesScreen = ({ navigation, route }) => {
               />
             </View>
 
-            <View style={[styles.searchInputSection, { zIndex: 1 }]}>
+            <View style={[styles.searchInputSection, { zIndex: 5 }]}>
               <Text style={styles.searchLabel}>Điểm đến</Text>
               <LocationSearch
                 placeholder="Nhập điểm đến"

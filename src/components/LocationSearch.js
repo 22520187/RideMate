@@ -150,7 +150,7 @@ const LocationSearch = ({
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, isFocused && styles.containerFocused]}>
       <View
         style={[
           styles.inputContainer,
@@ -222,6 +222,10 @@ const styles = StyleSheet.create({
   container: {
     position: "relative",
     zIndex: 1000,
+  },
+  containerFocused: {
+    zIndex: 99999,
+    elevation: 20,
   },
   inputContainer: {
     flexDirection: "row",
