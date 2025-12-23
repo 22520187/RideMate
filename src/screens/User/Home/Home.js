@@ -118,11 +118,7 @@ const Home = ({ navigation }) => {
         console.log("⚠️ Home: No token, using stored data only");
       }
 
-      if (
-        userProfile &&
-        (userProfile.userType === "DRIVER" ||
-          userProfile.userType === "PASSENGER")
-      ) {
+      if (profile && profile.userType === "DRIVER") {
         try {
           const vehicleResp = await getMyVehicle();
           const vehicle = vehicleResp?.data;
