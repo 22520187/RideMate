@@ -9,12 +9,16 @@ import {
   RefreshControl,
   ScrollView,
   Dimensions,
+  Modal,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LineChart } from "react-native-chart-kit";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import COLORS from "../../constant/colors";
 import { getMatchHistory } from "../../services/matchService";
+import GradientHeader from "../../components/GradientHeader";
 
 const { width } = Dimensions.get("window");
 
@@ -23,6 +27,15 @@ const RideHistory = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Date filter states
+  const [fromDate, setFromDate] = useState(null);
+  const [toDate, setToDate] = useState(null);
+  const [tempFromDate, setTempFromDate] = useState(null);
+  const [tempToDate, setTempToDate] = useState(null);
+  const [showFromPicker, setShowFromPicker] = useState(false);
+  const [showToPicker, setShowToPicker] = useState(false);
+  const [filterModalVisible, setFilterModalVisible] = useState(false);
+
   const normalizeRideItem = (raw) => {
     if (!raw) return null;
 
@@ -30,26 +43,36 @@ const RideHistory = ({ navigation }) => {
     const pickupAddress =
       raw.pickupAddress ?? raw.pickup_address ?? raw.startLocation ?? raw.from;
     const destinationAddress =
-      raw.destinationAddress ?? raw.destination_address ?? raw.endLocation ?? raw.to;
+      raw.destinationAddress ??
+      raw.destination_address ??
+      raw.endLocation ??
+      raw.to;
     const status =
       raw.status ?? raw.matchStatus ?? raw.rideStatus ?? raw.state ?? "UNKNOWN";
 
-    const priceRaw = raw.price ?? raw.estimatedPrice ?? raw.fare ?? 0;
-    const price = typeof priceRaw === "number" ? priceRaw : Number(priceRaw) || 0;
+    // Use coin instead of price
+    const coinRaw =
+      raw.coin ?? raw.coins ?? raw.price ?? raw.estimatedPrice ?? raw.fare ?? 0;
+    const coin = typeof coinRaw === "number" ? coinRaw : Number(coinRaw) || 0;
 
-    const distanceRaw = raw.distance ?? raw.distanceMeters ?? raw.distance_meters;
+    const distanceRaw =
+      raw.distance ?? raw.distanceMeters ?? raw.distance_meters;
     const distance =
       typeof distanceRaw === "number" ? distanceRaw : Number(distanceRaw) || 0;
 
     const createdAt =
-      raw.createdAt ?? raw.created_at ?? raw.createdDate ?? raw.created_date ?? new Date().toISOString();
+      raw.createdAt ??
+      raw.created_at ??
+      raw.createdDate ??
+      raw.created_date ??
+      new Date().toISOString();
 
     return {
       id,
       pickupAddress,
       destinationAddress,
       status,
-      price,
+      coin,
       distance,
       createdAt,
     };
@@ -88,7 +111,7 @@ const RideHistory = ({ navigation }) => {
 
   // Refresh when tab is focused
   useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
+    const unsubscribe = navigation.addListener("focus", () => {
       fetchHistory();
     });
     return unsubscribe;
@@ -99,31 +122,156 @@ const RideHistory = ({ navigation }) => {
     fetchHistory();
   };
 
+  // Date filter handlers
+  const handleFromDateChange = (event, selectedDate) => {
+    // For Android, only apply when user confirms
+    if (Platform.OS === "android") {
+      if (event.type === "set" && selectedDate) {
+        setTempFromDate(selectedDate);
+      }
+      setShowFromPicker(false);
+      setFilterModalVisible(true);
+    } else {
+      // For iOS, update temp value as user scrolls (don't close)
+      if (selectedDate) {
+        setTempFromDate(selectedDate);
+      }
+    }
+  };
+
+  const handleToDateChange = (event, selectedDate) => {
+    // For Android, only apply when user confirms
+    if (Platform.OS === "android") {
+      if (event.type === "set" && selectedDate) {
+        setTempToDate(selectedDate);
+      }
+      setShowToPicker(false);
+      setFilterModalVisible(true);
+    } else {
+      // For iOS, update temp value as user scrolls (don't close)
+      if (selectedDate) {
+        setTempToDate(selectedDate);
+      }
+    }
+  };
+
+  const confirmFromDatePicker = () => {
+    setShowFromPicker(false);
+    setFilterModalVisible(true);
+  };
+
+  const confirmToDatePicker = () => {
+    setShowToPicker(false);
+    setFilterModalVisible(true);
+  };
+
+  const cancelFromDatePicker = () => {
+    setTempFromDate(fromDate); // Reset to original value
+    setShowFromPicker(false);
+    setFilterModalVisible(true);
+  };
+
+  const cancelToDatePicker = () => {
+    setTempToDate(toDate); // Reset to original value
+    setShowToPicker(false);
+    setFilterModalVisible(true);
+  };
+
+  const openFromDatePicker = () => {
+    setFilterModalVisible(false);
+    setTimeout(() => {
+      setShowFromPicker(true);
+    }, 300);
+  };
+
+  const openToDatePicker = () => {
+    setFilterModalVisible(false);
+    setTimeout(() => {
+      setShowToPicker(true);
+    }, 300);
+  };
+
+  const clearFilters = () => {
+    setFromDate(null);
+    setToDate(null);
+    setTempFromDate(null);
+    setTempToDate(null);
+    setFilterModalVisible(false);
+  };
+
+  const applyFilters = () => {
+    // Apply temp dates to actual filter dates
+    setFromDate(tempFromDate);
+    setToDate(tempToDate);
+    setFilterModalVisible(false);
+  };
+
+  const openFilterModal = () => {
+    // Initialize temp dates with current filter values or today's date
+    const today = new Date();
+    setTempFromDate(fromDate || today);
+    setTempToDate(toDate || today);
+    setFilterModalVisible(true);
+  };
+
+  // Filter rides by date range
+  const filteredRides = useMemo(() => {
+    if (!fromDate && !toDate) return rides;
+
+    return rides.filter((ride) => {
+      const rideDate = new Date(ride.createdAt);
+
+      if (fromDate && toDate) {
+        const from = new Date(fromDate);
+        from.setHours(0, 0, 0, 0);
+        const to = new Date(toDate);
+        to.setHours(23, 59, 59, 999);
+        return rideDate >= from && rideDate <= to;
+      } else if (fromDate) {
+        const from = new Date(fromDate);
+        from.setHours(0, 0, 0, 0);
+        return rideDate >= from;
+      } else if (toDate) {
+        const to = new Date(toDate);
+        to.setHours(23, 59, 59, 999);
+        return rideDate <= to;
+      }
+
+      return true;
+    });
+  }, [rides, fromDate, toDate]);
+
   // Separate active and past rides
   const { activeRides, pastRides, chartData } = useMemo(() => {
-    const active = rides.filter(
-      (ride) => ride.status === "IN_PROGRESS" || ride.status === "ONGOING" || 
-               ride.status === "WAITING" || ride.status === "PENDING"
+    const active = filteredRides.filter(
+      (ride) =>
+        ride.status === "IN_PROGRESS" ||
+        ride.status === "ONGOING" ||
+        ride.status === "WAITING" ||
+        ride.status === "PENDING"
     );
-    const past = rides.filter(
-      (ride) => ride.status === "COMPLETED" || ride.status === "FINISHED" || 
-               ride.status === "CANCELLED" || ride.status === "REJECTED"
+    const past = filteredRides.filter(
+      (ride) =>
+        ride.status === "COMPLETED" ||
+        ride.status === "FINISHED" ||
+        ride.status === "CANCELLED" ||
+        ride.status === "REJECTED"
     );
 
-    // Generate chart data - rides per day for last 7 days
+    // Generate chart data - rides per day for last 7 days (use all rides for chart)
     const last7Days = [];
-    const dayNames = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+    const dayNames = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
     for (let i = 6; i >= 0; i--) {
       const date = new Date();
       date.setDate(date.getDate() - i);
       const dayStart = new Date(date.setHours(0, 0, 0, 0));
       const dayEnd = new Date(date.setHours(23, 59, 59, 999));
-      
-      const count = rides.filter(ride => {
+
+      const count = filteredRides.filter((ride) => {
         const rideDate = new Date(ride.createdAt);
         return rideDate >= dayStart && rideDate <= dayEnd;
       }).length;
-      
+
       last7Days.push({
         day: dayNames[dayStart.getDay()],
         count,
@@ -132,7 +280,7 @@ const RideHistory = ({ navigation }) => {
     }
 
     return { activeRides: active, pastRides: past, chartData: last7Days };
-  }, [rides]);
+  }, [filteredRides]);
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -173,11 +321,11 @@ const RideHistory = ({ navigation }) => {
     }
   };
 
-  const formatPrice = (price) => {
-    if (!price) return "N/A";
-    const num = typeof price === "number" ? price : Number(price);
-    if (!Number.isFinite(num)) return "N/A";
-    return `${num.toLocaleString()}đ`;
+  const formatCoin = (coin) => {
+    if (coin === null || coin === undefined) return "0 coin";
+    const num = typeof coin === "number" ? coin : Number(coin);
+    if (!Number.isFinite(num)) return "0 coin";
+    return `${num.toLocaleString()} coin`;
   };
 
   const formatDistance = (distance) => {
@@ -188,10 +336,11 @@ const RideHistory = ({ navigation }) => {
   };
 
   // Render chart bar
-  const maxCount = Math.max(...chartData.map(d => d.count), 1);
-  
+  const maxCount = Math.max(...chartData.map((d) => d.count), 1);
+
   const RideCard = ({ item }) => {
     const statusColor = getStatusColor(item.status);
+    const statusText = getStatusText(item.status);
 
     return (
       <TouchableOpacity
@@ -199,21 +348,20 @@ const RideHistory = ({ navigation }) => {
         onPress={() => navigation.navigate("RideDetail", { rideId: item.id })}
         activeOpacity={0.7}
       >
+        {/* Status Badge */}
+        <View style={[styles.statusBadge, { backgroundColor: statusColor }]}>
+          <Text style={styles.statusBadgeText}>{statusText}</Text>
+        </View>
+
         <View style={styles.cardRow}>
-          <View style={[styles.locationDot, { backgroundColor: COLORS.PRIMARY }]} />
+          <View
+            style={[styles.locationDot, { backgroundColor: COLORS.PRIMARY }]}
+          />
           <View style={styles.cardContent}>
             <Text style={styles.addressText} numberOfLines={1}>
               {item.pickupAddress || item.startLocation || "Điểm đón"}
             </Text>
             <Text style={styles.labelText}>Pickup point</Text>
-          </View>
-          <View style={styles.priceContainer}>
-            <Text style={styles.priceLabel}>Payment</Text>
-            <View style={[styles.priceBadge, { backgroundColor: statusColor + '20' }]}>
-              <Text style={[styles.priceText, { color: statusColor }]}>
-                {formatPrice(item.price)}
-              </Text>
-            </View>
           </View>
         </View>
 
@@ -227,7 +375,9 @@ const RideHistory = ({ navigation }) => {
           </View>
           <View style={styles.distanceContainer}>
             <Text style={styles.distanceLabel}>Distance</Text>
-            <Text style={styles.distanceText}>{formatDistance(item.distance)}</Text>
+            <Text style={styles.distanceText}>
+              {formatDistance(item.distance)}
+            </Text>
           </View>
         </View>
       </TouchableOpacity>
@@ -237,29 +387,68 @@ const RideHistory = ({ navigation }) => {
   const renderHeader = () => (
     <>
       {/* Header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>Order History</Text>
-          <Text style={styles.headerSubtitle}>Showing all your order history</Text>
+      <View style={styles.headerWrapper}>
+        <View style={styles.filterContainer}>
+          <TouchableOpacity
+            style={[
+              styles.filterButton,
+              (fromDate || toDate) && styles.filterButtonActive,
+            ]}
+            onPress={openFilterModal}
+          >
+            <Ionicons
+              name="filter"
+              size={20}
+              color={fromDate || toDate ? COLORS.WHITE : COLORS.PRIMARY}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.notificationButton}
+            onPress={() => navigation.navigate("Notification")}
+          >
+            <Ionicons
+              name="notifications-outline"
+              size={24}
+              color={COLORS.PRIMARY}
+            />
+            <View style={styles.notificationBadge} />
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity 
-          style={styles.notificationButton}
-          onPress={() => navigation.navigate("Notification")}
-        >
-          <Ionicons name="notifications-outline" size={24} color={COLORS.PRIMARY} />
-          <View style={styles.notificationBadge} />
-        </TouchableOpacity>
       </View>
+
+      {/* Active Filter Display */}
+      {(fromDate || toDate) && (
+        <View style={styles.activeFilterContainer}>
+          <Ionicons name="calendar" size={16} color={COLORS.PRIMARY} />
+          <Text style={styles.activeFilterText}>
+            {fromDate && toDate
+              ? `${fromDate.toLocaleDateString(
+                  "vi-VN"
+                )} - ${toDate.toLocaleDateString("vi-VN")}`
+              : fromDate
+              ? `Từ ${fromDate.toLocaleDateString("vi-VN")}`
+              : `Đến ${toDate.toLocaleDateString("vi-VN")}`}
+          </Text>
+          <TouchableOpacity
+            onPress={clearFilters}
+            style={styles.clearFilterButton}
+          >
+            <Ionicons name="close-circle" size={18} color={COLORS.GRAY} />
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Chart Section */}
       <View style={styles.chartSection}>
         <Text style={styles.chartTitle}>Thống kê 7 ngày qua</Text>
         <LineChart
           data={{
-            labels: chartData.map(d => d.day),
-            datasets: [{
-              data: chartData.map(d => d.count),
-            }]
+            labels: chartData.map((d) => d.day),
+            datasets: [
+              {
+                data: chartData.map((d) => d.count),
+              },
+            ],
           }}
           width={width - 40}
           height={180}
@@ -271,26 +460,26 @@ const RideHistory = ({ navigation }) => {
             color: (opacity = 1) => `rgba(0, 69, 83, ${opacity})`,
             labelColor: (opacity = 1) => `rgba(142, 142, 147, ${opacity})`,
             style: {
-              borderRadius: 16
+              borderRadius: 16,
             },
             propsForDots: {
               r: "4",
               strokeWidth: "2",
-              stroke: COLORS.PRIMARY
+              stroke: COLORS.PRIMARY,
             },
             propsForBackgroundLines: {
               strokeDasharray: "", // solid lines
               stroke: "#F0F0F0",
               strokeWidth: 1,
-            }
+            },
           }}
           bezier
           style={{
             marginVertical: 8,
-            borderRadius: 16
+            borderRadius: 16,
           }}
         />
-        
+
         {/* Stats Summary */}
         <View style={styles.statsContainer}>
           <View style={styles.statItem}>
@@ -299,13 +488,19 @@ const RideHistory = ({ navigation }) => {
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={[styles.statValue, { color: '#2196F3' }]}>{activeRides.length}</Text>
+            <Text style={[styles.statValue, { color: "#2196F3" }]}>
+              {activeRides.length}
+            </Text>
             <Text style={styles.statLabel}>Đang chạy</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
             <Text style={[styles.statValue, { color: COLORS.GREEN }]}>
-              {pastRides.filter(r => r.status === 'COMPLETED' || r.status === 'FINISHED').length}
+              {
+                pastRides.filter(
+                  (r) => r.status === "COMPLETED" || r.status === "FINISHED"
+                ).length
+              }
             </Text>
             <Text style={styles.statLabel}>Hoàn thành</Text>
           </View>
@@ -343,6 +538,7 @@ const RideHistory = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
+      <GradientHeader title="Lịch sử" showBackButton={false} />
       <FlatList
         data={pastRides}
         keyExtractor={(item) => (item._key ?? item.id)?.toString()}
@@ -366,6 +562,203 @@ const RideHistory = ({ navigation }) => {
           </View>
         )}
       />
+
+      {/* Filter Modal */}
+      <Modal
+        visible={filterModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setFilterModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setFilterModalVisible(false)}
+        >
+          <View
+            style={styles.filterModal}
+            onStartShouldSetResponder={() => true}
+          >
+            <View style={styles.filterModalHeader}>
+              <Text style={styles.filterModalTitle}>Lọc theo ngày</Text>
+              <TouchableOpacity onPress={() => setFilterModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#1C1C1E" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.filterModalContent}>
+              {/* From Date */}
+              <View style={styles.dateInputGroup}>
+                <Text style={styles.dateLabel}>Từ ngày</Text>
+                <TouchableOpacity
+                  style={styles.dateInput}
+                  onPress={openFromDatePicker}
+                >
+                  <Ionicons
+                    name="calendar-outline"
+                    size={20}
+                    color={COLORS.PRIMARY}
+                  />
+                  <Text
+                    style={[
+                      styles.dateText,
+                      !tempFromDate && styles.datePlaceholder,
+                    ]}
+                  >
+                    {tempFromDate
+                      ? tempFromDate.toLocaleDateString("vi-VN")
+                      : "Chọn ngày"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* To Date */}
+              <View style={styles.dateInputGroup}>
+                <Text style={styles.dateLabel}>Đến ngày</Text>
+                <TouchableOpacity
+                  style={styles.dateInput}
+                  onPress={openToDatePicker}
+                >
+                  <Ionicons
+                    name="calendar-outline"
+                    size={20}
+                    color={COLORS.PRIMARY}
+                  />
+                  <Text
+                    style={[
+                      styles.dateText,
+                      !tempToDate && styles.datePlaceholder,
+                    ]}
+                  >
+                    {tempToDate
+                      ? tempToDate.toLocaleDateString("vi-VN")
+                      : "Chọn ngày"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Action Buttons */}
+              <View style={styles.filterActions}>
+                <TouchableOpacity
+                  style={styles.clearButton}
+                  onPress={clearFilters}
+                >
+                  <Text style={styles.clearButtonText}>Xóa bộ lọc</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.applyButton}
+                  onPress={applyFilters}
+                >
+                  <Text style={styles.applyButtonText}>Áp dụng</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Date Pickers */}
+      {Platform.OS === "ios" ? (
+        <>
+          {/* iOS From Date Picker Modal */}
+          <Modal
+            visible={showFromPicker}
+            transparent
+            animationType="slide"
+            onRequestClose={cancelFromDatePicker}
+          >
+            <TouchableOpacity
+              style={styles.pickerModalOverlay}
+              activeOpacity={1}
+              onPress={cancelFromDatePicker}
+            >
+              <View
+                style={styles.pickerModal}
+                onStartShouldSetResponder={() => true}
+              >
+                <View style={styles.pickerHeader}>
+                  <TouchableOpacity onPress={cancelFromDatePicker}>
+                    <Text style={styles.pickerCancelText}>Hủy</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.pickerTitle}>Chọn từ ngày</Text>
+                  <TouchableOpacity onPress={confirmFromDatePicker}>
+                    <Text style={styles.pickerDoneText}>Xong</Text>
+                  </TouchableOpacity>
+                </View>
+                <DateTimePicker
+                  value={tempFromDate || new Date()}
+                  mode="date"
+                  display="spinner"
+                  onChange={handleFromDateChange}
+                  maximumDate={tempToDate || new Date()}
+                  textColor="#000"
+                />
+              </View>
+            </TouchableOpacity>
+          </Modal>
+
+          {/* iOS To Date Picker Modal */}
+          <Modal
+            visible={showToPicker}
+            transparent
+            animationType="slide"
+            onRequestClose={cancelToDatePicker}
+          >
+            <TouchableOpacity
+              style={styles.pickerModalOverlay}
+              activeOpacity={1}
+              onPress={cancelToDatePicker}
+            >
+              <View
+                style={styles.pickerModal}
+                onStartShouldSetResponder={() => true}
+              >
+                <View style={styles.pickerHeader}>
+                  <TouchableOpacity onPress={cancelToDatePicker}>
+                    <Text style={styles.pickerCancelText}>Hủy</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.pickerTitle}>Chọn đến ngày</Text>
+                  <TouchableOpacity onPress={confirmToDatePicker}>
+                    <Text style={styles.pickerDoneText}>Xong</Text>
+                  </TouchableOpacity>
+                </View>
+                <DateTimePicker
+                  value={tempToDate || new Date()}
+                  mode="date"
+                  display="spinner"
+                  onChange={handleToDateChange}
+                  minimumDate={tempFromDate}
+                  maximumDate={new Date()}
+                  textColor="#000"
+                />
+              </View>
+            </TouchableOpacity>
+          </Modal>
+        </>
+      ) : (
+        <>
+          {/* Android Date Pickers */}
+          {showFromPicker && (
+            <DateTimePicker
+              value={tempFromDate || new Date()}
+              mode="date"
+              display="default"
+              onChange={handleFromDateChange}
+              maximumDate={tempToDate || new Date()}
+            />
+          )}
+          {showToPicker && (
+            <DateTimePicker
+              value={tempToDate || new Date()}
+              mode="date"
+              display="default"
+              onChange={handleToDateChange}
+              minimumDate={tempFromDate}
+              maximumDate={new Date()}
+            />
+          )}
+        </>
+      )}
     </SafeAreaView>
   );
 };
@@ -383,26 +776,45 @@ const styles = StyleSheet.create({
   listContent: {
     paddingBottom: 20,
   },
-  
+
   // Header
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 20,
+  headerWrapper: {
     backgroundColor: "#fff",
+    paddingTop: 10,
+    paddingBottom: 16,
   },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#1C1C1E",
+  filterContainer: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    gap: 12,
   },
-  headerSubtitle: {
-    fontSize: 13,
-    color: "#8E8E93",
-    marginTop: 4,
+  filterButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#F5F5F5",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 8,
+    position: "relative",
+  },
+  filterButtonActive: {
+    backgroundColor: COLORS.PRIMARY,
+  },
+  filterButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#F5F5F5",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 8,
+    position: "relative",
+  },
+  filterButtonActive: {
+    backgroundColor: COLORS.PRIMARY,
   },
   notificationButton: {
     width: 44,
@@ -421,6 +833,29 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
     backgroundColor: COLORS.PRIMARY,
+  },
+
+  // Active Filter Display
+  activeFilterContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.PRIMARY + "15",
+    marginHorizontal: 20,
+    marginTop: 12,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 8,
+  },
+  activeFilterText: {
+    flex: 1,
+    fontSize: 13,
+    color: COLORS.PRIMARY,
+    fontWeight: "600",
+  },
+  clearFilterButton: {
+    padding: 4,
   },
 
   // Chart Section
@@ -512,6 +947,21 @@ const styles = StyleSheet.create({
     padding: 16,
     marginHorizontal: 20,
     marginBottom: 12,
+    position: "relative",
+  },
+  statusBadge: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    zIndex: 1,
+  },
+  statusBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#fff",
   },
   cardRow: {
     flexDirection: "row",
@@ -586,6 +1036,127 @@ const styles = StyleSheet.create({
     color: "#8E8E93",
     marginTop: 8,
     textAlign: "center",
+  },
+
+  // Filter Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  filterModal: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingBottom: 32,
+  },
+  filterModalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F0F0F0",
+  },
+  filterModalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#1C1C1E",
+  },
+  filterModalContent: {
+    padding: 20,
+  },
+  dateInputGroup: {
+    marginBottom: 20,
+  },
+  dateLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1C1C1E",
+    marginBottom: 8,
+  },
+  dateInput: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F5F5F5",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 12,
+  },
+  dateText: {
+    fontSize: 15,
+    color: "#1C1C1E",
+    flex: 1,
+  },
+  datePlaceholder: {
+    color: "#8E8E93",
+  },
+  filterActions: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 8,
+  },
+  clearButton: {
+    flex: 1,
+    backgroundColor: "#F5F5F5",
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  clearButtonText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#8E8E93",
+  },
+  applyButton: {
+    flex: 1,
+    backgroundColor: COLORS.PRIMARY,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  applyButtonText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#fff",
+  },
+
+  // Picker Modal (iOS)
+  pickerModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  pickerModal: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+  },
+  pickerHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F0F0F0",
+  },
+  pickerTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#1C1C1E",
+  },
+  pickerCancelText: {
+    fontSize: 16,
+    color: "#8E8E93",
+    fontWeight: "600",
+  },
+  pickerDoneText: {
+    fontSize: 16,
+    color: COLORS.PRIMARY,
+    fontWeight: "700",
   },
 });
 

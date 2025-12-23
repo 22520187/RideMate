@@ -1,4 +1,6 @@
-﻿// Test file to check if .env is loading correctly
+﻿// Test file to check if env is loading correctly
+import { ENV } from "./env";
+// Test file to check if .env is loading correctly
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL;
 const STREAM_API_KEY = process.env.EXPO_PUBLIC_STREAM_API_KEY;
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;

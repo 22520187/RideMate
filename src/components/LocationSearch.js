@@ -34,7 +34,7 @@ const LocationSearch = ({
   const [showSuggestionsList, setShowSuggestionsList] = useState(false);
   const [isGettingLocation, setIsGettingLocation] = useState(false);
 
-  const debouncedValue = useDebounce(value, 1000);
+  const debouncedValue = useDebounce(value, 300);
 
   useEffect(() => {
     const performSearch = async () => {
@@ -150,7 +150,7 @@ const LocationSearch = ({
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, isFocused && styles.containerFocused]}>
       <View
         style={[
           styles.inputContainer,
@@ -223,25 +223,23 @@ const styles = StyleSheet.create({
     position: "relative",
     zIndex: 1000,
   },
+  containerFocused: {
+    zIndex: 99999,
+    elevation: 20,
+  },
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: COLORS.WHITE,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    backgroundColor: "#F8F9FA",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     marginVertical: 2,
-    borderWidth: 1,
-    borderColor: COLORS.GRAY_LIGHT,
-    elevation: 2,
-    shadowColor: COLORS.BLACK,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    borderWidth: 0,
   },
   inputContainerFocused: {
-    borderColor: COLORS.PRIMARY,
-    borderWidth: 1.5,
+    backgroundColor: "#F8F9FA",
+    borderWidth: 0,
   },
   input: {
     flex: 1,

@@ -10,6 +10,13 @@ export default {
     refresh: "/auth/refresh-token",
   },
 
+  verification: {
+    uploadIdCard: "/verification/id-card",
+    verifyLiveness: "/verification/liveness",
+    verifyPhase: "/verification/liveness/verify-phase",
+    getStatus: (phoneNumber) => `/verification/status/${phoneNumber}`,
+  },
+
   user: {
     profile: "/users/me",
     update: "/users",
@@ -42,6 +49,29 @@ export default {
     broadcastPassenger: "/matches/broadcast/passenger",
     findMatches: "/matches/find",
     byId: (id) => `/matches/${id}`,
+    getById: (id) => `/matches/${id}`,
+  },
+
+  // Alias for matches (for consistency)
+  match: {
+    book: "/matches/book",
+    accept: (id) => `/matches/${id}/accept`,
+    cancel: (id) => `/matches/${id}/cancel`,
+    status: (id) => `/matches/${id}/status`,
+    detail: (id) => `/matches/${id}`,
+    history: "/matches/history",
+    waiting: "/matches/waiting",
+    broadcastDriver: "/matches/broadcast/driver",
+    broadcastPassenger: "/matches/broadcast/passenger",
+    findMatches: "/matches/find",
+    byId: (id) => `/matches/${id}`,
+    getById: (id) => `/matches/${id}`,
+  },
+
+  reports: {
+    create: "/reports",
+    my: "/reports/my",
+    byId: (id) => `/reports/${id}`,
   },
 
   reports: {
@@ -120,5 +150,43 @@ export default {
     accept: (id) => `/missions/${id}/accept`,
     claim: (id) => `/missions/${id}/claim`,
     stats: "/missions/stats",
+  },
+
+  driver: {
+    location: "/driver/location",
+  },
+
+  fixedRoutes: {
+    create: "/api/fixed-routes",
+    update: (id) => `/api/fixed-routes/${id}`,
+    delete: (id) => `/api/fixed-routes/${id}`,
+    byId: (id) => `/api/fixed-routes/${id}`,
+    myRoutes: "/api/fixed-routes/my-routes",
+    all: "/api/fixed-routes",
+    search: "/api/fixed-routes/search",
+    updateStatus: (id) => `/api/fixed-routes/${id}/status`,
+  },
+
+  routeBookings: {
+    create: "/api/route-bookings",
+    accept: (id) => `/api/route-bookings/${id}/accept`,
+    reject: (id) => `/api/route-bookings/${id}/reject`,
+    cancel: (id) => `/api/route-bookings/${id}/cancel`,
+    byId: (id) => `/api/route-bookings/${id}`,
+    myBookings: "/api/route-bookings/my-bookings",
+    pending: "/api/route-bookings/pending",
+    byRoute: (routeId) => `/api/route-bookings/route/${routeId}`,
+    start: (id) => `/api/route-bookings/${id}/start`,
+    complete: (id) => `/api/route-bookings/${id}/complete`,
+  },
+  notifications: {
+    list: "/notifications",
+    markRead: (id) => `/notifications/${id}/read`,
+    markAllRead: "/notifications/read-all",
+    delete: (id) => `/notifications/${id}`,
+  },
+
+  feedback: {
+    submit: "/feedback",
   },
 };

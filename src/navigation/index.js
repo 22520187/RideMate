@@ -11,6 +11,10 @@ import HomeSearch from "../screens/User/Home/HomeSearch";
 import Award from "../screens/User/Award";
 import Profile from "../screens/User/Profile";
 import DriverRideScreen from "../screens/User/Rider/DriverRideScreen";
+import DriverRideRequestsScreen from "../screens/User/Driver/DriverRideRequestsScreen";
+import DriverStatusScreen from "../screens/User/Driver/DriverStatusScreen";
+import DriverMapScreen from "../screens/User/Driver/DriverMapScreen";
+import DriverStatistics from "../screens/User/Driver/DriverStatistics";
 import PassengerRideScreen from "../screens/User/Rider/PassengerRideScreen";
 import MatchedRideScreen from "../screens/User/Rider/MatchedRideScreen";
 import Report from "../screens/User/Report";
@@ -27,8 +31,11 @@ import Onboarding from "../screens/Auth/Onboarding";
 import InitialScreen from "../screens/Auth/InitialScreen";
 import PhoneVerification from "../screens/Auth/PhoneVerification";
 import RegisterComplete from "../screens/Auth/RegisterComplete";
+import IDCardCaptureScreen from "../screens/Auth/IDCardCaptureScreen";
+import LivenessCheckScreen from "../screens/Auth/LivenessCheckScreen";
+import PhoneNumberInput from "../screens/Auth/PhoneNumberInput";
 import MessageListScreen from "../screens/User/Message/MessageListScreen";
-import ChatScreen from "../screens/User/Message/ChatScreen";
+import ChatScreenCustom from "../screens/User/Message/ChatScreenCustom";
 import AdminDashboard from "../screens/Admin/AdminDashboard";
 import TripManagement from "../screens/Admin/TripManagement";
 import UserManagement from "../screens/Admin/UserManagement";
@@ -38,6 +45,14 @@ import RewardManagement from "../screens/Admin/RewardManagement";
 import AdminProfile from "../screens/Admin/AdminProfile";
 import MembershipManagement from "../screens/Admin/MembershipManagement";
 import { getUserType } from "../utils/storage";
+
+// Fixed Routes screens
+import CreateFixedRouteScreen from "../screens/User/Driver/CreateFixedRouteScreen";
+import MyFixedRoutesScreen from "../screens/User/Driver/MyFixedRoutesScreen";
+import RouteBookingsScreen from "../screens/User/Driver/RouteBookingsScreen";
+import FixedRoutesScreen from "../screens/User/Rider/FixedRoutesScreen";
+import RouteBookingScreen from "../screens/User/Rider/RouteBookingScreen";
+import MyBookingsScreen from "../screens/User/Rider/MyBookingsScreen";
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -49,7 +64,6 @@ const MessageStackNavigator = () => {
   return (
     <MessageStack.Navigator screenOptions={{ headerShown: false }}>
       <MessageStack.Screen name="MessageList" component={MessageListScreen} />
-      <MessageStack.Screen name="ChatScreen" component={ChatScreen} />
     </MessageStack.Navigator>
   );
 };
@@ -238,6 +252,18 @@ const MainStackNavigator = () => {
         component={PhoneVerification}
       />
       <Stack.Screen
+        name="IDCardCaptureScreen"
+        component={IDCardCaptureScreen}
+      />
+      <Stack.Screen
+        name="LivenessCheckScreen"
+        component={LivenessCheckScreen}
+      />
+      <Stack.Screen
+        name="PhoneNumberInput"
+        component={PhoneNumberInput}
+      />
+      <Stack.Screen
         name={SCREENS.REGISTER_COMPLETE}
         component={RegisterComplete}
       />
@@ -246,6 +272,26 @@ const MainStackNavigator = () => {
       <Stack.Screen name={SCREENS.HOME_SEARCH} component={HomeSearch} />
       <Stack.Screen name={SCREENS.MEMBER} component={Member} />
       <Stack.Screen name={SCREENS.DRIVER_RIDE} component={DriverRideScreen} />
+      <Stack.Screen
+        name={SCREENS.DRIVER_RIDE_REQUESTS}
+        component={DriverRideRequestsScreen}
+      />
+      <Stack.Screen
+        name={SCREENS.DRIVER_STATUS}
+        component={DriverStatusScreen}
+      />
+      <Stack.Screen name={SCREENS.DRIVER_MAP} component={DriverMapScreen} />
+      <Stack.Screen name="DriverStatistics" component={DriverStatistics} />
+      <Stack.Screen
+        name={SCREENS.DRIVER_RIDE_REQUESTS}
+        component={DriverRideRequestsScreen}
+      />
+      <Stack.Screen
+        name={SCREENS.DRIVER_STATUS}
+        component={DriverStatusScreen}
+      />
+      <Stack.Screen name={SCREENS.DRIVER_MAP} component={DriverMapScreen} />
+      <Stack.Screen name="DriverStatistics" component={DriverStatistics} />
       <Stack.Screen
         name={SCREENS.PASSENGER_RIDE}
         component={PassengerRideScreen}
@@ -258,7 +304,33 @@ const MainStackNavigator = () => {
       <Stack.Screen name={SCREENS.MISSION} component={Mission} />
       <Stack.Screen name={SCREENS.RIDE_HISTORY} component={RideHistory} />
       <Stack.Screen name="RideDetail" component={RideDetail} />
-      <Stack.Screen name="ChatScreen" component={ChatScreen} />
+
+      {/* Chat Screen - Full screen without bottom tabs */}
+      <Stack.Screen
+        name="ChatScreen"
+        component={ChatScreenCustom}
+        options={{
+          presentation: "card",
+          headerShown: false,
+        }}
+      />
+
+      {/* Fixed Routes screens */}
+      <Stack.Screen
+        name="CreateFixedRouteScreen"
+        component={CreateFixedRouteScreen}
+      />
+      <Stack.Screen
+        name="MyFixedRoutesScreen"
+        component={MyFixedRoutesScreen}
+      />
+      <Stack.Screen
+        name="RouteBookingsScreen"
+        component={RouteBookingsScreen}
+      />
+      <Stack.Screen name="FixedRoutesScreen" component={FixedRoutesScreen} />
+      <Stack.Screen name="RouteBookingScreen" component={RouteBookingScreen} />
+      <Stack.Screen name="MyBookingsScreen" component={MyBookingsScreen} />
       <Stack.Screen
         name={SCREENS.ADMIN_MEMBERSHIP_MANAGEMENT}
         component={MembershipManagement}

@@ -118,11 +118,7 @@ const Home = ({ navigation }) => {
         console.log("⚠️ Home: No token, using stored data only");
       }
 
-      if (
-        userProfile &&
-        (userProfile.userType === "DRIVER" ||
-          userProfile.userType === "PASSENGER")
-      ) {
+      if (profile && profile.userType === "DRIVER") {
         try {
           const vehicleResp = await getMyVehicle();
           const vehicle = vehicleResp?.data;
@@ -176,11 +172,12 @@ const Home = ({ navigation }) => {
   };
 
   const handleCreateRide = () => {
-    if (checkCanCreateRide() == false) {
-      navigation.navigate("DriverRide");
-    } else {
-      navigation.navigate("DriverRide");
+    if (!checkCanCreateRide()) {
+      return;
     }
+
+    // Navigate directly to Create Fixed Route
+    navigation.navigate("CreateFixedRouteScreen");
   };
 
   const currentRide = {
@@ -205,7 +202,7 @@ const Home = ({ navigation }) => {
     {
       id: 2,
       title: "Tìm người đi cùng",
-      subtitle: "Người không có xe",
+      subtitle: "Matching tài xế",
       icon: Users,
       color: COLORS.BLUE,
       onPress: () => navigation.navigate("PassengerRide"),
@@ -461,10 +458,41 @@ const Home = ({ navigation }) => {
                 ]}
               >
                 <View style={styles.quickActionEmoji}>
-                  <Text style={styles.emojiText}>🧑‍🤝‍🧑</Text>
+                  <Text style={styles.emojiText}>🔍</Text>
                 </View>
-                <Text style={styles.quickActionTitle}>Tìm chuyến</Text>
-                <Text style={styles.quickActionSubtitle}>Đi cùng bạn bè</Text>
+                <Text style={styles.quickActionTitle}>Tìm người đi</Text>
+                <Text style={styles.quickActionSubtitle}>Matching tài xế</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          {/* Add Row for Fixed Routes */}
+          <View style={[styles.quickActionsRow, { marginTop: 14 }]}>
+            <TouchableOpacity
+              style={styles.quickActionCardWide}
+              onPress={() => navigation.navigate("FixedRoutesScreen")}
+              activeOpacity={0.85}
+            >
+              <View
+                style={[
+                  styles.quickActionGradient,
+                  {
+                    backgroundColor: "#0097A7",
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  },
+                ]}
+              >
+                <View style={styles.quickActionEmoji}>
+                  <Text style={styles.emojiText}>🚌</Text>
+                </View>
+                <View style={{ marginLeft: 16 }}>
+                  <Text style={styles.quickActionTitle}>Chuyến đi cố định</Text>
+                  <Text style={styles.quickActionSubtitle}>
+                    Tìm chuyến theo lịch trình
+                  </Text>
+                </View>
               </View>
             </TouchableOpacity>
           </View>
@@ -822,6 +850,16 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   quickActionCard: {
+    flex: 1,
+    borderRadius: 16,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  quickActionCardWide: {
     flex: 1,
     borderRadius: 16,
     overflow: "hidden",

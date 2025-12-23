@@ -171,3 +171,18 @@ export const reverseGeocode = async (latitude, longitude) => {
     return `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
   }
 };
+
+export const geocodeAddress = async (address) => {
+  try {
+    const geocoded = await Location.geocodeAsync(address);
+    
+    if (geocoded.length > 0) {
+      const { latitude, longitude } = geocoded[0];
+      return { latitude, longitude };
+    }
+    throw new Error('Address not found');
+  } catch (error) {
+    console.error("Error geocoding address:", error);
+    throw error;
+  }
+};

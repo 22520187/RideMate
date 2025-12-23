@@ -1,6 +1,5 @@
 ﻿﻿import axios from "axios";
 import { ENV } from "../config/env";
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL;
 import {
   getToken,
   getRefreshToken,
@@ -88,6 +87,7 @@ axiosClient.interceptors.response.use(
       url: originalRequest?.url,
       method: originalRequest?.method?.toUpperCase(),
       timeout: error.config?.timeout,
+      data: error.response?.data,
     });
 
     if (status === 401 && !originalRequest._retry) {

@@ -8,6 +8,7 @@ import COLORS from "./src/constant/colors";
 import { OverlayProvider, Chat } from "stream-chat-expo";
 import { chatClient } from "./src/utils/StreamClient";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import NotificationListener from "./src/components/NotificationListener";
 import "./src/config/envTest"; // Debug: Test .env loading
 
 export default function App() {
@@ -19,6 +20,7 @@ export default function App() {
             <NavigationContainer>
               <StatusBar style="auto" backgroundColor={COLORS.BLUE} />
               <MainStackNavigator />
+              <NotificationListener />
               <Toast />
             </NavigationContainer>
           </SafeAreaProvider>

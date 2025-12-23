@@ -5,18 +5,18 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Image,
   ScrollView,
   Linking,
-} from 'react-native';
-import * as Location from 'expo-location';
+} from "react-native";
+import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
 import COLORS from "../../constant/colors";
 import Toast from "react-native-toast-message";
 import { SafeAreaView } from "react-native-safe-area-context";
+import CustomAlert from "../../components/CustomAlert";
 import {
   validatePhoneNumber,
   formatPhoneNumber,
@@ -43,29 +43,51 @@ const Login = ({ navigation }) => {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
+  // Custom Alert State
+  const [customAlert, setCustomAlert] = useState({
+    visible: false,
+    title: "",
+    message: "",
+    buttons: [],
+  });
+
+  // Custom Alert Helper
+  const showCustomAlert = (
+    title,
+    message,
+    buttons = [{ text: "OK", onPress: () => {} }]
+  ) => {
+    setCustomAlert({
+      visible: true,
+      title,
+      message,
+      buttons,
+    });
+  };
+
   const handlePhoneLogin = async () => {
-    console.log('Login button pressed');
-    console.log('Phone number:', phoneNumber);
+    console.log("Login button pressed");
+    console.log("Phone number:", phoneNumber);
 
     if (!phoneNumber.trim() || !password.trim()) {
       Toast.show({
-        type: 'error',
-        text1: 'Lỗi',
-        text2: 'Vui lòng nhập số điện thoại và mật khẩu',
+        type: "error",
+        text1: "Lỗi",
+        text2: "Vui lòng nhập số điện thoại và mật khẩu",
       });
       return;
     }
 
     if (!validatePhoneNumber(phoneNumber)) {
       Toast.show({
-        type: 'error',
-        text1: 'Lỗi',
-        text2: 'Số điện thoại không hợp lệ',
+        type: "error",
+        text1: "Lỗi",
+        text2: "Số điện thoại không hợp lệ",
       });
       return;
     }
 
-    const formattedPhone = phoneNumber.replace(/\s/g, '');
+    const formattedPhone = phoneNumber.replace(/\s/g, "");
 
     try {
       setIsLoading(true);
@@ -121,20 +143,21 @@ const Login = ({ navigation }) => {
       console.log('   Base URL:', ENV.API_BASE_URL);
       console.log('   Endpoint:', endpoints.auth.login);
 
+      // Gửi null cho location, sẽ lấy sau khi đăng nhập thành công
       const response = await axiosClient.post(endpoints.auth.login, {
         phoneNumber: formattedPhone,
         password,
-        currentLatitude,
-        currentLongitude,
+        currentLatitude: null,
+        currentLongitude: null,
       });
 
-      console.log('API Response:', response?.data);
+      console.log("API Response:", response?.data);
       const authData = response?.data?.data;
 
       const { chatToken, user, accessToken, refreshToken } = authData;
-      console.log('User:', user);
-      console.log('Access token:', accessToken);
-      console.log('User type:', user.userType);
+      console.log("User:", user);
+      console.log("Access token:", accessToken);
+      console.log("User type:", user.userType);
 
       if (accessToken) {
         await saveToken(accessToken);
@@ -162,41 +185,70 @@ const Login = ({ navigation }) => {
             chatToken
           );
         }
-        console.log('Stream connect successful');
+        console.log("Stream connect successful");
       } catch (streamError) {
-        console.log('Stream connect failed:', streamError.message);
+        console.log("Stream connect failed:", streamError.message);
       }
 
-      Toast.show({
-        type: 'success',
-        text1: 'Thành công',
-        text2: 'Đăng nhập thành công!',
-      });
+      // Lấy vị trí im lặng sau khi đăng nhập thành công
+      (async () => {
+        try {
+          const { status } = await Location.requestForegroundPermissionsAsync();
+          if (status === "granted") {
+            const location = await Location.getCurrentPositionAsync({
+              accuracy: Location.Accuracy.High,
+            });
+            console.log(
+              "Location obtained silently:",
+              location.coords.latitude,
+              location.coords.longitude
+            );
+          }
+        } catch (locationError) {
+          console.warn("Failed to get location silently:", locationError);
+        }
+      })();
 
-      if (user.userType === 'ADMIN') {
-        console.log('Admin user detected - navigating to AdminStack');
-        navigation.reset({
-          index: 0,
-          routes: [{ name: SCREENS.ADMIN_STACK }],
-        });
-      } else {
-        console.log('Regular user detected - navigating to MainTabs');
-        navigation.reset({
-          index: 0,
-          routes: [{ name: 'MainTabs' }],
-        });
-      }
+      // Hiển thị CustomAlert thay vì Toast
+      showCustomAlert("Thành công", "Đăng nhập thành công!", [
+        {
+          text: "OK",
+          onPress: () => {
+            // Navigate sau khi đóng alert
+            if (user.userType === "ADMIN") {
+              console.log("Admin user detected - navigating to AdminStack");
+              navigation.reset({
+                index: 0,
+                routes: [{ name: SCREENS.ADMIN_STACK }],
+              });
+            } else {
+              console.log("Regular user detected - navigating to MainTabs");
+              navigation.reset({
+                index: 0,
+                routes: [{ name: "MainTabs" }],
+              });
+            }
+          },
+        },
+      ]);
     } catch (error) {
-      console.log('Login error:', error.message);
-      console.log('Error details:', {
+      console.log("Login error:", error.message);
+      console.log("Error details:", {
         code: error.code,
         status: error.response?.status,
         message: error.response?.data?.message,
       });
+
+      // Bỏ qua lỗi 404, không hiển thị thông báo
+      if (error.response?.status === 404) {
+        console.log("404 status code - skipping error display");
+        return;
+      }
+
       Toast.show({
-        type: 'error',
-        text1: 'Lỗi',
-        text2: error.response?.data?.message || 'Sai thông tin đăng nhập',
+        type: "error",
+        text1: "Lỗi",
+        text2: error.response?.data?.message || "Sai thông tin đăng nhập",
       });
     } finally {
       setIsLoading(false);
@@ -401,29 +453,9 @@ const Login = ({ navigation }) => {
           {/* Register Button */}
           <TouchableOpacity
             style={styles.registerButton}
-            onPress={async () => {
-              // Validate phone number
-              if (!phoneNumber.trim()) {
-                Toast.show({
-                  type: "error",
-                  text1: "Lỗi",
-                  text2: "Vui lòng nhập số điện thoại",
-                });
-                return;
-              }
-              if (!validatePhoneNumber(phoneNumber)) {
-                Toast.show({
-                  type: "error",
-                  text1: "Lỗi",
-                  text2: "Số điện thoại không hợp lệ",
-                });
-                return;
-              }
-              navigation.navigate(SCREENS.PHONE_VERIFICATION, {
-                phoneNumber: phoneNumber.replace(/\s/g, ""),
-                isExistingUser: false,
-                mode: "register",
-              });
+            onPress={() => {
+              // Navigate directly to ID Card capture - no phone number needed yet
+              navigation.navigate(SCREENS.ID_CARD_CAPTURE);
             }}
           >
             <Text style={styles.registerButtonText}>
@@ -432,6 +464,15 @@ const Login = ({ navigation }) => {
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Custom Alert Modal */}
+      <CustomAlert
+        visible={customAlert.visible}
+        title={customAlert.title}
+        message={customAlert.message}
+        buttons={customAlert.buttons}
+        onClose={() => setCustomAlert({ ...customAlert, visible: false })}
+      />
     </SafeAreaView>
   );
 };

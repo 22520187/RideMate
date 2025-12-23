@@ -1,16 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import LicensePlateScanner from '../../components/LicensePlateScanner';
-import COLORS from '../../constant/colors';
-import Toast from 'react-native-toast-message';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import LicensePlateScanner from "../../components/LicensePlateScanner";
+import COLORS from "../../constant/colors";
+import Toast from "react-native-toast-message";
+import GradientHeader from "../../components/GradientHeader";
 
 /**
  * Vehicle Verification Screen
@@ -23,7 +24,7 @@ const VehicleVerificationScreen = ({ navigation }) => {
    * Handle when plate is successfully detected
    */
   const handlePlateDetected = (data) => {
-    console.log('Plate detected:', data);
+    console.log("Plate detected:", data);
     setPlateData(data);
   };
 
@@ -33,9 +34,9 @@ const VehicleVerificationScreen = ({ navigation }) => {
   const handleSubmit = async () => {
     if (!plateData) {
       Toast.show({
-        type: 'error',
-        text1: 'Lỗi',
-        text2: 'Vui lòng chụp ảnh biển số xe',
+        type: "error",
+        text1: "Lỗi",
+        text2: "Vui lòng chụp ảnh biển số xe",
       });
       return;
     }
@@ -48,48 +49,41 @@ const VehicleVerificationScreen = ({ navigation }) => {
       // });
 
       Toast.show({
-        type: 'success',
-        text1: 'Thành công',
-        text2: 'Đã gửi yêu cầu xác minh xe',
+        type: "success",
+        text1: "Thành công",
+        text2: "Đã gửi yêu cầu xác minh xe",
       });
 
       // Navigate back or to next screen
       navigation.goBack();
     } catch (error) {
-      console.error('Error submitting verification:', error);
+      console.error("Error submitting verification:", error);
       Toast.show({
-        type: 'error',
-        text1: 'Lỗi',
-        text2: 'Không thể gửi yêu cầu xác minh',
+        type: "error",
+        text1: "Lỗi",
+        text2: "Không thể gửi yêu cầu xác minh",
       });
     }
   };
 
   return (
     <SafeAreaView style={styles.container}>
+      <GradientHeader
+        title="Thông tin xe"
+        onBackPress={() => navigation.goBack()}
+      />
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Ionicons name="arrow-back" size={24} color="#004553" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Xác minh xe</Text>
-          <View style={{ width: 40 }} />
-        </View>
-
         {/* Info Card */}
         <View style={styles.infoCard}>
           <Ionicons name="information-circle" size={24} color="#0891B2" />
           <View style={styles.infoTextContainer}>
             <Text style={styles.infoTitle}>Xác minh biển số xe</Text>
             <Text style={styles.infoText}>
-              Chụp ảnh biển số xe của bạn để xác minh. Ảnh cần rõ nét và đầy đủ thông tin.
+              Chụp ảnh biển số xe của bạn để xác minh. Ảnh cần rõ nét và đầy đủ
+              thông tin.
             </Text>
           </View>
         </View>
@@ -104,22 +98,27 @@ const VehicleVerificationScreen = ({ navigation }) => {
               <Ionicons name="checkmark-circle" size={24} color="#10B981" />
               <Text style={styles.detectedTitle}>Đã phát hiện biển số</Text>
             </View>
-            
+
             <View style={styles.plateNumberContainer}>
               <Text style={styles.plateNumber}>{plateData.plateNumber}</Text>
             </View>
 
             <View style={styles.confidenceContainer}>
               <Text style={styles.confidenceLabel}>Độ tin cậy:</Text>
-              <View style={[
-                styles.confidenceBadge,
-                plateData.confidence === 'high' && styles.highConfidence,
-                plateData.confidence === 'medium' && styles.mediumConfidence,
-                plateData.confidence === 'low' && styles.lowConfidence,
-              ]}>
+              <View
+                style={[
+                  styles.confidenceBadge,
+                  plateData.confidence === "high" && styles.highConfidence,
+                  plateData.confidence === "medium" && styles.mediumConfidence,
+                  plateData.confidence === "low" && styles.lowConfidence,
+                ]}
+              >
                 <Text style={styles.confidenceText}>
-                  {plateData.confidence === 'high' ? 'Cao' : 
-                   plateData.confidence === 'medium' ? 'Trung bình' : 'Thấp'}
+                  {plateData.confidence === "high"
+                    ? "Cao"
+                    : plateData.confidence === "medium"
+                    ? "Trung bình"
+                    : "Thấp"}
                 </Text>
               </View>
             </View>
@@ -151,35 +150,14 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 24,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 30,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.GRAY_LIGHT,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#004553',
-  },
   infoCard: {
-    flexDirection: 'row',
-    backgroundColor: '#F0F9FF',
+    flexDirection: "row",
+    backgroundColor: "#F0F9FF",
     margin: 16,
     padding: 16,
     borderRadius: 12,
     borderLeftWidth: 4,
-    borderLeftColor: '#0891B2',
+    borderLeftColor: "#0891B2",
   },
   infoTextContainer: {
     flex: 1,
@@ -187,58 +165,58 @@ const styles = StyleSheet.create({
   },
   infoTitle: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#004553',
+    fontWeight: "600",
+    color: "#004553",
     marginBottom: 4,
   },
   infoText: {
     fontSize: 14,
-    color: '#0369A1',
+    color: "#0369A1",
     lineHeight: 20,
   },
   detectedCard: {
-    backgroundColor: '#F0FDF4',
+    backgroundColor: "#F0FDF4",
     margin: 16,
     marginTop: 0,
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#10B981',
+    borderColor: "#10B981",
   },
   detectedHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 12,
   },
   detectedTitle: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#065F46',
+    fontWeight: "600",
+    color: "#065F46",
     marginLeft: 8,
   },
   plateNumberContainer: {
     backgroundColor: COLORS.WHITE,
     padding: 16,
     borderRadius: 8,
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 12,
     borderWidth: 2,
-    borderColor: '#10B981',
+    borderColor: "#10B981",
   },
   plateNumber: {
     fontSize: 24,
-    fontWeight: 'bold',
-    color: '#004553',
+    fontWeight: "bold",
+    color: "#004553",
     letterSpacing: 2,
   },
   confidenceContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
   },
   confidenceLabel: {
     fontSize: 14,
-    color: '#065F46',
+    color: "#065F46",
     marginRight: 8,
   },
   confidenceBadge: {
@@ -247,24 +225,24 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   highConfidence: {
-    backgroundColor: '#10B981',
+    backgroundColor: "#10B981",
   },
   mediumConfidence: {
-    backgroundColor: '#F59E0B',
+    backgroundColor: "#F59E0B",
   },
   lowConfidence: {
-    backgroundColor: '#EF4444',
+    backgroundColor: "#EF4444",
   },
   confidenceText: {
     color: COLORS.WHITE,
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   submitButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#004553',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#004553",
     marginHorizontal: 16,
     paddingVertical: 16,
     borderRadius: 12,
@@ -276,7 +254,7 @@ const styles = StyleSheet.create({
   submitButtonText: {
     color: COLORS.WHITE,
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });
 
