@@ -32,10 +32,7 @@ const FixedRoutesScreen = ({ navigation, route }) => {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Search state
-  const [showSearchForm, setShowSearchForm] = useState(
-    !initialPickupLocation || !initialDestinationLocation
-  );
+  // Search state - always show search form
   const [pickupAddress, setPickupAddress] = useState(
     initialPickupAddress || ""
   );
@@ -61,6 +58,7 @@ const FixedRoutesScreen = ({ navigation, route }) => {
   const searchRoutes = async () => {
     try {
       setLoading(true);
+      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
       const response = await fixedRouteService.searchRoutes({
         pickupLatitude: pickupLocation.latitude,
         pickupLongitude: pickupLocation.longitude,
@@ -69,6 +67,7 @@ const FixedRoutesScreen = ({ navigation, route }) => {
         pickupAddress: pickupAddress,
         dropoffAddress: destinationAddress,
         numberOfSeats: 1,
+        travelDate: today,
       });
 
       const routesData = response.data || [];
@@ -137,7 +136,6 @@ const FixedRoutesScreen = ({ navigation, route }) => {
       Alert.alert("Lỗi", "Vui lòng chọn điểm đón và điểm đến");
       return;
     }
-    setShowSearchForm(false);
     searchRoutes();
   };
 
@@ -185,7 +183,8 @@ const FixedRoutesScreen = ({ navigation, route }) => {
     }
 
     try {
-      const response = await routeBookingService.bookRoute({
+      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+      const response = await routeBookingService.createBooking({
         routeId: item.id,
         pickupLatitude: pickupLocation?.latitude,
         pickupLongitude: pickupLocation?.longitude,
@@ -194,6 +193,7 @@ const FixedRoutesScreen = ({ navigation, route }) => {
         pickupAddress: pickupAddress || item.pickupAddress,
         dropoffAddress: destinationAddress || item.dropoffAddress,
         numberOfSeats: 1,
+        bookingDate: today,
       });
 
       Toast.show({
@@ -244,20 +244,24 @@ const FixedRoutesScreen = ({ navigation, route }) => {
         ? String(driverRating)
         : "";
 
+
+    if (!item) {
+      return null;
+    }
+
     return (
       <View style={styles.routeCard}>
-        {/* Header with Route Name and Price */}
         <View style={styles.cardHeader}>
           <View style={styles.routeNameRow}>
             <MaterialIcons name="directions-bus" size={20} color="#004553" />
             <Text style={styles.routeName} numberOfLines={1}>
-              {item.routeName || ""}
+              {item?.routeName ? String(item.routeName) : "Chuyến đi"}
             </Text>
           </View>
-          {item.pricePerSeat && item.pricePerSeat > 0 && (
+          {item?.pricePerSeat && item.pricePerSeat > 0 && (
             <View style={styles.priceTag}>
               <Text style={styles.priceValue}>
-                {String(item.pricePerSeat.toLocaleString()) + "đ"}
+                {`${Number(item.pricePerSeat).toLocaleString()}đ`}
               </Text>
             </View>
           )}
@@ -268,7 +272,7 @@ const FixedRoutesScreen = ({ navigation, route }) => {
           <View style={[styles.locationDot, { backgroundColor: "#004553" }]} />
           <View style={styles.locationContent}>
             <Text style={styles.locationText} numberOfLines={1}>
-              {item.pickupAddress || ""}
+              {item.pickupAddress ? String(item.pickupAddress) : "Chưa có thông tin"}
             </Text>
             <Text style={styles.locationLabel}>Pickup point</Text>
           </View>
@@ -279,7 +283,7 @@ const FixedRoutesScreen = ({ navigation, route }) => {
           <View style={[styles.locationDot, { backgroundColor: "#FF6B6B" }]} />
           <View style={styles.locationContent}>
             <Text style={styles.locationText} numberOfLines={1}>
-              {item.dropoffAddress || ""}
+              {item.dropoffAddress ? String(item.dropoffAddress) : "Chưa có thông tin"}
             </Text>
             <Text style={styles.locationLabel}>Destination</Text>
           </View>
@@ -290,7 +294,7 @@ const FixedRoutesScreen = ({ navigation, route }) => {
           <View style={styles.infoItem}>
             <MaterialIcons name="schedule" size={16} color="#6B7280" />
             <Text style={styles.infoText}>
-              {formatTime(item.departureTime) || ""}
+              {formatTime(item.departureTime) || "--:--"}
             </Text>
           </View>
           <View style={styles.infoItem}>
@@ -305,7 +309,7 @@ const FixedRoutesScreen = ({ navigation, route }) => {
             <View style={styles.infoItem}>
               <MaterialIcons name="straighten" size={16} color="#6B7280" />
               <Text style={styles.infoText}>
-                {formatDistance(item.distance) || ""}
+                {formatDistance(item.distance) || "0km"}
               </Text>
             </View>
           )}
@@ -367,19 +371,11 @@ const FixedRoutesScreen = ({ navigation, route }) => {
           <MaterialIcons name="arrow-back" size={24} color="#FFFFFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Chuyến đi cố định</Text>
-        <TouchableOpacity
-          onPress={() => setShowSearchForm(!showSearchForm)}
-          style={styles.searchIconButton}
-        >
-          <MaterialIcons
-            name={showSearchForm ? "close" : "search"}
-            size={24}
-            color="#FFFFFF"
-          />
-        </TouchableOpacity>
+        <View style={{ width: 40 }} />
       </View>
 
-      {showSearchForm && (
+      {/* Search form - always visible */}
+      {true && (
         <View style={styles.searchFormContainer}>
           <View style={styles.searchForm}>
             <Text style={styles.searchFormTitle}>Tìm kiếm chuyến đi</Text>
@@ -486,7 +482,7 @@ const styles = StyleSheet.create({
   searchFormContainer: {
     backgroundColor: COLORS.white,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.lightGray,
+    borderBottomColor: "#D1D5DB",
     elevation: 2,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
@@ -540,12 +536,12 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   routeCard: {
-    backgroundColor: "#F9FAFB",
+    backgroundColor: "#FFFFFF",
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: "#D1D5DB",
   },
   cardHeader: {
     flexDirection: "row",
@@ -609,7 +605,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: "#E5E7EB",
+    borderTopColor: "#D1D5DB",
     marginBottom: 8,
   },
   infoItem: {
