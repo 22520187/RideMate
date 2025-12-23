@@ -10,6 +10,13 @@ export default {
     refresh: "/auth/refresh-token",
   },
 
+  verification: {
+    uploadIdCard: "/verification/id-card",
+    verifyLiveness: "/verification/liveness",
+    verifyPhase: "/verification/liveness/verify-phase",
+    getStatus: (phoneNumber) => `/verification/status/${phoneNumber}`,
+  },
+
   user: {
     profile: "/users/me",
     update: "/users",

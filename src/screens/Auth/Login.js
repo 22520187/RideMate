@@ -406,29 +406,9 @@ const Login = ({ navigation }) => {
           {/* Register Button */}
           <TouchableOpacity
             style={styles.registerButton}
-            onPress={async () => {
-              // Validate phone number
-              if (!phoneNumber.trim()) {
-                Toast.show({
-                  type: "error",
-                  text1: "Lỗi",
-                  text2: "Vui lòng nhập số điện thoại",
-                });
-                return;
-              }
-              if (!validatePhoneNumber(phoneNumber)) {
-                Toast.show({
-                  type: "error",
-                  text1: "Lỗi",
-                  text2: "Số điện thoại không hợp lệ",
-                });
-                return;
-              }
-              navigation.navigate(SCREENS.PHONE_VERIFICATION, {
-                phoneNumber: phoneNumber.replace(/\s/g, ""),
-                isExistingUser: false,
-                mode: "register",
-              });
+            onPress={() => {
+              // Navigate directly to ID Card capture - no phone number needed yet
+              navigation.navigate(SCREENS.ID_CARD_CAPTURE);
             }}
           >
             <Text style={styles.registerButtonText}>

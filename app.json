@@ -17,16 +17,10 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.ridemate.app",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "This app needs access to location when open to find nearby places.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "This app needs access to location to provide location-based services.",
-        "NSPhotoLibraryUsageDescription": "RideMate cần truy cập thư viện ảnh để bạn chọn ảnh đại diện và giấy tờ xe.",
-        "NSCameraUsageDescription": "RideMate cần truy cập camera để chụp ảnh đại diện và giấy tờ xe.",
-        "CFBundleURLTypes": [
-          {
-            "CFBundleURLName": "ridemate",
-            "CFBundleURLSchemes": ["ridemate"]
-          }
-        ]
+        "NSCameraUsageDescription": "RideMate sử dụng camera để quét khuôn mặt (eKYC) nhằm bảo vệ an toàn cho cộng đồng đi chung xe.",
+        "NSMicrophoneUsageDescription": "RideMate cần truy cập microphone (nếu có quay video xác thực).",
+        "NSLocationWhenInUseUsageDescription": "RideMate cần vị trí để tìm chuyến xe gần bạn.",
+        "NSPhotoLibraryUsageDescription": "RideMate cần truy cập thư viện để bạn chọn ảnh hồ sơ."
       }
     },
     "android": {

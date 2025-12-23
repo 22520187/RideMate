@@ -31,6 +31,9 @@ import Onboarding from "../screens/Auth/Onboarding";
 import InitialScreen from "../screens/Auth/InitialScreen";
 import PhoneVerification from "../screens/Auth/PhoneVerification";
 import RegisterComplete from "../screens/Auth/RegisterComplete";
+import IDCardCaptureScreen from "../screens/Auth/IDCardCaptureScreen";
+import LivenessCheckScreen from "../screens/Auth/LivenessCheckScreen";
+import PhoneNumberInput from "../screens/Auth/PhoneNumberInput";
 import MessageListScreen from "../screens/User/Message/MessageListScreen";
 import ChatScreenCustom from "../screens/User/Message/ChatScreenCustom";
 import AdminDashboard from "../screens/Admin/AdminDashboard";
@@ -246,6 +249,18 @@ const MainStackNavigator = () => {
       <Stack.Screen
         name={SCREENS.PHONE_VERIFICATION}
         component={PhoneVerification}
+      />
+      <Stack.Screen
+        name="IDCardCaptureScreen"
+        component={IDCardCaptureScreen}
+      />
+      <Stack.Screen
+        name="LivenessCheckScreen"
+        component={LivenessCheckScreen}
+      />
+      <Stack.Screen
+        name="PhoneNumberInput"
+        component={PhoneNumberInput}
       />
       <Stack.Screen
         name={SCREENS.REGISTER_COMPLETE}

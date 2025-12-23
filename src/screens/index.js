@@ -1,6 +1,9 @@
 const SCREENS = {
   ONBOARDING: "Onboarding",
   LOGIN: "Login",
+  ID_CARD_CAPTURE: "IDCardCaptureScreen",
+  LIVENESS_CHECK: "LivenessCheckScreen",
+  PHONE_NUMBER_INPUT: "PhoneNumberInput",
   PHONE_VERIFICATION: "PhoneVerification",
   REGISTER_COMPLETE: "RegisterComplete",
   HOME: "Home",
