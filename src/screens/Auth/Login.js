@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+﻿import React, { useState } from "react";
 import {
   View,
   Text,
@@ -25,7 +25,7 @@ import {
 } from "../../config/auth";
 import SCREENS from "..";
 import { chatClient } from "../../utils/StreamClient";
-import { API_BASE_URL } from "@env";
+import { ENV } from "../../config/env";
 import {
   saveToken,
   saveRefreshToken,
@@ -36,7 +36,7 @@ import {
 import endpoints from "../../api/endpoints";
 import axiosClient from "../../api/axiosClient";
 
-console.log("🔍 Login.js - API_BASE_URL from @env:", API_BASE_URL);
+console.log("🔍 Login.js - EXPO_PUBLIC_API_BASE_URL:", ENV.API_BASE_URL);
 
 const Login = ({ navigation }) => {
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -92,9 +92,56 @@ const Login = ({ navigation }) => {
     try {
       setIsLoading(true);
 
-      console.log("API Configuration:");
-      console.log("   Base URL:", API_BASE_URL);
-      console.log("   Endpoint:", endpoints.auth.login);
+      let currentLatitude = null;
+      let currentLongitude = null;
+
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        
+        if (status !== 'granted') {
+          Alert.alert(
+            'Yêu cầu quyền truy cập vị trí',
+            'RideMate cần quyền truy cập vị trí để cung cấp dịch vụ tốt nhất. Vui lòng cho phép truy cập vị trí trong cài đặt.',
+            [
+              { text: 'Hủy', style: 'cancel' },
+              {
+                text: 'Mở cài đặt',
+                onPress: () => Linking.openSettings(),
+              },
+            ]
+          );
+          setIsLoading(false);
+          return;
+        }
+
+        Toast.show({
+          type: 'info',
+          text1: 'Đang lấy vị trí...',
+          text2: 'Vui lòng chờ trong giây lát',
+        });
+
+        const location = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.High,
+        });
+
+        currentLatitude = location.coords.latitude;
+        currentLongitude = location.coords.longitude;
+
+        console.log('Location obtained:', currentLatitude, currentLongitude);
+      } catch (locationError) {
+        console.warn('Failed to get location:', locationError);
+        Toast.show({
+          type: 'warning',
+          text1: 'Không lấy được vị trí',
+          text2: 'Sử dụng vị trí mặc định',
+        });
+        currentLatitude = 10.7769;
+        currentLongitude = 106.7009;
+      }
+
+      console.log('API Configuration:');
+      console.log('   Base URL:', ENV.API_BASE_URL);
+      console.log('   Endpoint:', endpoints.auth.login);
 
       // Gửi null cho location, sẽ lấy sau khi đăng nhập thành công
       const response = await axiosClient.post(endpoints.auth.login, {
@@ -609,3 +656,4 @@ const styles = StyleSheet.create({
 });
 
 export default Login;
+
