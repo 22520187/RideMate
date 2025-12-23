@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+﻿import React, { useState } from "react";
 import {
   View,
   Text,
@@ -25,7 +25,7 @@ import {
 } from "../../config/auth";
 import SCREENS from "..";
 import { chatClient } from "../../utils/StreamClient";
-import { API_BASE_URL } from "@env";
+import { ENV } from "../../config/env";
 import {
   saveToken,
   saveRefreshToken,
@@ -36,7 +36,7 @@ import {
 import endpoints from "../../api/endpoints";
 import axiosClient from "../../api/axiosClient";
 
-console.log("🔍 Login.js - API_BASE_URL from @env:", API_BASE_URL);
+console.log("🔍 Login.js - EXPO_PUBLIC_API_BASE_URL:", ENV.API_BASE_URL);
 
 const Login = ({ navigation }) => {
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -118,7 +118,7 @@ const Login = ({ navigation }) => {
       }
 
       console.log('API Configuration:');
-      console.log('   Base URL:', API_BASE_URL);
+      console.log('   Base URL:', ENV.API_BASE_URL);
       console.log('   Endpoint:', endpoints.auth.login);
 
       const response = await axiosClient.post(endpoints.auth.login, {
@@ -615,3 +615,4 @@ const styles = StyleSheet.create({
 });
 
 export default Login;
+

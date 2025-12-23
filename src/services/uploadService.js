@@ -1,5 +1,5 @@
-import axios from "axios";
-import { API_BASE_URL } from "@env";
+﻿import axios from "axios";
+import { ENV } from "../config/env";
 import endpoints from "../api/endpoints";
 import { getToken } from "../utils/storage";
 import * as FileSystem from "expo-file-system";
@@ -28,7 +28,7 @@ export const uploadImage = async (fileInfo) => {
     console.log("[UPLOAD] fileInfo:", fileInfo);
 
     const token = await getToken();
-    const url = `${API_BASE_URL}${endpoints.upload.image}`;
+    const url = `${ENV.API_BASE_URL}${endpoints.upload.image}`;
 
     console.log("[UPLOAD] Uploading to:", url);
     console.log("[UPLOAD] Has token:", !!token);
