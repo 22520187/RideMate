@@ -777,7 +777,7 @@ const Profile = () => {
                   onPress={() => setImagePickerVisible(true)}
                   activeOpacity={0.8}
                   disabled={uploading}
-                  style={styles.avatarPicke        "tailwind-merge": "^3.3.1"rButton}
+                  style={styles.avatarPickerButton}
                 >
                   <Image
                     source={{
