@@ -52,6 +52,7 @@ import MyFixedRoutesScreen from "../screens/User/Driver/MyFixedRoutesScreen";
 import RouteBookingsScreen from "../screens/User/Driver/RouteBookingsScreen";
 import FixedRoutesScreen from "../screens/User/Rider/FixedRoutesScreen";
 import RouteBookingScreen from "../screens/User/Rider/RouteBookingScreen";
+import MyBookingsScreen from "../screens/User/Rider/MyBookingsScreen";
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -319,6 +320,7 @@ const MainStackNavigator = () => {
       />
       <Stack.Screen name="FixedRoutesScreen" component={FixedRoutesScreen} />
       <Stack.Screen name="RouteBookingScreen" component={RouteBookingScreen} />
+      <Stack.Screen name="MyBookingsScreen" component={MyBookingsScreen} />
       <Stack.Screen
         name={SCREENS.ADMIN_MEMBERSHIP_MANAGEMENT}
         component={MembershipManagement}

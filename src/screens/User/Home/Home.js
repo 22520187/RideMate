@@ -90,10 +90,7 @@ const Home = ({ navigation }) => {
       console.log("👤 Home: Profile data:", profile);
       setUserProfile(profile);
 
-      if (
-        profile &&
-        (profile.userType === "DRIVER" || profile.userType === "PASSENGER")
-      ) {
+      if (profile && profile.userType === "DRIVER") {
         try {
           const vehicleResp = await getMyVehicle();
           const vehicle = vehicleResp?.data;

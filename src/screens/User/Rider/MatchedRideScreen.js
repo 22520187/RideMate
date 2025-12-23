@@ -42,6 +42,8 @@ import { getProfile } from "../../../services/userService";
 import { supabase } from "../../../config/supabaseClient";
 import axiosClient from "../../../api/axiosClient";
 import endpoints from "../../../api/endpoints";
+import FeedbackModal from "../../../components/FeedbackModal";
+import { submitFeedback } from "../../../services/feedbackService";
 
 const { width, height } = Dimensions.get("window");
 
@@ -72,8 +74,9 @@ const MatchedRideScreen = ({ navigation, route }) => {
   const [rewardPoints, setRewardPoints] = useState(0);
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [showChatModal, setShowChatModal] = useState(false); // Chat modal state
-  const [comment, setComment] = useState("");
-  const [rating, setRating] = useState(0);
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  // Retain legacy rating/comment state if needed, but FeedbackModal handles its own state
   const maxStars = 5;
 
   // Custom Alert Modal State
@@ -733,7 +736,7 @@ const MatchedRideScreen = ({ navigation, route }) => {
         );
       } else {
         // Nếu là Passenger, hiện modal đánh giá
-        setShowRatingModal(true);
+        setShowFeedbackModal(true);
       }
     } catch (error) {
       console.error("Failed to complete ride:", error);
@@ -770,6 +773,43 @@ const MatchedRideScreen = ({ navigation, route }) => {
       console.warn("Error initiating video call:", error);
     }
   }, [channel, otherPerson.name]);
+
+  const handleFeedbackSubmit = async (feedbackData) => {
+    try {
+      setIsSubmittingFeedback(true);
+      const rideId = matchedRideData.id || matchedRideData.rideId;
+      
+      console.log("📝 Submitting feedback for ride:", rideId, feedbackData);
+      
+      await submitFeedback(
+        rideId, 
+        feedbackData.rating, 
+        feedbackData.comment, 
+        feedbackData.tags
+      );
+      
+      setShowFeedbackModal(false);
+      
+      showCustomAlert(
+        "Hoàn tất",
+        "Cảm ơn bạn đã gửi đánh giá!",
+        [{
+            text: "Về trang chủ",
+            onPress: () => {
+                 navigation.reset({
+                  index: 0,
+                  routes: [{ name: "Home" }],
+                });
+            }
+        }]
+      );
+    } catch (error) {
+      console.error("Feedback submit error:", error);
+      Alert.alert("Lỗi", "Không thể gửi đánh giá. Vui lòng thử lại.");
+    } finally {
+      setIsSubmittingFeedback(false);
+    }
+  };
 
   return (
     <SafeAreaView key={refreshKey} style={styles.container} edges={["top"]}>
@@ -1238,85 +1278,14 @@ const MatchedRideScreen = ({ navigation, route }) => {
         onClose={() => setCustomAlert({ ...customAlert, visible: false })}
       />
 
-      {/* Rating Modal */}
-      <Modal
-        visible={showRatingModal}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setShowRatingModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
-            <Text style={styles.modalTitle}>Đánh giá chuyến đi</Text>
-            <Text style={styles.modalSubtitle}>
-              Bạn nhận được{" "}
-              <Text style={{ color: COLORS.PRIMARY, fontWeight: "600" }}>
-                {rewardPoints}
-              </Text>{" "}
-              điểm thưởng 🎁!
-            </Text>
-
-            <View style={{ alignItems: "center", marginVertical: 10 }}>
-              <View style={{ flexDirection: "row", marginBottom: 8 }}>
-                {Array.from({ length: maxStars }).map((_, index) => {
-                  const value = index + 1;
-                  return (
-                    <TouchableOpacity
-                      key={index}
-                      onPress={() => handlePress(value)}
-                      activeOpacity={0.7}
-                      style={{ marginHorizontal: 4 }}
-                    >
-                      <FontAwesome
-                        name={value <= rating ? "star" : "star-o"}
-                        size={36}
-                        color={value <= rating ? "#FFD700" : "#CCC"}
-                      />
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-
-              {rating > 0 && (
-                <Text
-                  style={{
-                    fontSize: 16,
-                    fontWeight: "500",
-                    color: COLORS.BLACK,
-                  }}
-                >
-                  {getReviewText()}
-                </Text>
-              )}
-            </View>
-
-            <TextInput
-              placeholder="Nhận xét về đối phương..."
-              style={styles.commentInput}
-              multiline
-              value={comment}
-              onChangeText={setComment}
-            />
-
-            <TouchableOpacity
-              style={[
-                styles.actionBtn,
-                { backgroundColor: COLORS.PRIMARY, marginTop: 10 },
-              ]}
-              onPress={() => {
-                setShowRatingModal(false);
-                showCustomAlert(
-                  "Hoàn tất đánh giá",
-                  `Cảm ơn bạn đã gửi đánh giá ${rating} sao cho bạn đồng hành này.`
-                );
-                // TODO: Gửi rating + comment + matchedRideData lên backend
-              }}
-            >
-              <Text style={styles.actionBtnText}>Gửi đánh giá</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+      {/* Feedback Modal */}
+      <FeedbackModal
+        visible={showFeedbackModal}
+        onClose={() => setShowFeedbackModal(false)}
+        onSubmit={handleFeedbackSubmit}
+        isLoading={isSubmittingFeedback}
+        driverName={matchedRideData.driverName}
+      />
     </SafeAreaView>
   );
 };

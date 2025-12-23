@@ -29,6 +29,7 @@ import {
   Star,
   Edit,
   Camera,
+  FileText,
 } from "lucide-react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
@@ -589,6 +590,20 @@ const Profile = () => {
               </TouchableOpacity>
             </>
           )}
+        </View>
+
+
+
+
+        {/* Trip Management Section - For Passengers */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Chuyến đi</Text>
+          <MenuItem
+            icon={FileText}
+            title="Yêu cầu chuyến đi cố định"
+            subtitle="Danh sách các yêu cầu của bạn"
+            onPress={() => navigation.navigate("MyBookingsScreen")}
+          />
         </View>
 
         {/* Account Section */}

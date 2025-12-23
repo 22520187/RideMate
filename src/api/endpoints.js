@@ -164,4 +164,14 @@ export default {
     start: (id) => `/api/route-bookings/${id}/start`,
     complete: (id) => `/api/route-bookings/${id}/complete`,
   },
+  notifications: {
+    list: "/notifications",
+    markRead: (id) => `/notifications/${id}/read`,
+    markAllRead: "/notifications/read-all",
+    delete: (id) => `/notifications/${id}`,
+  },
+
+  feedback: {
+    submit: "/feedback",
+  },
 };
