@@ -1,10 +1,10 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { GEMINI_API_KEY } from "@env";
+﻿import { GoogleGenerativeAI } from "@google/generative-ai";
+import { ENV } from "../config/env";
 import * as FileSystem from 'expo-file-system/legacy';
 
 
 // Initialize Gemini AI
-const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+const genAI = new GoogleGenerativeAI(ENV.GEMINI_API_KEY);
 
 /**
  * List all available Gemini models
@@ -15,7 +15,7 @@ export const listAvailableModels = async () => {
     console.log('📋 Fetching available Gemini models...');
     
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models?key=${GEMINI_API_KEY}`
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${ENV.GEMINI_API_KEY}`
     );
     
     if (!response.ok) {
@@ -259,3 +259,4 @@ export default {
   extractPlateNumber,
   processVehicleImage,
 };
+

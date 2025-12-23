@@ -1,16 +1,8 @@
-import { createClient } from "@supabase/supabase-js";
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from "@env";
+﻿import { createClient } from "@supabase/supabase-js";
+import { ENV } from "./env";
 
-// Fallbacks: Expo env system (EXPO_PUBLIC_*) and process.env in dev.
-const supabaseUrl =
-  SUPABASE_URL ??
-  process.env.EXPO_PUBLIC_SUPABASE_URL ??
-  process.env.SUPABASE_URL;
-
-const supabaseAnonKey =
-  SUPABASE_ANON_KEY ??
-  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ??
-  process.env.SUPABASE_ANON_KEY;
+const supabaseUrl = ENV.SUPABASE_URL;
+const supabaseAnonKey = ENV.SUPABASE_ANON_KEY;
 
 // IMPORTANT: Do not crash the app if env is missing.
 // If credentials are missing, export supabase = null and let callers handle it gracefully.
@@ -30,12 +22,8 @@ export const supabase =
 
 if (!supabaseUrl || !supabaseAnonKey) {
   console.error("❌ Supabase env missing at runtime:", {
-    SUPABASE_URL: SUPABASE_URL ? "✅" : "❌",
-    SUPABASE_ANON_KEY: SUPABASE_ANON_KEY ? "✅" : "❌",
-    EXPO_PUBLIC_SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL ? "✅" : "❌",
-    EXPO_PUBLIC_SUPABASE_ANON_KEY: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY
-      ? "✅"
-      : "❌",
+    EXPO_PUBLIC_SUPABASE_URL: supabaseUrl ? "✅" : "❌",
+    EXPO_PUBLIC_SUPABASE_ANON_KEY: supabaseAnonKey ? "✅" : "❌",
   });
 } else {
   console.log("✅ Supabase client initialized");

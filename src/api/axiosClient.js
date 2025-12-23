@@ -1,5 +1,5 @@
-import axios from "axios";
-import { API_BASE_URL } from "@env";
+﻿import axios from "axios";
+import { ENV } from "../config/env";
 import {
   getToken,
   getRefreshToken,
@@ -8,16 +8,15 @@ import {
   clearTokens,
 } from "../utils/storage";
 
-// Debug: Check what value we're getting from @env
-console.log("🔍 Debug @env API_BASE_URL:", API_BASE_URL);
-console.log("🔍 Expected: http://186.186.24.83:8080/api");
+// Debug: Check what value we\x27re getting from process.env
+console.log("🔍 Debug EXPO_PUBLIC_API_BASE_URL:", ENV.API_BASE_URL);
 
 const axiosClient = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: ENV.API_BASE_URL,
   timeout: 15000,
 });
 
-console.log("🔧 AxiosClient initialized with baseURL:", API_BASE_URL);
+console.log("🔧 AxiosClient initialized with baseURL:", ENV.API_BASE_URL);
 console.log("⏱️  Timeout set to: 15000ms");
 
 axiosClient.interceptors.request.use(async (config) => {
@@ -113,7 +112,7 @@ axiosClient.interceptors.response.use(
           return Promise.reject(error);
         }
 
-        const resp = await axios.post(`${API_BASE_URL}/auth/refresh-token`, {
+        const resp = await axios.post(`${ENV.API_BASE_URL}/auth/refresh-token`, {
           refreshToken,
         });
 
@@ -150,3 +149,7 @@ axiosClient.interceptors.response.use(
 );
 
 export default axiosClient;
+
+
+
+
