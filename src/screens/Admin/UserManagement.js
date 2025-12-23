@@ -20,6 +20,8 @@ import COLORS from "../../constant/colors";
 import * as adminService from "../../services/adminService";
 import { unwrapApiData } from "../../utils/unwrapApiData";
 import SCREENS from "../index";
+// Import useDebounce hook
+import { useDebounce } from "../../hooks/useDebounce";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -38,12 +40,14 @@ const UserManagement = () => {
   const [submittingUserId, setSubmittingUserId] = useState(null);
   const [selectedTab, setSelectedTab] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+  // Sử dụng useDebounce cho searchQuery với delay 500ms
+  const debouncedSearchQuery = useDebounce(searchQuery, 500);
   const [users, setUsers] = useState([]);
   const [statistics, setStatistics] = useState(null);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
 
-  const fetchUsers = useCallback(async (pageNum = 0, refresh = false) => {
+  const fetchUsers = useCallback(async (pageNum = 0, refresh = false, search = "") => {
     try {
       if (refresh) {
         setRefreshing(true);
@@ -57,7 +61,7 @@ const UserManagement = () => {
         const payload = unwrapApiData(res);
         const list = Array.isArray(payload) ? payload : [];
 
-        const q = searchQuery.trim().toLowerCase();
+        const q = search.trim().toLowerCase();
         const filtered =
           q.length === 0
             ? list
@@ -80,7 +84,7 @@ const UserManagement = () => {
       const userType = selectedTab === "all" ? null : selectedTab;
       const response = await adminService.getAllUsers({
         userType,
-        searchTerm: searchQuery,
+        searchTerm: search, 
         page: pageNum,
         size: 20,
       });
@@ -109,7 +113,7 @@ const UserManagement = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [selectedTab, searchQuery]);
+  }, [selectedTab]); 
 
   const fetchStatistics = useCallback(async () => {
     try {
@@ -122,21 +126,21 @@ const UserManagement = () => {
   }, []);
 
   useEffect(() => {
-    fetchUsers(0);
+    fetchUsers(0, false, debouncedSearchQuery);
     fetchStatistics();
-  }, [selectedTab, searchQuery]);
+  }, [selectedTab, debouncedSearchQuery]);
 
   const onRefresh = useCallback(() => {
-    fetchUsers(0, true);
+    fetchUsers(0, true, debouncedSearchQuery);
     fetchStatistics();
-  }, [fetchUsers, fetchStatistics]);
+  }, [fetchUsers, fetchStatistics, debouncedSearchQuery]);
 
   const loadMore = useCallback(() => {
     if (selectedTab === "PENDING") return;
     if (!loading && hasMore) {
-      fetchUsers(page + 1);
+      fetchUsers(page + 1, false, debouncedSearchQuery);
     }
-  }, [selectedTab, loading, hasMore, page, fetchUsers]);
+  }, [selectedTab, loading, hasMore, page, fetchUsers, debouncedSearchQuery]);
 
   const handleUserPress = (user) => {
     navigation.navigate(SCREENS.ADMIN_USER_DETAIL, { userId: user.id, user });
@@ -154,8 +158,7 @@ const UserManagement = () => {
               setSubmittingUserId(user.id);
               await adminService.approveDriver(user.id);
               Alert.alert("Thành công", "Đã duyệt tài xế.");
-              fetchUsers(0, true);
-              fetchStatistics();
+              fetchUsers(0, true, debouncedSearchQuery); 
             } catch (e) {
               console.error("Approve driver error:", e);
               Alert.alert("Lỗi", "Không thể duyệt tài xế.");
@@ -166,7 +169,7 @@ const UserManagement = () => {
         },
       ]);
     },
-    [fetchUsers, fetchStatistics]
+    [fetchUsers, fetchStatistics, debouncedSearchQuery]
   );
 
   const rejectDriver = useCallback(
@@ -178,7 +181,7 @@ const UserManagement = () => {
           setSubmittingUserId(user.id);
           await adminService.rejectDriver(user.id, { rejectionReason });
           Alert.alert("Thành công", "Đã từ chối duyệt.");
-          fetchUsers(0, true);
+          fetchUsers(0, true, debouncedSearchQuery); 
           fetchStatistics();
         } catch (e) {
           console.error("Reject driver error:", e);
@@ -197,7 +200,7 @@ const UserManagement = () => {
         },
       ]);
     },
-    [fetchUsers, fetchStatistics]
+    [fetchUsers, fetchStatistics, debouncedSearchQuery]
   );
 
   const getStatusStyle = (isActive, driverApprovalStatus) => {
@@ -280,7 +283,7 @@ const UserManagement = () => {
           style={styles.searchInput}
           placeholder="Tìm kiếm theo tên, số điện thoại..."
           value={searchQuery}
-          onChangeText={setSearchQuery}
+          onChangeText={setSearchQuery} // Cập nhật state searchQuery ngay lập tức
           placeholderTextColor={COLORS.GRAY}
         />
         {searchQuery.length > 0 && (
