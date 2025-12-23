@@ -1,5 +1,6 @@
-﻿import axios from "axios";
+﻿﻿import axios from "axios";
 import { ENV } from "../config/env";
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL;
 import {
   getToken,
   getRefreshToken,
