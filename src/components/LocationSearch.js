@@ -34,7 +34,7 @@ const LocationSearch = ({
   const [showSuggestionsList, setShowSuggestionsList] = useState(false);
   const [isGettingLocation, setIsGettingLocation] = useState(false);
 
-  const debouncedValue = useDebounce(value, 1000);
+  const debouncedValue = useDebounce(value, 300);
 
   useEffect(() => {
     const performSearch = async () => {

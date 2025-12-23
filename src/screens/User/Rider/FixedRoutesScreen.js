@@ -31,6 +31,7 @@ const FixedRoutesScreen = ({ navigation, route }) => {
   const [routes, setRoutes] = useState([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [bookingLoading, setBookingLoading] = useState(null); // Track which route is being booked
 
   // Search state - always show search form
   const [pickupAddress, setPickupAddress] = useState(
@@ -183,6 +184,7 @@ const FixedRoutesScreen = ({ navigation, route }) => {
     }
 
     try {
+      setBookingLoading(item.id); // Set loading state for this specific route
       const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
       const response = await routeBookingService.createBooking({
         routeId: item.id,
@@ -215,6 +217,8 @@ const FixedRoutesScreen = ({ navigation, route }) => {
           error.response?.data?.message ||
           "Không thể đặt chỗ. Vui lòng thử lại.",
       });
+    } finally {
+      setBookingLoading(null); // Clear loading state
     }
   };
 
@@ -335,17 +339,28 @@ const FixedRoutesScreen = ({ navigation, route }) => {
 
         {/* Join Button */}
         <TouchableOpacity
-          style={[styles.joinButton, !isAvailable && styles.joinButtonDisabled]}
+          style={[
+            styles.joinButton,
+            (!isAvailable || bookingLoading === item.id) && styles.joinButtonDisabled
+          ]}
           onPress={() => handleBooking(item)}
-          disabled={!isAvailable}
+          disabled={!isAvailable || bookingLoading === item.id}
         >
-          <MaterialIcons
-            name={isAvailable ? "check-circle" : "block"}
-            size={20}
-            color="#FFFFFF"
-          />
+          {bookingLoading === item.id ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <MaterialIcons
+              name={isAvailable ? "check-circle" : "block"}
+              size={20}
+              color="#FFFFFF"
+            />
+          )}
           <Text style={styles.joinButtonText}>
-            {isAvailable ? "Yêu cầu tham gia" : "Hết chỗ"}
+            {bookingLoading === item.id
+              ? "Đang xử lý..."
+              : isAvailable
+              ? "Yêu cầu tham gia"
+              : "Hết chỗ"}
           </Text>
         </TouchableOpacity>
       </View>

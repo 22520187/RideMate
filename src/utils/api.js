@@ -6,7 +6,12 @@ export async function searchPlaces(query) {
     const url = `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=6&countrycodes=VN&q=${encodeURIComponent(query)}`;
     console.log('📡 Fetching URL:', url);
     
+    // Add timeout to prevent infinite loading
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+    
     const res = await fetch(url, {
+      signal: controller.signal,
       headers: { 
         "User-Agent": "RideMateApp/1.0 (contact@ridemate.com)",
         "Accept": "application/json",
@@ -14,6 +19,7 @@ export async function searchPlaces(query) {
       },
     });
     
+    clearTimeout(timeoutId);
     console.log('Response status:', res.status);
     
     // Kiểm tra status code trước khi parse JSON
@@ -51,7 +57,11 @@ export async function searchPlaces(query) {
     
     return data;
   } catch (e) {
-    console.error("Search error", e);
+    if (e.name === 'AbortError') {
+      console.error("Search timeout - request took too long");
+    } else {
+      console.error("Search error", e);
+    }
     console.log('Using fallback data');
     
     // Fallback data - trả về dữ liệu mẫu khi API fail
