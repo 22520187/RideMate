@@ -1,402 +1,406 @@
-import React, { useState } from 'react'
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ScrollView, Alert } from 'react-native'
+import React, { useState, useEffect, useCallback } from 'react'
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, SectionList, Image } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import COLORS from '../../constant/colors'
-import { MaterialIcons } from '@expo/vector-icons'
-import { useNavigation } from '@react-navigation/native'
+import { MaterialIcons, Ionicons } from '@expo/vector-icons'
+import { useNavigation, useFocusEffect } from '@react-navigation/native'
+import { getMyNotifications, markAsRead, markAllAsRead, deleteNotification } from '../../services/notificationService'
+import { supabase } from '../../config/supabaseClient'
+import AsyncStorageService from '../../services/AsyncStorageService'
+import SCREENS from '../../screens'
 
 const Notification = () => {
   const navigation = useNavigation()
-  const [activeTab, setActiveTab] = useState('all') // 'all', 'trips', 'promotions', 'services'
-  
-  // Mock data - Danh sách thông báo
-  const [notifications, setNotifications] = useState([
-    // Thông báo chuyến đi
-    {
-      id: 'notif1',
-      type: 'trip',
-      title: 'Chuyến đi đã được xác nhận',
-      message: 'Chuyến đi từ ĐH FPT → Vincom của bạn đã được xác nhận. Thời gian: 14:30, 15/10/2024',
-      time: '5 phút trước',
-      icon: 'check-circle',
-      iconColor: COLORS.GREEN,
-      bgColor: COLORS.GREEN_LIGHT,
-      isRead: false,
-      tripCode: '#RD12345',
-      date: '2024-10-15',
-    },
-    {
-      id: 'notif2',
-      type: 'promotion',
-      title: 'Khuyến mãi mới: Giảm 30% cho chuyến đi đầu tiên',
-      message: 'Chào mừng bạn đến với RideMate! Nhận ngay ưu đãi 30% cho chuyến đi đầu tiên của bạn.',
-      time: '1 giờ trước',
-      icon: 'local-offer',
-      iconColor: COLORS.ORANGE,
-      bgColor: COLORS.ORANGE_LIGHT,
-      isRead: false,
-      promoCode: 'FIRST30',
-      validUntil: '31/10/2024',
-    },
-    {
-      id: 'notif3',
-      type: 'trip',
-      title: 'Tài xế đang trên đường đến điểm đón',
-      message: 'Nguyễn Văn A đang trên đường đến điểm đón của bạn. Dự kiến: 5 phút nữa.',
-      time: '2 giờ trước',
-      icon: 'directions-car',
-      iconColor: COLORS.BLUE,
-      bgColor: COLORS.BLUE_LIGHT,
-      isRead: true,
-      tripCode: '#RD12344',
-      driverName: 'Nguyễn Văn A',
-    },
-    {
-      id: 'notif4',
-      type: 'service',
-      title: 'Tính năng mới: Đặt chuyến định kỳ',
-      message: 'Giờ đây bạn có thể đặt lịch chuyến đi thường xuyên hàng ngày/tuần. Tiết kiệm thời gian hơn!',
-      time: '3 giờ trước',
-      icon: 'update',
-      iconColor: COLORS.PURPLE,
-      bgColor: COLORS.PURPLE + '20',
-      isRead: true,
-    },
-    {
-      id: 'notif5',
-      type: 'trip',
-      title: 'Chuyến đi hoàn thành',
-      message: 'Chuyến đi #RD12343 đã hoàn thành. Bạn nhận được 200 điểm thưởng.',
-      time: '5 giờ trước',
-      icon: 'verified',
-      iconColor: COLORS.GREEN,
-      bgColor: COLORS.GREEN_LIGHT,
-      isRead: true,
-      tripCode: '#RD12343',
-      points: 200,
-    },
-    {
-      id: 'notif6',
-      type: 'promotion',
-      title: 'Tích điểm nhận quà - Khuyến mãi tháng 10',
-      message: 'Hoàn thành 5 chuyến đi trong tháng để nhận thêm 500 điểm thưởng. Hiện tại: 3/5 chuyến.',
-      time: '1 ngày trước',
-      icon: 'emoji-events',
-      iconColor: COLORS.YELLOW,
-      bgColor: COLORS.ORANGE_LIGHT,
-      isRead: true,
-      progress: '3/5',
-    },
-    {
-      id: 'notif7',
-      type: 'trip',
-      title: 'Chuyến đi bị hủy',
-      message: 'Rất tiếc, tài xế đã hủy chuyến #RD12342. Vui lòng đặt chuyến khác.',
-      time: '1 ngày trước',
-      icon: 'cancel',
-      iconColor: COLORS.RED,
-      bgColor: COLORS.RED_LIGHT,
-      isRead: true,
-      tripCode: '#RD12342',
-    },
-    {
-      id: 'notif8',
-      type: 'service',
-      title: 'Cập nhật chính sách bảo mật',
-      message: 'Chúng tôi đã cập nhật chính sách bảo mật để bảo vệ thông tin của bạn tốt hơn.',
-      time: '2 ngày trước',
-      icon: 'security',
-      iconColor: COLORS.BLUE,
-      bgColor: COLORS.BLUE_LIGHT,
-      isRead: true,
-    },
-    {
-      id: 'notif9',
-      type: 'promotion',
-      title: 'Giới thiệu bạn bè - Nhận 100 điểm',
-      message: 'Mời bạn bè tham gia RideMate, cả hai cùng nhận 100 điểm thưởng cho mỗi lời mời thành công.',
-      time: '3 ngày trước',
-      icon: 'group-add',
-      iconColor: COLORS.PRIMARY,
-      bgColor: COLORS.BLUE_LIGHT,
-      isRead: false,
-    },
-    {
-      id: 'notif10',
-      type: 'service',
-      title: 'Bảo trì hệ thống',
-      message: 'Hệ thống sẽ bảo trì vào 2:00 - 4:00 sáng ngày 20/10. Xin lỗi vì sự bất tiện này.',
-      time: '4 ngày trước',
-      icon: 'build',
-      iconColor: COLORS.GRAY_DARK,
-      bgColor: COLORS.GRAY_BG,
-      isRead: true,
-      scheduledDate: '20/10/2024',
-      scheduledTime: '2:00 - 4:00 AM',
-    },
-  ])
+  const [activeTab, setActiveTab] = useState('activity') // Default to activity
+  const [notifications, setNotifications] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [userId, setUserId] = useState(null)
 
-  // Lọc thông báo theo tab
-  const filteredNotifications = notifications.filter(notif => {
-    if (activeTab === 'all') return true
-    if (activeTab === 'trips') return notif.type === 'trip'
-    if (activeTab === 'promotions') return notif.type === 'promotion'
-    if (activeTab === 'services') return notif.type === 'service'
-    return true
-  })
-
-  // Đếm số thông báo chưa đọc
-  const unreadCount = notifications.filter(n => !n.isRead).length
-
-  // Đánh dấu đã đọc
-  const markAsRead = (notifId) => {
-    setNotifications(prev => 
-      prev.map(n => n.id === notifId ? { ...n, isRead: true } : n)
-    )
+  const formatTime = (dateString) => {
+    try {
+      return new Date(dateString).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+    } catch (e) {
+      return '';
+    }
   }
 
-  // Đánh dấu tất cả đã đọc
-  const markAllAsRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })))
-    Alert.alert('Thành công', 'Đã đánh dấu tất cả thông báo là đã đọc')
+  const getSectionTitle = (dateString) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+
+    const isToday = date.getDate() === now.getDate() && 
+                    date.getMonth() === now.getMonth() && 
+                    date.getFullYear() === now.getFullYear();
+                    
+    const isYesterday = date.getDate() === yesterday.getDate() && 
+                        date.getMonth() === yesterday.getMonth() && 
+                        date.getFullYear() === yesterday.getFullYear();
+
+    if (isToday) return 'TODAY';
+    if (isYesterday) return 'YESTERDAY';
+    return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).toUpperCase();
   }
 
-  // Xóa tất cả thông báo
-  const clearAllNotifications = () => {
-    Alert.alert(
-      'Xác nhận',
-      'Bạn có chắc muốn xóa tất cả thông báo?',
-      [
-        { text: 'Hủy', style: 'cancel' },
-        { 
-          text: 'Xóa', 
-          style: 'destructive',
-          onPress: () => {
-            setNotifications([])
-            Alert.alert('Thành công', 'Đã xóa tất cả thông báo')
-          }
+  // MOCK DATA for demonstration
+  const MOCK_NOTIFICATIONS = [
+    {
+      id: 'mock-1',
+      type: 'MATCH_ACCEPTED',
+      title: 'Ride Accepted!',
+      body: 'Driver Nguyen Van A has accepted your request. Vehicle: Honda Vision (29A-123.45).',
+      createdAt: new Date().toISOString(),
+      isRead: false,
+      referenceId: '123' // Mock ID
+    },
+    {
+      id: 'mock-2',
+      type: 'DRIVER_ARRIVED',
+      title: 'Driver Arrived',
+      body: 'Your driver is waiting at the pickup point.',
+      createdAt: new Date(Date.now() - 10 * 60000).toISOString(), // 10 mins ago
+      isRead: true,
+      referenceId: '123'
+    },
+    {
+      id: 'mock-3',
+      type: 'TRIP_STARTED',
+      title: 'Trip Started',
+      body: 'Your trip to Landmark 81 has started.',
+      createdAt: new Date(Date.now() - 30 * 60000).toISOString(),
+      isRead: true,
+      referenceId: '123'
+    },
+    {
+      id: 'mock-4',
+      type: 'RIDE_COMPLETED',
+      title: 'Ride Completed',
+      body: 'You have arrived. Total fare: 50,000 coins.',
+      createdAt: new Date(Date.now() - 60 * 60000).toISOString(),
+      isRead: true,
+      referenceId: '123'
+    },
+    {
+      id: 'mock-5',
+      type: 'PROMOTION',
+      title: 'Discount 20%',
+      body: 'Use code WELCOME20 for your next ride!',
+      createdAt: new Date(Date.now() - 24 * 60 * 60000).toISOString(), // 1 day ago
+      isRead: false,
+    },
+    {
+      id: 'mock-6',
+      type: 'SYSTEM',
+      title: 'System Maintenance',
+      body: 'Our server will be down for maintenance from 2 AM to 4 AM.',
+      createdAt: new Date(Date.now() - 2 * 24 * 60 * 60000).toISOString(), // 2 days ago
+      isRead: true,
+    },
+    {
+      id: 'mock-7',
+      type: 'MATCH_CANCELLED',
+      title: 'Ride Cancelled',
+      body: 'The driver cancelled the ride due to engine trouble.',
+      createdAt: new Date(Date.now() - 3 * 24 * 60 * 60000).toISOString(), // 3 days ago
+      isRead: true,
+      referenceId: '123'
+    },
+     {
+      id: 'mock-9',
+      type: 'NEW_MESSAGE',
+      title: 'New Message',
+      body: 'Driver: I am waiting at the lobby.',
+      createdAt: new Date().toISOString(),
+      isRead: false,
+      referenceId: '123'
+    },
+  ];
+
+  const fetchNotifications = async () => {
+    try {
+      const data = await getMyNotifications()
+      // MERGE MOCK DATA FOR DEMO
+      const allNotifications = [...MOCK_NOTIFICATIONS, ...data.data]; 
+      
+      const mappedData = allNotifications.map(n => ({
+        id: n.id,
+        type: n.type,
+        category: getCategory(n.type),
+        title: n.title,
+        message: n.body,
+        createdAt: n.createdAt,
+        time: formatTime(n.createdAt),
+        icon: getIconForType(n.type),
+        iconColor: getColorForType(n.type),
+        bgColor: getBgColorForType(n.type),
+        isRead: n.isRead,
+        referenceId: n.referenceId,
+      }))
+      // Sort by date desc
+      mappedData.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      
+      setNotifications(mappedData) 
+    } catch (error) {
+      console.error('Failed to fetch notifications:', error)
+      // Fallback to mock if API fails
+      const mappedMock = MOCK_NOTIFICATIONS.map(n => ({
+        id: n.id,
+        type: n.type,
+        category: getCategory(n.type),
+        title: n.title,
+        message: n.body,
+        createdAt: n.createdAt,
+        time: formatTime(n.createdAt),
+        icon: getIconForType(n.type),
+        iconColor: getColorForType(n.type),
+        bgColor: getBgColorForType(n.type),
+        isRead: n.isRead,
+        referenceId: n.referenceId,
+      }));
+      setNotifications(mappedMock);
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    const getUser = async () => {
+      const u = await AsyncStorageService.getUser()
+      if (u) setUserId(u.id)
+    }
+    getUser()
+  }, [])
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchNotifications()
+    }, [])
+  )
+
+  useEffect(() => {
+    if (!userId || !supabase) return
+
+    const channel = supabase
+      .channel(`public:notifications:user_id=eq.${userId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          console.log('New notification received:', payload)
+          fetchNotifications()
         }
-      ]
-    )
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [userId])
+
+  const getCategory = (type) => {
+    if (type === 'PROMOTION') return 'promotion'
+    if (type === 'SYSTEM') return 'system'
+    // NEW_MESSAGE goes to activity
+    return 'activity'
   }
 
-  // Xóa một thông báo
-  const deleteNotification = (notifId) => {
-    Alert.alert(
-      'Xác nhận',
-      'Bạn có chắc muốn xóa thông báo này?',
-      [
-        { text: 'Hủy', style: 'cancel' },
-        { 
-          text: 'Xóa', 
-          style: 'destructive',
-          onPress: () => {
-            setNotifications(prev => prev.filter(n => n.id !== notifId))
-          }
-        }
-      ]
-    )
+  const getIconForType = (type) => {
+    switch (type) {
+      case 'MATCH_ACCEPTED': return 'check'
+      case 'DRIVER_ARRIVED': return 'directions-car'
+      case 'TRIP_STARTED': return 'play-arrow'
+      case 'TRIP_ENDED': return 'flag'
+      case 'MATCH_CANCELLED': return 'close'
+      case 'PROMOTION': return 'local-offer'
+      case 'SYSTEM': return 'info'
+      case 'REFUND_PROCESSED': return 'attach-money'
+      case 'NEW_MESSAGE': return 'chat'
+      default: return 'notifications'
+    }
   }
 
-  const renderNotificationCard = ({ item }) => {
-    return (
-      <TouchableOpacity
-        style={[styles.notificationCard, !item.isRead && styles.unreadCard]}
-        onPress={() => markAsRead(item.id)}
-        activeOpacity={0.7}
-      >
-        <View style={styles.notificationContent}>
-          <View style={[styles.iconContainer, { backgroundColor: item.bgColor }]}>
-            <MaterialIcons name={item.icon} size={24} color={item.iconColor} />
-          </View>
-
-          <View style={styles.notificationText}>
-            <View style={styles.notificationHeader}>
-              <Text style={styles.notificationTitle} numberOfLines={2}>
-                {item.title}
-              </Text>
-              {!item.isRead && <View style={styles.unreadDot} />}
-            </View>
-            
-            <Text style={styles.notificationMessage} numberOfLines={3}>
-              {item.message}
-            </Text>
-
-            {/* Thông tin bổ sung theo loại thông báo */}
-            {item.tripCode && (
-              <View style={styles.extraInfo}>
-                <MaterialIcons name="confirmation-number" size={14} color={COLORS.BLUE} />
-                <Text style={styles.extraInfoText}>{item.tripCode}</Text>
-              </View>
-            )}
-
-            {item.promoCode && (
-              <View style={styles.promoCodeBox}>
-                <Text style={styles.promoCodeLabel}>Mã: </Text>
-                <Text style={styles.promoCode}>{item.promoCode}</Text>
-                <MaterialIcons name="content-copy" size={14} color={COLORS.PRIMARY} style={styles.copyIcon} />
-              </View>
-            )}
-
-            {item.points && (
-              <View style={styles.pointsBox}>
-                <MaterialIcons name="stars" size={14} color={COLORS.ORANGE} />
-                <Text style={styles.pointsText}>+{item.points} điểm</Text>
-              </View>
-            )}
-
-            <View style={styles.notificationFooter}>
-              <Text style={styles.notificationTime}>{item.time}</Text>
-              <TouchableOpacity 
-                onPress={(e) => {
-                  e.stopPropagation()
-                  deleteNotification(item.id)
-                }}
-                style={styles.deleteButton}
-              >
-                <MaterialIcons name="delete-outline" size={18} color={COLORS.GRAY} />
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </TouchableOpacity>
-    )
+  const getColorForType = (type) => {
+    switch (type) {
+      case 'MATCH_ACCEPTED': return '#4CAF50'
+      case 'MATCH_CANCELLED': return '#F44336'
+      case 'PROMOTION': return '#FF9800'
+      case 'REFUND_PROCESSED': return '#2196F3'
+      case 'SYSTEM': return '#607D8B'
+      case 'NEW_MESSAGE': return '#9C27B0' // Purple for chat
+      default: return COLORS.PRIMARY
+    }
   }
 
-  const renderTabs = () => (
-    <View style={styles.tabContainer}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        <TouchableOpacity 
-          style={[styles.tab, activeTab === 'all' && styles.activeTab]}
-          onPress={() => setActiveTab('all')}
-        >
-          <MaterialIcons 
-            name="notifications" 
-            size={18} 
-            color={activeTab === 'all' ? COLORS.PRIMARY : COLORS.GRAY} 
-          />
-          <Text style={[styles.tabText, activeTab === 'all' && styles.activeTabText]}>
-            Tất cả
-          </Text>
-          {unreadCount > 0 && activeTab === 'all' && (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{unreadCount}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
+  const getBgColorForType = (type) => {
+    switch (type) {
+      case 'PROMOTION': return '#FFF3E0'
+      case 'MATCH_CANCELLED': return '#FFEBEE'
+      case 'SYSTEM': return '#ECEFF1'
+      case 'NEW_MESSAGE': return '#F3E5F5' // Light Purple
+      default: return '#E3F2FD'
+    }
+  }
 
-        <TouchableOpacity 
-          style={[styles.tab, activeTab === 'trips' && styles.activeTab]}
-          onPress={() => setActiveTab('trips')}
-        >
-          <MaterialIcons 
-            name="directions-car" 
-            size={18} 
-            color={activeTab === 'trips' ? COLORS.PRIMARY : COLORS.GRAY} 
-          />
-          <Text style={[styles.tabText, activeTab === 'trips' && styles.activeTabText]}>
-            Chuyến đi
-          </Text>
-          {notifications.filter(n => n.type === 'trip' && !n.isRead).length > 0 && activeTab === 'trips' && (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>
-                {notifications.filter(n => n.type === 'trip' && !n.isRead).length}
-              </Text>
-            </View>
-          )}
-        </TouchableOpacity>
+  const handleMarkAsRead = async (id) => {
+    try {
+        // Optimistic update
+        setNotifications(prev => 
+            prev.map(n => n.id === id ? { ...n, isRead: true } : n)
+        )
 
-        <TouchableOpacity 
-          style={[styles.tab, activeTab === 'promotions' && styles.activeTab]}
-          onPress={() => setActiveTab('promotions')}
-        >
-          <MaterialIcons 
-            name="local-offer" 
-            size={18} 
-            color={activeTab === 'promotions' ? COLORS.PRIMARY : COLORS.GRAY} 
-          />
-          <Text style={[styles.tabText, activeTab === 'promotions' && styles.activeTabText]}>
-            Khuyến mãi
-          </Text>
-          {notifications.filter(n => n.type === 'promotion' && !n.isRead).length > 0 && activeTab === 'promotions' && (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>
-                {notifications.filter(n => n.type === 'promotion' && !n.isRead).length}
-              </Text>
-            </View>
-          )}
-        </TouchableOpacity>
+        // Only call API if it's a real ID
+        if (typeof id === 'string' && id.startsWith('mock')) return;
+        await markAsRead(id)
+    } catch (error) {
+      console.error('Error marking as read:', error)
+    }
+  }
 
-        <TouchableOpacity 
-          style={[styles.tab, activeTab === 'services' && styles.activeTab]}
-          onPress={() => setActiveTab('services')}
-        >
-          <MaterialIcons 
-            name="settings" 
-            size={18} 
-            color={activeTab === 'services' ? COLORS.PRIMARY : COLORS.GRAY} 
-          />
-          <Text style={[styles.tabText, activeTab === 'services' && styles.activeTabText]}>
-            Dịch vụ
-          </Text>
-        </TouchableOpacity>
-      </ScrollView>
+  const handleNotificationPress = async (item) => {
+    // 1. Mark as read
+    handleMarkAsRead(item.id);
+
+    console.log('Handling notification press:', item.type, item.referenceId);
+
+    // 2. Navigate based on type
+    switch (item.type) {
+        case 'MATCH_ACCEPTED':
+        case 'DRIVER_ARRIVED':
+        case 'TRIP_STARTED':
+        case 'TRIP_ENDED':
+            if (item.referenceId) {
+                // TODO: Depending on status, might want to go to different screens
+                // For now, MatchedRideScreen handles active rides
+                navigation.navigate(SCREENS.MATCHED_RIDE, { rideId: item.referenceId });
+            }
+            break;
+        
+        case 'NEW_MESSAGE':
+            if (item.referenceId) {
+                // item.referenceId is likely userId or matchId depending on backend implementation
+                // Assuming it links to the chat room
+                navigation.navigate('ChatScreen', { matchId: item.referenceId });
+            }
+            break;
+
+        case 'RIDE_COMPLETED':
+             navigation.navigate(SCREENS.RIDE_HISTORY);
+             break;
+        
+        default:
+            console.log('No specific navigation for this notification type');
+    }
+  }
+
+  // Group notifications for SectionList
+  const getGroupedNotifications = () => {
+    const filtered = notifications.filter(n => n.category === activeTab)
+    const grouped = filtered.reduce((acc, curr) => {
+      const title = getSectionTitle(curr.createdAt);
+
+      const existingSection = acc.find(s => s.title === title)
+      if (existingSection) {
+        existingSection.data.push(curr)
+      } else {
+        acc.push({ title, data: [curr] })
+      }
+      return acc
+    }, [])
+
+    return grouped
+  }
+
+  const renderSectionHeader = ({ section: { title } }) => (
+    <View style={styles.sectionHeader}>
+      <Text style={styles.sectionHeaderText}>{title}</Text>
     </View>
+  )
+
+  const renderNotificationItem = ({ item }) => (
+    <TouchableOpacity
+      style={[styles.itemContainer, !item.isRead && styles.unreadItem]}
+      onPress={() => handleNotificationPress(item)}
+      activeOpacity={0.7}
+    >
+      <View style={[styles.iconCircle, { backgroundColor: item.bgColor }]}>
+        <MaterialIcons name={item.icon} size={24} color={item.iconColor} />
+      </View>
+      <View style={styles.textContainer}>
+        <View style={styles.titleRow}>
+            <Text style={[styles.itemTitle, !item.isRead && styles.unreadTitle]} numberOfLines={1}>
+                {item.title}
+            </Text>
+            {!item.isRead && <View style={styles.unreadDot} />}
+        </View>
+        <Text style={[styles.itemMessage, !item.isRead && styles.unreadMessage]} numberOfLines={2}>{item.message}</Text>
+        <Text style={styles.itemTime}>{item.time}</Text>
+      </View>
+    </TouchableOpacity>
   )
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <MaterialIcons name="arrow-back" size={28} color={COLORS.BLACK} />
-          </TouchableOpacity>
-          <View style={styles.headerTextWrap}>
-            <Text style={styles.headerTitle}>Thông báo</Text>
-            {unreadCount > 0 && (
-              <Text style={styles.headerSubtitle}>{unreadCount} chưa đọc</Text>
-            )}
-          </View>
-        </View>
-
-        {notifications.length > 0 && (
-          <View style={styles.headerActions}>
-            {unreadCount > 0 && (
-              <TouchableOpacity onPress={markAllAsRead} style={styles.headerButton}>
-                <MaterialIcons name="done-all" size={22} color={COLORS.PRIMARY} />
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity onPress={clearAllNotifications} style={styles.headerButton}>
-              <MaterialIcons name="delete-sweep" size={22} color={COLORS.RED} />
-            </TouchableOpacity>
-          </View>
-        )}
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <MaterialIcons name="arrow-back" size={24} color={COLORS.BLACK} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Notification</Text>
+        <View style={{ width: 24 }} /> 
       </View>
 
-      {renderTabs()}
+      {/* Tabs */}
+      <View style={styles.tabWrapper}>
+        <View style={styles.tabContainer}>
+          <TouchableOpacity 
+            style={[styles.tabButton, activeTab === 'activity' && styles.activeTab]}
+            onPress={() => setActiveTab('activity')}
+          >
+            <Text style={[styles.tabText, activeTab === 'activity' && styles.activeTabText]}>Activity</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.tabButton, activeTab === 'promotion' && styles.activeTab]}
+            onPress={() => setActiveTab('promotion')}
+          >
+            <Text style={[styles.tabText, activeTab === 'promotion' && styles.activeTabText]}>Promotion</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.tabButton, activeTab === 'system' && styles.activeTab]}
+            onPress={() => setActiveTab('system')}
+          >
+            <Text style={[styles.tabText, activeTab === 'system' && styles.activeTabText]}>System</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
 
-      <FlatList
-        data={filteredNotifications}
-        keyExtractor={(item) => item.id}
-        renderItem={renderNotificationCard}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <MaterialIcons name="notifications-none" size={80} color={COLORS.GRAY} />
-            <Text style={styles.emptyTitle}>Không có thông báo</Text>
-            <Text style={styles.emptyText}>
-              {activeTab === 'all' 
-                ? 'Bạn chưa có thông báo nào' 
-                : activeTab === 'trips'
-                ? 'Không có thông báo về chuyến đi'
-                : activeTab === 'promotions'
-                ? 'Không có khuyến mãi nào'
-                : 'Không có thông báo về dịch vụ'}
-            </Text>
-          </View>
-        }
-      />
+      {/* List */}
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.PRIMARY} />
+        </View>
+      ) : (
+        <SectionList
+          sections={getGroupedNotifications()}
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={renderNotificationItem}
+          renderSectionHeader={renderSectionHeader}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          stickySectionHeadersEnabled={false} // Disabled to prevent overlap issues
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <MaterialIcons name="notifications-none" size={60} color={COLORS.GRAY_LIGHT} />
+              <Text style={styles.emptyText}>No notifications yet</Text>
+            </View>
+          }
+        />
+      )}
     </SafeAreaView>
   )
 }
@@ -404,235 +408,149 @@ const Notification = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BG,
+    backgroundColor: '#FFFFFF', // Clean white background
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: COLORS.WHITE,
-    padding: 16,
-    marginBottom: 8,
-    elevation: 2,
-    shadowColor: COLORS.BLACK,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  headerTextWrap: {
-    marginLeft: 12,
-    flex: 1,
+  backButton: {
+    padding: 4,
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: '800',
+    fontSize: 18,
+    fontWeight: '700',
     color: COLORS.BLACK,
   },
-  headerSubtitle: {
-    fontSize: 13,
-    color: COLORS.PRIMARY,
-    marginTop: 2,
-    fontWeight: '600',
-  },
-  headerActions: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  headerButton: {
-    padding: 6,
+  tabWrapper: {
+    paddingHorizontal: 16,
+    marginBottom: 16,
   },
   tabContainer: {
-    backgroundColor: COLORS.WHITE,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    marginBottom: 8,
-    elevation: 1,
-  },
-  tab: {
     flexDirection: 'row',
+    backgroundColor: '#F5F5F5',
+    borderRadius: 12,
+    padding: 4,
+  },
+  tabButton: {
+    flex: 1,
+    paddingVertical: 10,
     alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    marginRight: 8,
-    borderRadius: 20,
-    backgroundColor: COLORS.GRAY_BG,
-    gap: 6,
+    borderRadius: 10,
   },
   activeTab: {
-    backgroundColor: COLORS.PRIMARY + '20',
+    backgroundColor: COLORS.PRIMARY, // Primary Color Background
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   tabText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '500',
     color: COLORS.GRAY,
   },
   activeTabText: {
-    color: COLORS.PRIMARY,
     fontWeight: '700',
-  },
-  badge: {
-    backgroundColor: COLORS.RED,
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 4,
-    paddingHorizontal: 6,
-  },
-  badgeText: {
-    color: COLORS.WHITE,
-    fontSize: 11,
-    fontWeight: '700',
+    color: COLORS.WHITE, // White Text
   },
   listContent: {
     paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 24,
+    paddingBottom: 20,
   },
-  notificationCard: {
-    backgroundColor: COLORS.WHITE,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    elevation: 2,
-    shadowColor: COLORS.BLACK,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 2,
+  sectionHeader: {
+    paddingVertical: 12,
+    marginTop: 8,
+    backgroundColor: '#FFFFFF', // Sticky header
   },
-  unreadCard: {
-    borderLeftWidth: 4,
-    borderLeftColor: COLORS.PRIMARY,
+  sectionHeaderText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.GRAY,
+    letterSpacing: 0.5,
   },
-  notificationContent: {
+  itemContainer: {
     flexDirection: 'row',
+    paddingVertical: 12,
+    paddingHorizontal: 12, // Added padding inside item
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+    alignItems: 'flex-start',
+    borderRadius: 8, // Rounded corners for potential active state
+    marginHorizontal: -12, // Offset the padding to align with list
+    marginBottom: 4,
   },
-  iconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+  unreadItem: {
+    backgroundColor: '#E3F2FD', // Light Blue Highlight for unread items
+  },
+  iconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    marginRight: 14,
   },
-  notificationText: {
+  textContainer: {
     flex: 1,
+    justifyContent: 'center',
   },
-  notificationHeader: {
+  titleRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 6,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
   },
-  notificationTitle: {
+  itemTitle: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '600',
     color: COLORS.BLACK,
     flex: 1,
-    lineHeight: 20,
+    marginRight: 8,
+  },
+  unreadTitle: {
+    fontWeight: '800', // Bolder title for unread
+    color: '#000',
   },
   unreadDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
     backgroundColor: COLORS.PRIMARY,
-    marginLeft: 8,
-    marginTop: 6,
   },
-  notificationMessage: {
-    fontSize: 13,
-    color: COLORS.GRAY_DARK,
-    lineHeight: 18,
-    marginBottom: 8,
+  itemMessage: {
+    fontSize: 14,
+    color: '#666',
+    lineHeight: 20,
+    marginBottom: 4,
   },
-  extraInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 6,
-    gap: 4,
+  unreadMessage: {
+    color: '#333', // Darker text for unread message
+    fontWeight: '500',
   },
-  extraInfoText: {
+  itemTime: {
     fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.BLUE,
+    color: '#999',
   },
-  promoCodeBox: {
-    flexDirection: 'row',
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: COLORS.ORANGE_LIGHT,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    marginTop: 6,
-    alignSelf: 'flex-start',
-  },
-  promoCodeLabel: {
-    fontSize: 12,
-    color: COLORS.GRAY_DARK,
-  },
-  promoCode: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: COLORS.ORANGE,
-    marginRight: 6,
-  },
-  copyIcon: {
-    marginLeft: 4,
-  },
-  pointsBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.ORANGE_LIGHT,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    marginTop: 6,
-    alignSelf: 'flex-start',
-    gap: 4,
-  },
-  pointsText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: COLORS.ORANGE,
-  },
-  notificationFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  notificationTime: {
-    fontSize: 11,
-    color: COLORS.GRAY,
-  },
-  deleteButton: {
-    padding: 4,
   },
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 80,
-    paddingHorizontal: 40,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: COLORS.BLACK,
-    marginTop: 16,
-    marginBottom: 8,
+    paddingTop: 100,
   },
   emptyText: {
-    fontSize: 14,
+    marginTop: 12,
     color: COLORS.GRAY,
-    textAlign: 'center',
-    lineHeight: 20,
+    fontSize: 14,
   },
 })
 
 export default Notification
-

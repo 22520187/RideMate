@@ -426,10 +426,20 @@ const FixedRoutesScreen = ({ navigation, route }) => {
         ListEmptyComponent={
           !loading && (
             <View style={styles.emptyContainer}>
-              <MaterialIcons name="search" size={80} color="#E5E7EB" />
-              <Text style={styles.emptyText}>Tìm kiếm chuyến đi cố định</Text>
+              <MaterialIcons 
+                name={pickupLocation && destinationLocation ? "search-off" : "search"} 
+                size={80} 
+                color="#E5E7EB" 
+              />
+              <Text style={styles.emptyText}>
+                {pickupLocation && destinationLocation 
+                  ? "Không tìm thấy chuyến đi" 
+                  : "Tìm kiếm chuyến đi cố định"}
+              </Text>
               <Text style={styles.emptySubtext}>
-                Nhập điểm đón và điểm đến để tìm chuyến đi phù hợp
+                {pickupLocation && destinationLocation
+                  ? "Không có chuyến đi nào phù hợp với tuyến đường của bạn vào ngày hôm nay"
+                  : "Nhập điểm đón và điểm đến để tìm chuyến đi phù hợp"}
               </Text>
             </View>
           )
