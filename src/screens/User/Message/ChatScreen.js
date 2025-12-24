@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { SafeAreaView, StyleSheet, View, TouchableOpacity, Text, Image } from 'react-native';
+import { SafeAreaView, StyleSheet, View, TouchableOpacity, Text, Image, Linking, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { Channel, MessageList, MessageInput, OverlayProvider } from 'stream-chat-react-native';
 import { chatClient } from '../../../utils/StreamClient';
 import { Ionicons } from '@expo/vector-icons';
 import COLORS from '../../../constant/colors';
 
 export default function ChatScreen({ route, navigation }) {
-  const { channelId, otherUserId, otherUserName, otherUserAvatar, rideInfo } = route.params || {};
+  const { channelId, otherUserId, otherUserName, otherUserAvatar, otherUserPhone, rideInfo } = route.params || {};
   
   const [channel, setChannel] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -49,6 +49,43 @@ export default function ChatScreen({ route, navigation }) {
     }
   }, [channelId, otherUserName, otherUserId]);
 
+  const handleAudioCall = () => {
+    if (otherUserPhone) {
+      const phoneNumber = otherUserPhone.replace(/\s/g, '');
+      Linking.openURL(`tel:${phoneNumber}`);
+    } else {
+      Alert.alert('Thông báo', 'Không có số điện thoại để gọi');
+    }
+  };
+
+  const handleVideoCall = () => {
+    if (otherUserPhone) {
+      Alert.alert(
+        'Video Call',
+        'Bạn muốn gọi video cho ' + otherUserName + '?',
+        [
+          { text: 'Hủy', style: 'cancel' },
+          {
+            text: 'Gọi điện thoại',
+            onPress: handleAudioCall,
+          },
+          {
+            text: 'Mở Zalo/Messenger',
+            onPress: () => {
+              Alert.alert(
+                'Chọn ứng dụng',
+                'Vui lòng mở Zalo hoặc Messenger để gọi video',
+                [{ text: 'OK' }]
+              );
+            },
+          },
+        ]
+      );
+    } else {
+      Alert.alert('Thông báo', 'Không có thông tin liên hệ');
+    }
+  };
+
   if (loading || !channel) {
     return (
       <SafeAreaView style={styles.container}>
@@ -60,7 +97,7 @@ export default function ChatScreen({ route, navigation }) {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       {/* Custom Header */}
       <View style={styles.header}>
         <TouchableOpacity
@@ -93,16 +130,35 @@ export default function ChatScreen({ route, navigation }) {
           </View>
         </View>
 
-        <View style={styles.headerSpacer} />
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            onPress={handleAudioCall}
+            style={styles.actionButton}
+          >
+            <Ionicons name="call" size={20} color={COLORS.SUCCESS} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={handleVideoCall}
+            style={styles.actionButton}
+          >
+            <Ionicons name="videocam" size={20} color={COLORS.PRIMARY} />
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {/* Stream Chat Components with all features */}
-      <OverlayProvider>
-        <Channel channel={channel}>
-          <MessageList />
-          <MessageInput />
-        </Channel>
-      </OverlayProvider>
+      {/* Stream Chat Components with keyboard handling */}
+      <KeyboardAvoidingView 
+        style={styles.chatContainer}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      >
+        <OverlayProvider>
+          <Channel channel={channel}>
+            <MessageList />
+            <MessageInput />
+          </Channel>
+        </OverlayProvider>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -165,7 +221,21 @@ const styles = StyleSheet.create({
     color: '#8E8E93',
     marginTop: 2,
   },
-  headerSpacer: {
-    width: 40,
+  headerActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginLeft: 8,
+  },
+  actionButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F5F5F5',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  chatContainer: {
+    flex: 1,
+    paddingBottom: 40,
   },
 });

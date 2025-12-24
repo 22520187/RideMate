@@ -15,7 +15,11 @@ import { useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import COLORS from "../../../constant/colors";
 import fixedRouteService from "../../../services/fixedRouteService";
+import routeBookingService from "../../../services/routeBookingService";
+import { getMatchDetail } from "../../../services/matchService";
 import Toast from "react-native-toast-message";
+import axiosClient from "../../../api/axiosClient";
+import endpoints from "../../../api/endpoints";
 
 /**
  * Screen for drivers to view and manage their fixed routes
@@ -280,11 +284,6 @@ const MyFixedRoutesScreen = ({ navigation }) => {
                 ]}
               />
             </View>
-            <Text style={styles.availableSeatsText}>
-              {item.availableSeats > 0
-                ? `Còn ${item.availableSeats} chỗ trống`
-                : "Đã đầy chỗ"}
-            </Text>
           </View>
 
           {/* Action Buttons */}
@@ -308,9 +307,262 @@ const MyFixedRoutesScreen = ({ navigation }) => {
 
             <TouchableOpacity
               style={styles.actionButtonStart}
-              onPress={() => {
-                // TODO: Navigate to start trip screen
-                Alert.alert("Thông báo", "Chức năng đang phát triển");
+              onPress={async () => {
+                console.log(
+                  "🚀🚀🚀 BUTTON 'BẮT ĐẦU' CLICKED for route:",
+                  item.id,
+                  item.routeName
+                );
+                try {
+                  Toast.show({
+                    type: "info",
+                    text1: "Đang xử lý...",
+                  });
+
+                  // 1. Check if there are any ACCEPTED or IN_PROGRESS bookings for this route first
+                  console.log(
+                    "📋 Step 1: Checking bookings for route:",
+                    item.id
+                  );
+                  let acceptedBooking = null;
+                  let inProgressBooking = null;
+                  try {
+                    const bookingsResponse =
+                      await routeBookingService.getBookingsByRoute(item.id);
+                    // Backend returns ApiResponse with data as array
+                    const bookings = bookingsResponse?.data || [];
+                    console.log("📋 Full bookings response:", bookingsResponse);
+                    console.log("📋 Bookings for route:", bookings);
+                    console.log(
+                      "📋 Booking statuses:",
+                      bookings.map((b) => ({
+                        id: b.id,
+                        status: b.status,
+                        matchId: b.matchId,
+                      }))
+                    );
+                    // Find first accepted booking (check both uppercase and case-insensitive)
+                    acceptedBooking = bookings.find(
+                      (b) =>
+                        b.status === "ACCEPTED" ||
+                        b.status?.toUpperCase() === "ACCEPTED"
+                    );
+                    // Also check for IN_PROGRESS booking with matchId (already started)
+                    inProgressBooking = bookings.find(
+                      (b) =>
+                        (b.status === "IN_PROGRESS" ||
+                          b.status?.toUpperCase() === "IN_PROGRESS") &&
+                        b.matchId
+                    );
+                    if (acceptedBooking) {
+                      console.log(
+                        "✅ Found ACCEPTED booking:",
+                        acceptedBooking.id,
+                        "Status:",
+                        acceptedBooking.status
+                      );
+                    } else if (inProgressBooking) {
+                      console.log(
+                        "✅ Found IN_PROGRESS booking with match:",
+                        inProgressBooking.id,
+                        "MatchId:",
+                        inProgressBooking.matchId
+                      );
+                    } else {
+                      console.log(
+                        "⚠️ No ACCEPTED or IN_PROGRESS booking found, will use personal ride"
+                      );
+                    }
+                  } catch (err) {
+                    console.log("❌ Error checking bookings:", err);
+                    // Ignore error and proceed to personal ride check
+                  }
+
+                  // 2. If there is an ACCEPTED or IN_PROGRESS booking -> Start Route Trip (to ensure match is published)
+                  // Priority: ACCEPTED first, then IN_PROGRESS
+                  const bookingToStart = acceptedBooking || inProgressBooking;
+
+                  if (bookingToStart) {
+                    const bookingStatus = bookingToStart.status;
+                    console.log(
+                      `🚀🚀🚀 Starting trip for ${bookingStatus} booking:`,
+                      bookingToStart.id,
+                      "Status:",
+                      bookingStatus
+                    );
+                    try {
+                      console.log(
+                        "📤 Calling routeBookingService.startTrip with bookingId:",
+                        bookingToStart.id
+                      );
+                      const response = await routeBookingService.startTrip(
+                        bookingToStart.id
+                      );
+                      console.log("✅ startTrip response received:", response);
+
+                      if (response.data) {
+                        const bookingData = response.data;
+                        const matchId =
+                          bookingData.matchId ||
+                          (bookingData.match ? bookingData.match.id : null);
+
+                        if (matchId) {
+                          // Fetch full match data to get all coordinates and addresses
+                          try {
+                            const matchResponse = await getMatchDetail(matchId);
+                            const matchData = matchResponse?.data?.data;
+
+                            if (matchData) {
+                              // Navigate to MatchedRideScreen with full match data
+                              navigation.navigate("MatchedRide", {
+                                // Match info
+                                id: matchData.id,
+                                rideId: matchData.id,
+                                status: matchData.status,
+
+                                // Coordinates
+                                pickupLatitude: matchData.pickupLatitude,
+                                pickupLongitude: matchData.pickupLongitude,
+                                destinationLatitude:
+                                  matchData.destinationLatitude,
+                                destinationLongitude:
+                                  matchData.destinationLongitude,
+
+                                // Addresses
+                                pickupAddress: matchData.pickupAddress,
+                                destinationAddress:
+                                  matchData.destinationAddress,
+                                from: matchData.pickupAddress,
+                                to: matchData.destinationAddress,
+
+                                // Driver (Me)
+                                isDriver: true,
+                                driverId: matchData.driverId,
+                                currentUserId: matchData.driverId,
+
+                                // Passenger
+                                passengerId: matchData.passengerId,
+                                passengerName: matchData.passengerName,
+                                passengerPhone: matchData.passengerPhone,
+
+                                // Session
+                                sessionId: matchData.sessionId,
+                              });
+
+                              Toast.show({
+                                type: "success",
+                                text1: "Chuyến đi đã bắt đầu",
+                                text2: "Đang điều hướng đến bản đồ...",
+                              });
+                            } else {
+                              // Fallback: navigate with just matchId
+                              navigation.navigate("MatchedRide", {
+                                rideId: matchId,
+                                isDriver: true,
+                              });
+                            }
+                          } catch (matchError) {
+                            console.error(
+                              "Error fetching match details:",
+                              matchError
+                            );
+                            // Fallback: navigate with just matchId
+                            navigation.navigate("MatchedRide", {
+                              rideId: matchId,
+                              isDriver: true,
+                            });
+                          }
+                        } else {
+                          Toast.show({
+                            type: "success",
+                            text1: "Chuyến đi đã bắt đầu",
+                            text2: "Vui lòng kiểm tra màn hình điều hướng",
+                          });
+                        }
+                        return; // Stop here, don't create personal ride
+                      } else {
+                        console.error(
+                          "❌ startTrip response has no data:",
+                          response
+                        );
+                      }
+                    } catch (startTripError) {
+                      console.error(
+                        "❌❌❌ ERROR calling startTrip:",
+                        startTripError
+                      );
+                      console.error(
+                        "Error details:",
+                        startTripError.response?.data || startTripError.message
+                      );
+                      Toast.show({
+                        type: "error",
+                        text1: "Lỗi khi bắt đầu chuyến đi",
+                        text2:
+                          startTripError.response?.data?.message ||
+                          startTripError.message,
+                      });
+                      return;
+                    }
+                  } else {
+                    console.log(
+                      "⚠️ No ACCEPTED booking found, will check for personal ride"
+                    );
+                  }
+
+                  // 3. If NO accepted booking -> Start Personal Ride (original logic)
+                  // Call API to start personal ride based on fixed route
+                  const payload = {
+                    pickupLatitude: item.pickupLatitude || 0,
+                    pickupLongitude: item.pickupLongitude || 0,
+                    pickupAddress: item.pickupAddress,
+                    destinationLatitude: item.dropoffLatitude || 0,
+                    destinationLongitude: item.dropoffLongitude || 0,
+                    destinationAddress: item.dropoffAddress,
+                    passengerName: item.passengerName || "Khách vãng lai",
+                    passengerPhone: item.passengerPhone || "",
+                    passengerId: null, // No passenger for personal/empty ride
+                    // fixedRouteId: item.id
+                  };
+
+                  const response = await axiosClient.post(
+                    endpoints.driver.personalRide,
+                    payload
+                  );
+
+                  if (response.data?.statusCode === 200) {
+                    const matchData = response.data.data;
+
+                    // Navigate to MatchedRideScreen
+                    navigation.navigate("MatchedRide", {
+                      id: matchData.id,
+                      rideId: matchData.id,
+                      status: matchData.status,
+                      pickupLatitude: matchData.pickupLatitude,
+                      pickupLongitude: matchData.pickupLongitude,
+                      destinationLatitude: matchData.destinationLatitude,
+                      destinationLongitude: matchData.destinationLongitude,
+                      pickupAddress: matchData.pickupAddress,
+                      destinationAddress: matchData.destinationAddress,
+                      from: matchData.pickupAddress,
+                      to: matchData.destinationAddress,
+                      isDriver: true,
+                      driverId: matchData.driverId,
+                      currentUserId: matchData.driverId,
+                      passengerId: matchData.riderId,
+                      passengerName: matchData.riderName,
+                      passengerPhone: matchData.riderPhone,
+                      sessionId: matchData.sessionId,
+                    });
+                  }
+                } catch (error) {
+                  console.error("❌ Start ride error:", error);
+                  Toast.show({
+                    type: "error",
+                    text1: "Không thể bắt đầu chuyến đi",
+                    text2: error.response?.data?.message || "Vui lòng thử lại",
+                  });
+                }
               }}
             >
               <LinearGradient

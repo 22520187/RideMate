@@ -69,12 +69,13 @@ const CreateFixedRouteScreen = ({ navigation }) => {
       if (vehicleData) {
         setVehicle(vehicleData);
         console.log("✅ Vehicle loaded:", vehicleData);
-        Toast.show({
-          type: "success",
-          text1: "Đã tải phương tiện",
-          text2: `${vehicleData.model} - ${vehicleData.licensePlate}`,
-          position: "top",
-        });
+        // Toast removed as requested because it's distracting
+        // Toast.show({
+        //   type: "success",
+        //   text1: "Đã tải phương tiện",
+        //   text2: `${vehicleData.model} - ${vehicleData.licensePlate}`,
+        //   position: "top",
+        // });
       } else {
         console.warn("⚠️ No vehicle data in response");
         // Don't block user, just show they can add vehicle later

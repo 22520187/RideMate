@@ -154,6 +154,7 @@ export default {
 
   driver: {
     location: "/driver/location",
+    personalRide: "/driver/personal-ride",
   },
 
   fixedRoutes: {

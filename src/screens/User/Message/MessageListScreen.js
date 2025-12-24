@@ -199,6 +199,7 @@ export default function MessageListScreen({ navigation }) {
                   otherUserId: otherUser?.id,
                   otherUserName: otherUser?.name || item.data?.name,
                   otherUserAvatar: otherUser?.image,
+                  otherUserPhone: null, // Phone not available in channel data
                 });
               }}
             />

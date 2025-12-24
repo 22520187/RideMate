@@ -803,55 +803,37 @@ const DriverMapScreen = ({ route }) => {
               latitude: match.pickup_latitude,
               longitude: match.pickup_longitude,
             }}
-            title={`Chuyến đi ${match.coin || 0} xu`}
-            description={match.pickup_address || "Điểm đón"}
-            anchor={{ x: 0.5, y: 0.5 }}
-            onPress={async () => {
-              // Khi click vào marker, fetch full match details và hiển thị modal
-              try {
-                const response = await axiosClient.get(
-                  endpoints.match.getById(match.id)
-                );
-                if (response?.data?.data) {
-                  setNewMatch(response.data.data);
-                  setModalVisible(true);
-                }
-              } catch (error) {
-                console.error("❌ Error fetching match details:", error);
-                Toast.show({
-                  type: "error",
-                  text1: "Không thể tải thông tin chuyến đi",
-                });
-              }
+            title={`Khách hàng: #${match.passenger_id}`}
+            description={`${match.coin} xu`}
+            onPress={() => {
+              // Show modal details for this match
+              // Logic similar to insert subscription payload
             }}
           >
-            <View
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: 18,
-                backgroundColor: "#FF6B6B",
-                justifyContent: "center",
-                alignItems: "center",
-                borderWidth: 3,
-                borderColor: "white",
-                shadowColor: "#000",
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.3,
-                shadowRadius: 3,
-                elevation: 5,
-              }}
-            >
-              <MaterialIcons name="person-pin" size={20} color="white" />
+            <View style={styles.nearbyMatchMarker}>
+              <MaterialIcons name="person-pin-circle" size={30} color="#FF5722" />
             </View>
           </Marker>
         ))}
       </MapView>
 
-      {/* My Location Button */}
-      <TouchableOpacity style={styles.myLocationButton} onPress={centerMap}>
+      {/* FAB - Start Personal Ride */}
+      <TouchableOpacity
+        style={styles.personalRideButton}
+        onPress={() => navigation.navigate("DriverPersonalRideScreen")}
+      >
+        <Ionicons name="add" size={30} color="white" />
+        <Text style={styles.personalRideText}>Tạo chuyến đi</Text>
+      </TouchableOpacity>
+
+      {/* Center Map Button */}
+      <TouchableOpacity
+        style={styles.centerButton}
+        onPress={centerMap}
+      >
         <MaterialIcons name="my-location" size={24} color={COLORS.PRIMARY} />
       </TouchableOpacity>
+
 
       {/* Bottom Status Card */}
       <View style={styles.bottomCard}>

@@ -171,6 +171,7 @@ const RideDetail = ({ route, navigation }) => {
       otherUserId: otherPerson.id,
       otherUserName: otherPerson.name,
       otherUserAvatar: otherPerson.avatar,
+      otherUserPhone: otherPerson.phone || null,
       rideInfo: { from: ride.pickupAddress, to: ride.destinationAddress },
     });
   };

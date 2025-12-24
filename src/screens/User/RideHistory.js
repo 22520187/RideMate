@@ -258,6 +258,9 @@ const RideHistory = ({ navigation }) => {
         ride.status === "REJECTED"
     );
 
+    // Sort past rides by createdAt descending (newest first)
+    past.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
     // Generate chart data - rides per day for last 7 days (use all rides for chart)
     const last7Days = [];
     const dayNames = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];

@@ -9,6 +9,7 @@ import {
   RefreshControl,
   Alert,
   Linking,
+  ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -209,6 +210,7 @@ const RouteBookingsScreen = ({ navigation, route }) => {
                   otherUserId: item.passengerId,
                   otherUserName: item.passengerName,
                   otherUserAvatar: item.passengerAvatar || null,
+                  otherUserPhone: item.passengerPhone || null,
                 });
               } catch (error) {
                 console.error("Error navigating to chat:", error);
@@ -286,6 +288,8 @@ const RouteBookingsScreen = ({ navigation, route }) => {
           </TouchableOpacity>
         </View>
       )}
+
+
     </View>
   );
 
@@ -302,26 +306,33 @@ const RouteBookingsScreen = ({ navigation, route }) => {
     <SafeAreaView style={styles.container} edges={["top"]}>
       <GradientHeader title="Đặt chỗ" onBackPress={() => navigation.goBack()} />
 
-      <View style={styles.filterContainer}>
-        {["ALL", "PENDING", "ACCEPTED", "IN_PROGRESS"].map((filterOption) => (
-          <TouchableOpacity
-            key={filterOption}
-            style={[
-              styles.filterButton,
-              filter === filterOption && styles.filterButtonActive,
-            ]}
-            onPress={() => setFilter(filterOption)}
-          >
-            <Text
+      <View>
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterScrollContent}
+          style={styles.filterScroll}
+        >
+          {["ALL", "PENDING", "ACCEPTED", "IN_PROGRESS"].map((filterOption) => (
+            <TouchableOpacity
+              key={filterOption}
               style={[
-                styles.filterButtonText,
-                filter === filterOption && styles.filterButtonTextActive,
+                styles.filterButton,
+                filter === filterOption && styles.filterButtonActive,
               ]}
+              onPress={() => setFilter(filterOption)}
             >
-              {filterOption === "ALL" ? "Tất cả" : getStatusText(filterOption)}
-            </Text>
-          </TouchableOpacity>
-        ))}
+              <Text
+                style={[
+                  styles.filterButtonText,
+                  filter === filterOption && styles.filterButtonTextActive,
+                ]}
+              >
+                {filterOption === "ALL" ? "Tất cả" : getStatusText(filterOption)}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
       </View>
 
       {filteredBookings.length === 0 ? (
@@ -364,12 +375,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: COLORS.GRAY,
   },
-  filterContainer: {
-    flexDirection: "row",
-    padding: 16,
+  filterScroll: {
     backgroundColor: COLORS.WHITE,
     borderBottomWidth: 1,
     borderBottomColor: "#E0E0E0",
+  },
+  filterScrollContent: {
+    padding: 16,
+    flexDirection: "row",
+    alignItems: "center",
   },
   filterButton: {
     paddingHorizontal: 16,

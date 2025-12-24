@@ -3,7 +3,7 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
+  ScrollView, 
   TouchableOpacity,
   TextInput,
   Image,
@@ -44,6 +44,8 @@ import { getProfile } from "../../../services/userService";
 import { getMyVehicle } from "../../../services/vehicleService";
 import { getUserData, getToken } from "../../../utils/storage";
 import { LinearGradient } from "expo-linear-gradient";
+import { supabase } from "../../../config/supabaseClient";
+import AsyncStorageService from "../../../services/AsyncStorageService";
 
 const { width } = Dimensions.get("window");
 
@@ -73,6 +75,61 @@ const Home = ({ navigation }) => {
       handleAppStateChange
     );
     return () => subscription?.remove();
+    return () => subscription?.remove();
+  }, []);
+
+  // Listen for realtime MATCH updates (to auto-navigate when trip starts/drivers accept)
+  useEffect(() => {
+    let channel;
+    
+    const setupRealtimeListener = async () => {
+      const user = await AsyncStorageService.getUser();
+      if (!user?.id || !supabase) return;
+
+      console.log('🔔 Home: Setting up MATCH listener for passenger:', user.id);
+      
+      channel = supabase
+        .channel(`public:matches:passenger_id=eq.${user.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*', // Listen for INSERT and UPDATE
+            schema: 'public',
+            table: 'matches',
+            filter: `passenger_id=eq.${user.id}`,
+          },
+          (payload) => {
+            const newMatch = payload.new;
+            console.log('🔔 Home: Received MATCH update:', newMatch?.status);
+            
+            // Auto navigate based on status
+            if (newMatch && (
+                newMatch.status === 'IN_PROGRESS' || 
+                newMatch.status === 'ACCEPTED' || 
+                newMatch.status === 'DRIVER_ARRIVED'
+            )) {
+                console.log(`🚀 Match ${newMatch.id} is ${newMatch.status}. Navigating...`);
+                
+                // Show simple feedback
+                if (newMatch.status === 'IN_PROGRESS') {
+                    Alert.alert("Chuyến đi bắt đầu", "Tài xế đã bắt đầu chuyến đi!");
+                }
+                
+                // Navigate to MatchedRideScreen with the match ID
+                navigation.navigate(SCREENS.MATCHED_RIDE, { 
+                    rideId: newMatch.id 
+                });
+            }
+          }
+        )
+        .subscribe();
+    };
+
+    setupRealtimeListener();
+
+    return () => {
+      if (channel) supabase.removeChannel(channel);
+    };
   }, []);
 
   useEffect(() => {
