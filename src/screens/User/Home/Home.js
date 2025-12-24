@@ -42,6 +42,8 @@ import COLORS from "../../../constant/colors";
 import SCREENS from "../../../screens";
 import { getProfile } from "../../../services/userService";
 import { getMyVehicle } from "../../../services/vehicleService";
+import { getMyVouchers } from "../../../services/voucherService";
+import { getMyMissions } from "../../../services/missionService";
 import { getUserData, getToken } from "../../../utils/storage";
 import { LinearGradient } from "expo-linear-gradient";
 import { supabase } from "../../../config/supabaseClient";
@@ -57,6 +59,111 @@ const Home = ({ navigation }) => {
   const [vehicleStatus, setVehicleStatus] = useState(null);
   const [showVehicleRequiredModal, setShowVehicleRequiredModal] =
     useState(false);
+
+  // API-backed data for Services: Missions + My Vouchers (used for Home badges/quick info)
+  const [myMissions, setMyMissions] = useState([]);
+  const [myVouchers, setMyVouchers] = useState([]);
+  const [mockPromotions, setMockPromotions] = useState([]);
+  const [mockPackages, setMockPackages] = useState([]);
+
+  // Mock data for advertising sections: Hot Promotions + Membership Packages
+  const buildMockPromotions = () => [
+    {
+      id: 1,
+      title: "Tích điểm – đổi ngay voucher!",
+      subtitle: "Đổi voucher giảm 30.000đ cho chuyến đầu tiên",
+      image:
+        "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=800&h=400&fit=crop",
+      badge: "Ưu đãi đặc biệt",
+      validFrom: "01/12/2025",
+      validTo: "31/12/2025",
+      terms:
+        "Áp dụng cho người dùng RideMate. Không cộng dồn ưu đãi. Số lượng có hạn.",
+      points: 0,
+      // Optional marketing fields
+      ctaLabel: "Xem chi tiết",
+    },
+    {
+      id: 2,
+      title: "Chuyến đi miễn phí",
+      subtitle: "Hoàn 100% điểm cho chuyến đầu tiên",
+      image:
+        "https://images.unsplash.com/photo-1449824913935-59a10b8d2000?w=800&h=400&fit=crop",
+      badge: "Mới",
+      validFrom: "15/12/2025",
+      validTo: "15/01/2026",
+      terms: "Hoàn điểm trong 24h sau khi kết thúc chuyến. Áp dụng 1 lần/tài khoản.",
+      points: 0,
+      ctaLabel: "Nhận ưu đãi",
+    },
+    {
+      id: 3,
+      title: "Đối tác Phúc Long",
+      subtitle: "Giảm 20% khi đặt đồ uống",
+      image:
+        "https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=800&h=400&fit=crop",
+      badge: "Hot",
+      validFrom: "01/12/2025",
+      validTo: "31/01/2026",
+      terms: "Áp dụng tại cửa hàng đối tác. Xuất trình mã tại quầy thanh toán.",
+      points: 500,
+      ctaLabel: "Đổi ngay",
+    },
+  ];
+
+  const buildMockPackages = () => [
+    {
+      id: 1,
+      title: "RideMate Premium",
+      description: "Ưu đãi đặc biệt mọi chuyến xe\nTích điểm nhanh gấp đôi",
+      image:
+        "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=800&h=500&fit=crop",
+      badge: "Phổ biến",
+      badgeColor: COLORS.ORANGE,
+      price: "49.000đ/tháng",
+      benefits: [
+        "Tích điểm x2 cho mọi chuyến",
+        "Ưu tiên hỗ trợ trong giờ cao điểm",
+        "Nhận ưu đãi độc quyền mỗi tuần",
+      ],
+    },
+    {
+      id: 2,
+      title: "RideMate VIP",
+      description: "Trải nghiệm dịch vụ cao cấp\nHỗ trợ ưu tiên 24/7",
+      image:
+        "https://images.unsplash.com/photo-1449824913935-59a10b8d2000?w=800&h=500&fit=crop",
+      badge: "Cao cấp",
+      badgeColor: COLORS.PURPLE,
+      price: "99.000đ/tháng",
+      benefits: [
+        "Tích điểm x3",
+        "Hỗ trợ ưu tiên 24/7",
+        "Ưu tiên ghép chuyến nhanh hơn",
+      ],
+    },
+    {
+      id: 3,
+      title: "RideMate Family",
+      description: "Chia sẻ cho cả gia đình\nTối đa 5 thành viên",
+      image:
+        "https://images.unsplash.com/photo-1511632765486-a01980e01a18?w=800&h=500&fit=crop",
+      badge: "Tiết kiệm",
+      badgeColor: COLORS.GREEN,
+      price: "129.000đ/tháng",
+      benefits: [
+        "Tối đa 5 thành viên",
+        "Tích điểm chung cho cả nhóm",
+        "Ưu đãi theo nhóm mỗi tháng",
+      ],
+    },
+  ];
+
+  // Initialize advertising mock data once
+  useEffect(() => {
+    setMockPromotions(buildMockPromotions());
+    setMockPackages(buildMockPackages());
+  }, []);
 
   useEffect(() => {
     loadUserData();
@@ -74,7 +181,6 @@ const Home = ({ navigation }) => {
       "change",
       handleAppStateChange
     );
-    return () => subscription?.remove();
     return () => subscription?.remove();
   }, []);
 
@@ -157,7 +263,19 @@ const Home = ({ navigation }) => {
 
       if (token) {
         try {
-          const profileResp = await getProfile();
+          const [profileResp, myVouchersResp, myMissionsResp] =
+            await Promise.all([
+              getProfile(),
+              getMyVouchers().catch((e) => {
+                console.warn("⚠️ Home: getMyVouchers failed:", e?.message);
+                return null;
+              }),
+              getMyMissions().catch((e) => {
+                console.warn("⚠️ Home: getMyMissions failed:", e?.message);
+                return null;
+              }),
+            ]);
+
           console.log("✅ Home: Profile response:", profileResp);
           const profile = profileResp?.data?.data; // Fix: nested data
           console.log("👤 Home: Profile data:", profile);
@@ -166,6 +284,24 @@ const Home = ({ navigation }) => {
 
           // Track latest profile locally for follow-up logic
           if (profile) profileData = profile;
+
+          // My vouchers
+          const myVPayload =
+            myVouchersResp?.data?.data ?? myVouchersResp?.data ?? myVouchersResp;
+          if (Array.isArray(myVPayload)) {
+            setMyVouchers(myVPayload);
+          } else if (myVouchersResp) {
+            setMyVouchers([]);
+          }
+
+          // My missions
+          const myMPayload =
+            myMissionsResp?.data?.data ?? myMissionsResp?.data ?? myMissionsResp;
+          if (Array.isArray(myMPayload)) {
+            setMyMissions(myMPayload);
+          } else if (myMissionsResp) {
+            setMyMissions([]);
+          }
 
           // Update storage with fresh data
           if (profile) {
@@ -180,6 +316,8 @@ const Home = ({ navigation }) => {
         }
       } else {
         console.log("⚠️ Home: No token, using stored data only");
+        setMyVouchers([]);
+        setMyMissions([]);
       }
 
       // Chỉ fetch vehicle khi user là DRIVER
@@ -263,6 +401,17 @@ const Home = ({ navigation }) => {
 
   const userPoints = 1250;
 
+  // My vouchers: UserVoucherDto status = UNUSED | REDEEMED | EXPIRED
+  const availableVoucherCount = myVouchers.filter(
+    (v) => v?.status === "UNUSED"
+  ).length;
+
+  // My missions: UserMissionDto. Show count of missions that still need attention:
+  // - not completed OR completed but reward not claimed
+  const activeMissionCount = myMissions.filter(
+    (m) => m?.isCompleted !== true || m?.rewardClaimed !== true
+  ).length;
+
   const mainFunctions = [
     {
       id: 1,
@@ -314,66 +463,6 @@ const Home = ({ navigation }) => {
     },
   ];
 
-  const promotions = [
-    {
-      id: 1,
-      title: "Tích điểm – đổi ngay voucher!",
-      subtitle: "Đổi ngay voucher 30k tại Katinat",
-      image:
-        "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400&h=200&fit=crop",
-      badge: "Ưu đãi đặc biệt",
-      points: userPoints,
-    },
-    {
-      id: 2,
-      title: "Chuyến đi miễn phí",
-      subtitle: "Hoàn 100% điểm cho chuyến đầu tiên",
-      image:
-        "https://images.unsplash.com/photo-1449824913935-59a10b8d2000?w=400&h=200&fit=crop",
-      badge: "Mới",
-      points: 0,
-    },
-    {
-      id: 3,
-      title: "Đối tác Phúc Long",
-      subtitle: "Giảm 20% khi đặt đồ uống",
-      image:
-        "https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=400&h=200&fit=crop",
-      badge: "Hot",
-      points: 500,
-    },
-  ];
-
-  const packages = [
-    {
-      id: 1,
-      title: "RideMate Premium",
-      description: "Ưu đãi đặc biệt mọi chuyến xe\nTích điểm nhanh gấp đôi",
-      image:
-        "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400&h=250&fit=crop",
-      badge: "Phổ biến",
-      badgeColor: COLORS.ORANGE,
-    },
-    {
-      id: 2,
-      title: "RideMate VIP",
-      description: "Trải nghiệm dịch vụ cao cấp\nHỗ trợ ưu tiên 24/7",
-      image:
-        "https://images.unsplash.com/photo-1449824913935-59a10b8d2000?w=400&h=250&fit=crop",
-      badge: "Cao cấp",
-      badgeColor: COLORS.PURPLE,
-    },
-    {
-      id: 3,
-      title: "RideMate Family",
-      description: "Chia sẻ cho cả gia đình\nTối đa 5 thành viên",
-      image:
-        "https://images.unsplash.com/photo-1511632765486-a01980e01a18?w=400&h=250&fit=crop",
-      badge: "Tiết kiệm",
-      badgeColor: COLORS.GREEN,
-    },
-  ];
-
   const renderPromotion = ({ item }) => (
     <TouchableOpacity
       style={styles.promotionCard}
@@ -383,10 +472,9 @@ const Home = ({ navigation }) => {
           subtitle: item.subtitle,
           image: item.image,
           badge: item.badge,
-          validFrom: "01/10/2025",
-          validTo: "31/12/2025",
-          terms:
-            "Áp dụng cho chuyến đi đầu tiên trong ngày. Không cộng dồn ưu đãi.",
+          validFrom: item.validFrom,
+          validTo: item.validTo,
+          terms: item.terms,
           code: item.points > 0 ? undefined : "RIDEMATE30",
         });
       }}
@@ -602,7 +690,7 @@ const Home = ({ navigation }) => {
           <View style={styles.servicesGrid}>
             <TouchableOpacity
               style={styles.serviceItem}
-              onPress={() => navigation.navigate("Mission")}
+              onPress={() => navigation.navigate(SCREENS.MISSION)}
             >
               <View
                 style={[styles.serviceIcon, { backgroundColor: "#F3E5F5" }]}
@@ -610,11 +698,20 @@ const Home = ({ navigation }) => {
                 <Text style={styles.serviceEmoji}>🎁</Text>
               </View>
               <Text style={styles.serviceLabel}>Nhiệm vụ</Text>
+              {activeMissionCount > 0 && (
+                <View style={styles.serviceMiniBadge}>
+                  <Text style={styles.serviceMiniBadgeText}>
+                    {activeMissionCount} đang làm
+                  </Text>
+                </View>
+              )}
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.serviceItem}
-              onPress={() => navigation.navigate("Voucher")}
+              onPress={() =>
+                navigation.navigate(SCREENS.VOUCHER, { myVouchers })
+              }
             >
               <View
                 style={[styles.serviceIcon, { backgroundColor: "#E0F7FA" }]}
@@ -622,6 +719,13 @@ const Home = ({ navigation }) => {
                 <Text style={styles.serviceEmoji}>🎟️</Text>
               </View>
               <Text style={styles.serviceLabel}>Voucher</Text>
+              {availableVoucherCount > 0 && (
+                <View style={styles.serviceMiniBadge}>
+                  <Text style={styles.serviceMiniBadgeText}>
+                    {availableVoucherCount} khả dụng
+                  </Text>
+                </View>
+              )}
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -660,7 +764,7 @@ const Home = ({ navigation }) => {
             </TouchableOpacity>
           </View>
           <FlatList
-            data={promotions}
+            data={mockPromotions}
             renderItem={renderPromotion}
             keyExtractor={(item) => item.id.toString()}
             horizontal
@@ -682,7 +786,7 @@ const Home = ({ navigation }) => {
             Nâng cấp để nhận nhiều ưu đãi hơn
           </Text>
           <FlatList
-            data={packages}
+            data={mockPackages}
             renderItem={renderPackage}
             keyExtractor={(item) => item.id.toString()}
             horizontal
@@ -1004,6 +1108,18 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     color: "#1C1C1E",
     textAlign: "center",
+  },
+  serviceMiniBadge: {
+    marginTop: 6,
+    backgroundColor: "rgba(0, 69, 83, 0.08)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  serviceMiniBadgeText: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "#004553",
   },
   pointsBadge: {
     flexDirection: "row",
