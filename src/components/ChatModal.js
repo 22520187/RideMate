@@ -88,7 +88,7 @@ const ChatModal = ({
               <ActivityIndicator size="large" color={COLORS.PRIMARY} />
               <Text style={styles.loadingText}>Đang tải chat...</Text>
             </View>
-          ) : messages.length > 0 ? (
+          ) : (messages?.length > 0) ? (
             <ScrollView
               style={styles.messagesContainer}
               contentContainerStyle={styles.messagesContent}

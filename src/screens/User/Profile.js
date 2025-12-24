@@ -110,18 +110,28 @@ const Profile = () => {
         profilePictureUrl: userData?.profilePictureUrl || "",
       });
 
-      // Fetch vehicle info
-      try {
-        const vehicleResp = await getMyVehicle();
-        const vehicleData = vehicleResp?.data?.data ?? vehicleResp?.data;
-        console.log("📦 Vehicle data loaded:", vehicleData);
-        console.log(
-          "🖼️ Registration document URL:",
-          vehicleData?.registrationDocumentUrl
-        );
-        setVehicle(vehicleData);
-      } catch (err) {
-        console.log("No vehicle found");
+      // Fetch vehicle info - chỉ khi user là DRIVER
+      if (userData?.userType === "DRIVER") {
+        try {
+          const vehicleResp = await getMyVehicle();
+          const vehicleData = vehicleResp?.data?.data ?? vehicleResp?.data;
+          console.log("📦 Vehicle data loaded:", vehicleData);
+          console.log(
+            "🖼️ Registration document URL:",
+            vehicleData?.registrationDocumentUrl
+          );
+          setVehicle(vehicleData);
+        } catch (err) {
+          // Chỉ log nếu không phải 404 (vì 404 là bình thường nếu driver chưa đăng ký vehicle)
+          if (err.response?.status !== 404) {
+            console.warn("⚠️ Error fetching vehicle:", err.message);
+          } else {
+            console.log("ℹ️ No vehicle registered yet");
+          }
+          setVehicle(null);
+        }
+      } else {
+        // PASSENGER không cần vehicle
         setVehicle(null);
       }
     } catch (error) {
@@ -629,9 +639,6 @@ const Profile = () => {
           )}
         </View>
 
-
-
-
         {/* Trip Management Section - For Passengers */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Chuyến đi</Text>
@@ -858,7 +865,8 @@ const Profile = () => {
                   placeholder="Nhập địa chỉ"
                   placeholderTextColor="#999"
                   multiline
-                  numberOfLines={3}/>
+                  numberOfLines={3}
+                />
                 <Text style={styles.inputLabel}>Email</Text>
                 <TextInput
                   style={styles.textInput}

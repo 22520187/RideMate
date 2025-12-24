@@ -97,15 +97,15 @@ const Login = ({ navigation }) => {
 
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
-        
-        if (status !== 'granted') {
+
+        if (status !== "granted") {
           Alert.alert(
-            'Yêu cầu quyền truy cập vị trí',
-            'RideMate cần quyền truy cập vị trí để cung cấp dịch vụ tốt nhất. Vui lòng cho phép truy cập vị trí trong cài đặt.',
+            "Yêu cầu quyền truy cập vị trí",
+            "RideMate cần quyền truy cập vị trí để cung cấp dịch vụ tốt nhất. Vui lòng cho phép truy cập vị trí trong cài đặt.",
             [
-              { text: 'Hủy', style: 'cancel' },
+              { text: "Hủy", style: "cancel" },
               {
-                text: 'Mở cài đặt',
+                text: "Mở cài đặt",
                 onPress: () => Linking.openSettings(),
               },
             ]
@@ -115,9 +115,9 @@ const Login = ({ navigation }) => {
         }
 
         Toast.show({
-          type: 'info',
-          text1: 'Đang lấy vị trí...',
-          text2: 'Vui lòng chờ trong giây lát',
+          type: "info",
+          text1: "Đang lấy vị trí...",
+          text2: "Vui lòng chờ trong giây lát",
         });
 
         const location = await Location.getCurrentPositionAsync({
@@ -127,21 +127,21 @@ const Login = ({ navigation }) => {
         currentLatitude = location.coords.latitude;
         currentLongitude = location.coords.longitude;
 
-        console.log('Location obtained:', currentLatitude, currentLongitude);
+        console.log("Location obtained:", currentLatitude, currentLongitude);
       } catch (locationError) {
-        console.warn('Failed to get location:', locationError);
+        console.warn("Failed to get location:", locationError);
         Toast.show({
-          type: 'warning',
-          text1: 'Không lấy được vị trí',
-          text2: 'Sử dụng vị trí mặc định',
+          type: "warning",
+          text1: "Không lấy được vị trí",
+          text2: "Sử dụng vị trí mặc định",
         });
         currentLatitude = 10.7769;
         currentLongitude = 106.7009;
       }
 
-      console.log('API Configuration:');
-      console.log('   Base URL:', ENV.API_BASE_URL);
-      console.log('   Endpoint:', endpoints.auth.login);
+      console.log("API Configuration:");
+      console.log("   Base URL:", ENV.API_BASE_URL);
+      console.log("   Endpoint:", endpoints.auth.login);
 
       // Gửi null cho location, sẽ lấy sau khi đăng nhập thành công
       const response = await axiosClient.post(endpoints.auth.login, {
@@ -239,16 +239,17 @@ const Login = ({ navigation }) => {
         message: error.response?.data?.message,
       });
 
-      // Bỏ qua lỗi 404, không hiển thị thông báo
-      if (error.response?.status === 404) {
-        console.log("404 status code - skipping error display");
-        return;
-      }
+      // Hiển thị tất cả lỗi bao gồm cả 404
+      const errorMessage =
+        error.response?.data?.message ||
+        (error.response?.status === 404
+          ? "Không tìm thấy tài khoản. Vui lòng kiểm tra lại số điện thoại."
+          : "Sai thông tin đăng nhập");
 
       Toast.show({
         type: "error",
         text1: "Lỗi",
-        text2: error.response?.data?.message || "Sai thông tin đăng nhập",
+        text2: errorMessage,
       });
     } finally {
       setIsLoading(false);
@@ -656,4 +657,3 @@ const styles = StyleSheet.create({
 });
 
 export default Login;
-

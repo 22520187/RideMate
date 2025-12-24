@@ -80,7 +80,7 @@ axiosClient.interceptors.response.use(
     const originalRequest = error.config;
     const status = error.response?.status;
 
-    console.error(`❌ API Error:`, {
+    console.log(`⚠️ API Error (silent):`, {
       message: error.message,
       code: error.code,
       status: status,

@@ -96,6 +96,8 @@ const Home = ({ navigation }) => {
 
       // Then try to fetch from API if token exists
       const token = await getToken();
+      let currentProfile = storedUser; // Dùng storedUser làm fallback
+
       if (token) {
         try {
           const profileResp = await getProfile();
@@ -103,6 +105,7 @@ const Home = ({ navigation }) => {
           const profile = profileResp?.data?.data; // Fix: nested data
           console.log("👤 Home: Profile data:", profile);
           setUserProfile(profile);
+          currentProfile = profile; // Cập nhật currentProfile
 
           // Track latest profile locally for follow-up logic
           if (profile) profileData = profile;
@@ -122,16 +125,25 @@ const Home = ({ navigation }) => {
         console.log("⚠️ Home: No token, using stored data only");
       }
 
-      if (profileData && profileData.userType === "DRIVER") {
+      // Chỉ fetch vehicle khi user là DRIVER
+      if (currentProfile?.userType === "DRIVER") {
         try {
           const vehicleResp = await getMyVehicle();
-          const vehicle = vehicleResp?.data;
+          const vehicle = vehicleResp?.data?.data ?? vehicleResp?.data;
           console.log("🚗 Home: Vehicle status:", vehicle?.status);
           setVehicleStatus(vehicle?.status || null);
         } catch (err) {
-          console.warn("⚠️ Home: No vehicle found:", err.message);
+          // Chỉ log nếu không phải 404 (vì 404 là bình thường nếu driver chưa đăng ký vehicle)
+          if (err.response?.status !== 404) {
+            console.warn("⚠️ Home: Error fetching vehicle:", err.message);
+          } else {
+            console.log("ℹ️ Home: No vehicle registered yet");
+          }
           setVehicleStatus(null);
         }
+      } else {
+        // PASSENGER không cần vehicle
+        setVehicleStatus(null);
       }
     } catch (err) {
       console.error("❌ Home: Failed to load user data:", err);

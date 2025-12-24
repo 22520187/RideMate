@@ -35,7 +35,7 @@ import IDCardCaptureScreen from "../screens/Auth/IDCardCaptureScreen";
 import LivenessCheckScreen from "../screens/Auth/LivenessCheckScreen";
 import PhoneNumberInput from "../screens/Auth/PhoneNumberInput";
 import MessageListScreen from "../screens/User/Message/MessageListScreen";
-import ChatScreenCustom from "../screens/User/Message/ChatScreenCustom";
+import ChatScreen from "../screens/User/Message/ChatScreen";
 import AdminDashboard from "../screens/Admin/AdminDashboard";
 import TripManagement from "../screens/Admin/TripManagement";
 import UserManagement from "../screens/Admin/UserManagement";
@@ -295,10 +295,10 @@ const MainStackNavigator = () => {
       <Stack.Screen name={SCREENS.RIDE_HISTORY} component={RideHistory} />
       <Stack.Screen name="RideDetail" component={RideDetail} />
 
-      {/* Chat Screen - Full screen without bottom tabs */}
+      {/* Chat Screen - Full screen with Stream Chat components */}
       <Stack.Screen
         name="ChatScreen"
-        component={ChatScreenCustom}
+        component={ChatScreen}
         options={{
           presentation: "card",
           headerShown: false,
