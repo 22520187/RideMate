@@ -35,6 +35,12 @@ const DriverMapScreen = ({ route }) => {
   const [newMatch, setNewMatch] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [nearbyMatches, setNearbyMatches] = useState([]); // Các matches gần vị trí map
+  const [mapRegion, setMapRegion] = useState(null); // Vị trí center của map
+  const [currentDriverId, setCurrentDriverId] = useState(null); // Driver ID để filter matches
+
+  // Track accepted matches để tránh hiện modal duplicate
+  const acceptedMatchIds = useRef(new Set());
 
   // Initial location and permission
   useEffect(() => {
@@ -90,12 +96,17 @@ const DriverMapScreen = ({ route }) => {
         }
 
         console.log("👤 Driver ID:", driverId);
+        setCurrentDriverId(driverId); // Lưu driver ID để dùng cho subscription filter
 
+        // CRITICAL: Order by last_updated DESC để lấy location mới nhất từ Supabase
+        // Tránh dùng location cũ từ DB
         const { data, error } = await supabase
           .from("driver_locations")
-          .select("latitude, longitude")
+          .select("latitude, longitude, last_updated")
           .eq("driver_id", driverId)
-          .limit(1);
+          .order("last_updated", { ascending: false })
+          .limit(1)
+          .single();
 
         if (error) {
           console.warn("⚠️ Supabase error:", error.message);
@@ -105,16 +116,22 @@ const DriverMapScreen = ({ route }) => {
         console.log("📦 Supabase response:", {
           data,
           hasData: !!data,
-          length: data?.length,
+          latitude: data?.latitude,
+          longitude: data?.longitude,
+          lastUpdated: data?.last_updated,
         });
 
-        if (data && data.length > 0 && data[0].latitude && data[0].longitude) {
-          const dbLocation = data[0];
-          console.log("✅ Found location in Supabase:", dbLocation);
+        // CRITICAL: Kiểm tra data là object (single) thay vì array
+        if (data && data.latitude && data.longitude) {
+          console.log("✅ Found LATEST location in Supabase:", {
+            latitude: data.latitude,
+            longitude: data.longitude,
+            lastUpdated: data.last_updated,
+          });
 
           const savedLocation = {
-            latitude: dbLocation.latitude,
-            longitude: dbLocation.longitude,
+            latitude: data.latitude,
+            longitude: data.longitude,
             latitudeDelta: 0.01,
             longitudeDelta: 0.01,
           };
@@ -128,7 +145,7 @@ const DriverMapScreen = ({ route }) => {
             }
           }, 500);
 
-          console.log("📍 Using location from Supabase (last saved position)");
+          console.log("📍 Using LATEST location from Supabase:", savedLocation);
           return;
         } else {
           console.log("⚠️ No location data in Supabase");
@@ -159,19 +176,93 @@ const DriverMapScreen = ({ route }) => {
     })();
   }, [route?.params?.initialLocation]);
 
-  // NOTE: Location updates are handled by backend/Supabase
-  // Client chỉ fetch location từ Supabase, không tự update
-  // Backend sẽ handle việc track GPS và update Supabase
+  // CRITICAL: Subscribe to real-time location updates từ Supabase
+  // Đảm bảo map luôn hiển thị vị trí mới nhất của driver
+  useEffect(() => {
+    if (!currentDriverId) return;
+
+    console.log(
+      "📡 Subscribing to real-time location updates for driver:",
+      currentDriverId
+    );
+
+    const channel = supabase
+      .channel(`driver_location_${currentDriverId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "driver_locations",
+          filter: `driver_id=eq.${currentDriverId}`,
+        },
+        (payload) => {
+          console.log("📍 Real-time location update received:", payload.new);
+
+          if (payload.new && payload.new.latitude && payload.new.longitude) {
+            const newLocation = {
+              latitude: payload.new.latitude,
+              longitude: payload.new.longitude,
+              latitudeDelta: 0.01,
+              longitudeDelta: 0.01,
+            };
+
+            console.log("✅ Updating driver location on map:", newLocation);
+            setCurrentLocation(newLocation);
+
+            // Animate map đến vị trí mới (smooth)
+            if (mapRef.current) {
+              mapRef.current.animateToRegion(newLocation, 1000);
+            }
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log("📡 Location subscription status:", status);
+      });
+
+    return () => {
+      console.log("🔌 Unsubscribing from location updates");
+      supabase.removeChannel(channel);
+    };
+  }, [currentDriverId]);
 
   // Subscribe to Realtime Matches
   useEffect(() => {
-    if (!isOnline) return;
+    if (!isOnline || !currentDriverId) {
+      console.log("⏸️ Skipping match subscription:", {
+        isOnline,
+        currentDriverId,
+      });
+      return;
+    }
 
-    console.log("📡 Subscribing to matches...");
+    console.log("📡 Subscribing to matches for driver:", currentDriverId);
 
-    // Subscribe to INSERT events on matches table
-    const subscription = supabase
-      .channel("driver-matches-map")
+    // Helper function để check xem driver có trong matched_driver_candidates không
+    const isDriverInCandidates = (match) => {
+      try {
+        if (!match.matched_driver_candidates) return false;
+
+        // Parse JSON string thành array
+        const candidates =
+          typeof match.matched_driver_candidates === "string"
+            ? JSON.parse(match.matched_driver_candidates)
+            : match.matched_driver_candidates;
+
+        if (!Array.isArray(candidates)) return false;
+
+        // Check xem driver_id có trong list không
+        return candidates.some((c) => c.driver_id === currentDriverId);
+      } catch (error) {
+        console.error("❌ Error parsing matched_driver_candidates:", error);
+        return false;
+      }
+    };
+
+    // Subscribe to INSERT events (match mới được tạo với status WAITING)
+    const insertSubscription = supabase
+      .channel("driver-matches-insert")
       .on(
         "postgres_changes",
         {
@@ -181,9 +272,29 @@ const DriverMapScreen = ({ route }) => {
           filter: `status=eq.WAITING`,
         },
         async (payload) => {
-          console.log("🔔 New match received:", payload.new);
+          console.log("🔔 New match INSERT received:", payload.new);
 
           const match = payload.new;
+
+          // Check xem driver có trong candidates không
+          if (!isDriverInCandidates(match)) {
+            console.log(
+              "⏭️ Driver not in candidates, skipping match:",
+              match.id
+            );
+            return;
+          }
+
+          console.log(
+            "✅ Driver is in candidates, processing match:",
+            match.id
+          );
+
+          // Check xem match đã được accept chưa (tránh duplicate modal)
+          if (acceptedMatchIds.current.has(match.id)) {
+            console.log("⏭️ Match already accepted, skipping modal:", match.id);
+            return;
+          }
 
           // ⚠️ IMPORTANT: Supabase payload doesn't include joined user data
           // We MUST fetch full details from API to get passenger info
@@ -204,25 +315,209 @@ const DriverMapScreen = ({ route }) => {
 
               setNewMatch(fullMatchData);
               setModalVisible(true);
+
+              // Cập nhật nearbyMatches để hiển thị marker mới trên map
+              if (match.pickup_latitude && match.pickup_longitude) {
+                setNearbyMatches((prev) => {
+                  // Kiểm tra xem match đã có trong list chưa
+                  const exists = prev.some((m) => m.id === match.id);
+                  if (!exists) {
+                    return [...prev, match];
+                  }
+                  return prev;
+                });
+              }
             }
           } catch (error) {
             console.error("❌ Error fetching match details for modal:", error);
             // Fallback: show modal with limited data
             setNewMatch(match);
             setModalVisible(true);
+
+            // Cập nhật nearbyMatches với match từ payload
+            if (match.pickup_latitude && match.pickup_longitude) {
+              setNearbyMatches((prev) => {
+                const exists = prev.some((m) => m.id === match.id);
+                if (!exists) {
+                  return [...prev, match];
+                }
+                return prev;
+              });
+            }
           }
 
           // Play sound or vibrate here
         }
       )
       .subscribe((status) => {
-        console.log("Subscription status:", status);
+        console.log("INSERT Subscription status:", status);
+      });
+
+    // Subscribe to UPDATE events (match được update từ PENDING → WAITING hoặc candidates được update)
+    const updateSubscription = supabase
+      .channel("driver-matches-update")
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "matches",
+          filter: `status=eq.WAITING`,
+        },
+        async (payload) => {
+          console.log("🔔 Match UPDATE received:", payload.new);
+
+          const match = payload.new;
+
+          // Check xem driver có trong candidates không
+          if (!isDriverInCandidates(match)) {
+            console.log(
+              "⏭️ Driver not in candidates after update, skipping match:",
+              match.id
+            );
+            return;
+          }
+
+          console.log(
+            "✅ Driver is in candidates after update, processing match:",
+            match.id
+          );
+
+          // Check xem match đã được accept chưa (tránh duplicate modal)
+          if (acceptedMatchIds.current.has(match.id)) {
+            console.log("⏭️ Match already accepted, skipping modal:", match.id);
+            return;
+          }
+
+          // ⚠️ IMPORTANT: Supabase payload doesn't include joined user data
+          // We MUST fetch full details from API to get passenger info
+          try {
+            const response = await axiosClient.get(
+              endpoints.match.getById(match.id)
+            );
+
+            if (response?.data?.data) {
+              const fullMatchData = response.data.data;
+
+              console.log("📋 Full match data for modal:", {
+                passengerName: fullMatchData.passengerName,
+                passengerPhone: fullMatchData.passengerPhone,
+                pickupAddress: fullMatchData.pickupAddress,
+                coin: fullMatchData.coin,
+              });
+
+              setNewMatch(fullMatchData);
+              setModalVisible(true);
+
+              // Cập nhật nearbyMatches để hiển thị marker mới trên map
+              if (match.pickup_latitude && match.pickup_longitude) {
+                setNearbyMatches((prev) => {
+                  // Kiểm tra xem match đã có trong list chưa
+                  const exists = prev.some((m) => m.id === match.id);
+                  if (!exists) {
+                    return [...prev, match];
+                  }
+                  return prev;
+                });
+              }
+            }
+          } catch (error) {
+            console.error("❌ Error fetching match details for modal:", error);
+            // Fallback: show modal with limited data
+            setNewMatch(match);
+            setModalVisible(true);
+
+            // Cập nhật nearbyMatches với match từ payload
+            if (match.pickup_latitude && match.pickup_longitude) {
+              setNearbyMatches((prev) => {
+                const exists = prev.some((m) => m.id === match.id);
+                if (!exists) {
+                  return [...prev, match];
+                }
+                return prev;
+              });
+            }
+          }
+
+          // Play sound or vibrate here
+        }
+      )
+      .subscribe((status) => {
+        console.log("UPDATE Subscription status:", status);
       });
 
     return () => {
-      subscription.unsubscribe();
+      insertSubscription.unsubscribe();
+      updateSubscription.unsubscribe();
     };
-  }, [isOnline]);
+  }, [isOnline, currentDriverId]);
+
+  // Fetch nearby matches khi map region thay đổi
+  useEffect(() => {
+    if (!isOnline || !mapRegion) return;
+
+    const fetchNearbyMatches = async () => {
+      try {
+        console.log("🔍 Fetching nearby matches for map center:", mapRegion);
+
+        // Fetch matches có status WAITING từ Supabase
+        const { data, error } = await supabase
+          .from("matches")
+          .select(
+            "id, pickup_latitude, pickup_longitude, destination_latitude, destination_longitude, coin, status, passenger_id"
+          )
+          .eq("status", "WAITING");
+
+        if (error) {
+          console.warn("⚠️ Error fetching matches:", error);
+          return;
+        }
+
+        if (!data || data.length === 0) {
+          console.log("ℹ️ No WAITING matches found");
+          setNearbyMatches([]);
+          return;
+        }
+
+        // Filter matches trong radius 5km từ map center
+        const nearby = data.filter((match) => {
+          if (!match.pickup_latitude || !match.pickup_longitude) return false;
+
+          const distance = calculateDistance(
+            mapRegion.latitude,
+            mapRegion.longitude,
+            match.pickup_latitude,
+            match.pickup_longitude
+          );
+          return distance <= 5; // 5km radius
+        });
+
+        console.log(`✅ Found ${nearby.length} nearby matches within 5km`);
+        setNearbyMatches(nearby);
+      } catch (err) {
+        console.error("❌ Error fetching nearby matches:", err);
+      }
+    };
+
+    // Debounce để tránh fetch quá nhiều khi user đang kéo map
+    const timeoutId = setTimeout(fetchNearbyMatches, 500);
+    return () => clearTimeout(timeoutId);
+  }, [mapRegion, isOnline]);
+
+  // Helper function để tính distance
+  const calculateDistance = (lat1, lon1, lat2, lon2) => {
+    const R = 6371; // Earth radius in km
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLon = ((lon2 - lon1) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
 
   const handleToggleOnline = async (value) => {
     setOnlineStatus(value);
@@ -238,37 +533,37 @@ const DriverMapScreen = ({ route }) => {
         const driverId = profileResponse?.data?.data?.id;
 
         if (driverId) {
-          // Fetch location từ Supabase
+          // CRITICAL: Fetch location mới nhất từ Supabase (order by last_updated DESC)
           const { data, error } = await supabase
             .from("driver_locations")
-            .select("latitude, longitude")
+            .select("latitude, longitude, last_updated")
             .eq("driver_id", driverId)
-            .limit(1);
+            .order("last_updated", { ascending: false })
+            .limit(1)
+            .single();
 
-          if (!error && data && data.length > 0) {
-            const dbLocation = data[0];
-            console.log("✅ Using location from Supabase:", dbLocation);
-
-            // Update currentLocation state
-            setCurrentLocation({
-              latitude: dbLocation.latitude,
-              longitude: dbLocation.longitude,
-              latitudeDelta: 0.01,
-              longitudeDelta: 0.01,
+          if (!error && data && data.latitude && data.longitude) {
+            console.log("✅ Using LATEST location from Supabase:", {
+              latitude: data.latitude,
+              longitude: data.longitude,
+              lastUpdated: data.last_updated,
             });
 
-            // Animate map
+            // Update currentLocation state với location mới nhất
+            const latestLocation = {
+              latitude: data.latitude,
+              longitude: data.longitude,
+              latitudeDelta: 0.01,
+              longitudeDelta: 0.01,
+            };
+            setCurrentLocation(latestLocation);
+
+            // Animate map đến vị trí mới nhất
             if (mapRef.current) {
-              mapRef.current.animateToRegion(
-                {
-                  latitude: dbLocation.latitude,
-                  longitude: dbLocation.longitude,
-                  latitudeDelta: 0.01,
-                  longitudeDelta: 0.01,
-                },
-                1000
-              );
+              mapRef.current.animateToRegion(latestLocation, 1000);
             }
+
+
           }
         }
 
@@ -311,6 +606,9 @@ const DriverMapScreen = ({ route }) => {
 
       // axiosClient returns: { data: { statusCode, message, data } }
       if (response?.data?.statusCode === 200) {
+        // Mark match as accepted để tránh modal duplicate
+        acceptedMatchIds.current.add(newMatch.id);
+
         setModalVisible(false);
         Toast.show({
           type: "success",
@@ -442,6 +740,10 @@ const DriverMapScreen = ({ route }) => {
         ref={mapRef}
         style={styles.map}
         provider={PROVIDER_DEFAULT}
+        onRegionChangeComplete={(region) => {
+          // Lưu vị trí center của map khi user di chuyển
+          setMapRegion(region);
+        }}
         initialRegion={
           currentLocation || {
             latitude: 10.7769,
@@ -492,6 +794,58 @@ const DriverMapScreen = ({ route }) => {
             </View>
           </Marker>
         )}
+
+        {/* Nearby Matches Markers - Hiển thị các chuyến đi gần vị trí map */}
+        {nearbyMatches.map((match) => (
+          <Marker
+            key={match.id}
+            coordinate={{
+              latitude: match.pickup_latitude,
+              longitude: match.pickup_longitude,
+            }}
+            title={`Chuyến đi ${match.coin || 0} xu`}
+            description={match.pickup_address || "Điểm đón"}
+            anchor={{ x: 0.5, y: 0.5 }}
+            onPress={async () => {
+              // Khi click vào marker, fetch full match details và hiển thị modal
+              try {
+                const response = await axiosClient.get(
+                  endpoints.match.getById(match.id)
+                );
+                if (response?.data?.data) {
+                  setNewMatch(response.data.data);
+                  setModalVisible(true);
+                }
+              } catch (error) {
+                console.error("❌ Error fetching match details:", error);
+                Toast.show({
+                  type: "error",
+                  text1: "Không thể tải thông tin chuyến đi",
+                });
+              }
+            }}
+          >
+            <View
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 18,
+                backgroundColor: "#FF6B6B",
+                justifyContent: "center",
+                alignItems: "center",
+                borderWidth: 3,
+                borderColor: "white",
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.3,
+                shadowRadius: 3,
+                elevation: 5,
+              }}
+            >
+              <MaterialIcons name="person-pin" size={20} color="white" />
+            </View>
+          </Marker>
+        ))}
       </MapView>
 
       {/* My Location Button */}

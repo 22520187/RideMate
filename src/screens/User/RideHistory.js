@@ -483,45 +483,30 @@ const RideHistory = ({ navigation }) => {
         {/* Stats Summary */}
         <View style={styles.statsContainer}>
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>{rides.length}</Text>
-            <Text style={styles.statLabel}>Tổng chuyến</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={[styles.statValue, { color: "#2196F3" }]}>
-              {activeRides.length}
+            <Text style={styles.statValue}>
+              {pastRides.filter(
+                (r) => r.status === "COMPLETED" || r.status === "FINISHED"
+              ).length}
             </Text>
-            <Text style={styles.statLabel}>Đang chạy</Text>
+            <Text style={styles.statLabel}>Hoàn thành</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={[styles.statValue, { color: COLORS.GREEN }]}>
+            <Text style={[styles.statValue, { color: COLORS.RED }]}>
               {
                 pastRides.filter(
-                  (r) => r.status === "COMPLETED" || r.status === "FINISHED"
+                  (r) => r.status === "CANCELLED" || r.status === "REJECTED"
                 ).length
               }
             </Text>
-            <Text style={styles.statLabel}>Hoàn thành</Text>
+            <Text style={styles.statLabel}>Đã hủy</Text>
           </View>
         </View>
       </View>
 
-      {/* Active Orders Section */}
-      {activeRides.length > 0 && (
-        <>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Active orders</Text>
-          </View>
-          {activeRides.map((ride) => (
-            <RideCard key={ride._key ?? ride.id} item={ride} />
-          ))}
-        </>
-      )}
-
       {/* Past Orders Section Header */}
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Past orders</Text>
+        <Text style={styles.sectionTitle}>Lịch sử chuyến đi</Text>
       </View>
     </>
   );

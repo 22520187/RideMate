@@ -13,7 +13,6 @@ import {
   Image,
   KeyboardAvoidingView,
   Platform,
-  TextInput,
   Linking,
   ScrollView,
   Dimensions,
@@ -31,7 +30,6 @@ import RouteMap from "../../../components/RouteMap";
 import ChatModal from "../../../components/ChatModal";
 import CustomAlert from "../../../components/CustomAlert";
 import { Modal } from "react-native";
-import { useSharedPath } from "../../../hooks/useSharedPath";
 import {
   getOrCreateDirectChannel,
   sendMessage,
@@ -39,45 +37,81 @@ import {
   unwatchChannel,
 } from "../../../services/chatService";
 import { getProfile } from "../../../services/userService";
-import { supabase } from "../../../config/supabaseClient";
-import axiosClient from "../../../api/axiosClient";
-import endpoints from "../../../api/endpoints";
 import FeedbackModal from "../../../components/FeedbackModal";
 import { submitFeedback } from "../../../services/feedbackService";
+import useRideSession from "../../../hooks/useRideSession";
+import useDriverLocation from "../../../hooks/useDriverLocation";
+import { supabase } from "../../../config/supabaseClient";
 
 const { width, height } = Dimensions.get("window");
 
+/**
+ * MatchedRideScreen - Simplified version using new unified hooks
+ *
+ * This screen handles the ride flow from matched -> in_progress -> completed
+ * for both drivers and passengers.
+ */
 const MatchedRideScreen = ({ navigation, route }) => {
   const matchedRideData = route.params || {};
   const insets = useSafeAreaInsets();
-  const [refreshKey, setRefreshKey] = useState(0);
+  const isDriver = matchedRideData.isDriver || false;
 
-  // Debug: Log received data
-  useEffect(() => {
-    console.log("📍 MatchedRideScreen received data:", {
-      originCoordinate: matchedRideData.originCoordinate,
-      destinationCoordinate: matchedRideData.destinationCoordinate,
-      pickupLatitude: matchedRideData.pickupLatitude,
-      pickupLongitude: matchedRideData.pickupLongitude,
-      pickupAddress: matchedRideData.pickupAddress,
-      destinationAddress: matchedRideData.destinationAddress,
-    });
-  }, []);
+  // ============================================
+  // UNIFIED RIDE SESSION HOOK
+  // ============================================
+  const {
+    rideStatus: apiStatus,
+    driverLocation,
+    routePoints,
+    driverArrived,
+    destinationArrived,
+    matchData,
+    loading: rideLoading,
+    // Actions
+    startRide,
+    completeRide,
+    cancelRide,
+    updateRoute,
+    markDriverArrived,
+    markDestinationArrived,
+  } = useRideSession(matchedRideData.id || matchedRideData.rideId, {
+    isDriver,
+    driverId: matchedRideData.driverId,
+  });
 
-  const [inputText, setInputText] = useState("");
-  const [messages, setMessages] = useState([]);
-  const [channel, setChannel] = useState(null);
-  const [loadingChat, setLoadingChat] = useState(true);
+  // Driver location tracking (only for drivers)
+  const {
+    currentLocation: myLocation,
+    isTracking,
+    isSimulating,
+    simulateRoute,
+    getCurrentLocation,
+  } = useDriverLocation(isDriver);
 
-  const [rideStatus, setRideStatus] = useState("matched"); // 'matched' | 'ongoing' | 'completed'
-  const { path } = useSharedPath();
-  const [rewardPoints, setRewardPoints] = useState(0);
-  const [showRatingModal, setShowRatingModal] = useState(false);
-  const [showChatModal, setShowChatModal] = useState(false); // Chat modal state
-  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
+  // ============================================
+  // LOCAL STATE
+  // ============================================
+  // Map ride status from API to local status
+  const rideStatus = useMemo(() => {
+    let mappedStatus;
+    if (apiStatus === "IN_PROGRESS" || apiStatus === "ONGOING") {
+      mappedStatus = "ongoing";
+    } else if (apiStatus === "COMPLETED") {
+      mappedStatus = "completed";
+    } else if (apiStatus === "CANCELLED") {
+      mappedStatus = "cancelled";
+    } else {
+      mappedStatus = "matched"; // WAITING, ACCEPTED, or null
+    }
+    
+    console.log('🔄 Ride status mapping:', { apiStatus, mappedStatus });
+    return mappedStatus;
+  }, [apiStatus]);
+
+  const [showChatModal, setShowChatModal] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
-  // Retain legacy rating/comment state if needed, but FeedbackModal handles its own state
-  const maxStars = 5;
+  const [isCompletingRide, setIsCompletingRide] = useState(false);
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
 
   // Custom Alert Modal State
   const [customAlert, setCustomAlert] = useState({
@@ -87,735 +121,571 @@ const MatchedRideScreen = ({ navigation, route }) => {
     buttons: [],
   });
 
-  // State mới để quản lý việc tài xế đã đến điểm đón chưa
-  const [driverArrived, setDriverArrived] = useState(false);
-  // State quản lý việc tài xế đã bấm "Bắt đầu đón khách" chưa
-  const [isMovingToPickup, setIsMovingToPickup] = useState(false);
-  // State quản lý việc tài xế đã đến điểm đích chưa
-  const [destinationArrived, setDestinationArrived] = useState(false);
+  // Track route for simulation (fetched from RouteMap)
+  const [currentMapPath, setCurrentMapPath] = useState(null);
+  const currentMapPathRef = useRef(null); // Ref for reliable access in callbacks
+  const [currentLocation, setCurrentLocation] = useState(null); // Driver's location from Supabase
+  const lastRouteUpdateRef = useRef(0); // Throttle route updates
 
-  // Vehicle tracking state
+  // ============================================
+  // VEHICLE LOCATION (for map display)
+  // ============================================
+  // For driver: use own location; For passenger: use driver's location from hook
+  const vehicleLocation = useMemo(() => {
+    if (isDriver) {
+      return myLocation;
+    }
+    return driverLocation;
+  }, [isDriver, myLocation, driverLocation]);
+
+  // Initial driver location from driverLocation hook, matchData or matchedRideData
   const initialDriverLocation = useMemo(() => {
-    // Try to get driver location from matchedDriverCandidates
-    if (
-      matchedRideData.matchedDriverCandidates &&
-      matchedRideData.matchedDriverCandidates.length > 0
-    ) {
-      const firstCandidate = matchedRideData.matchedDriverCandidates[0];
-      if (firstCandidate.currentLatitude && firstCandidate.currentLongitude) {
-        console.log("🚗 Using driver location from candidates:", {
-          lat: firstCandidate.currentLatitude,
-          lng: firstCandidate.currentLongitude,
+    // PRIORITY 1: For driver - use currentLocation from Supabase (fetched on mount)
+    // For passenger - use driverLocation from Supabase subscription
+    if (isDriver && currentLocation?.latitude && currentLocation?.longitude) {
+      console.log('📍 Driver: Using currentLocation from Supabase:', currentLocation);
+      return currentLocation;
+    }
+    
+    if (driverLocation?.latitude && driverLocation?.longitude) {
+      console.log('📍 Passenger: Using driverLocation from Supabase subscription:', driverLocation);
+      return driverLocation;
+    }
+
+    // PRIORITY 2: Try to get from candidates in matchData (synced) or matchedRideData (passed)
+    const candidates =
+      matchData?.matchedDriverCandidates ||
+      matchedRideData.matchedDriverCandidates;
+    if (candidates?.length > 0) {
+      const candidate = candidates[0];
+      if (candidate.currentLatitude && candidate.currentLongitude) {
+        console.log('📍 Using driver location from candidates:', {
+          lat: candidate.currentLatitude,
+          lng: candidate.currentLongitude,
         });
         return {
-          latitude: firstCandidate.currentLatitude,
-          longitude: firstCandidate.currentLongitude,
+          latitude: candidate.currentLatitude,
+          longitude: candidate.currentLongitude,
         };
       }
     }
 
-    // Fallback: use pickup location with small offset (mock)
-    const pickupPoint = matchedRideData.originCoordinate || {
-      latitude: 21.0285,
-      longitude: 105.8542,
-    };
+    // PRIORITY 3: Try from matchedRideData.driverLocation passed from NearestDriverScreen
+    if (matchedRideData.driverLocation?.latitude && matchedRideData.driverLocation?.longitude) {
+      console.log('📍 Using driverLocation from route params:', matchedRideData.driverLocation);
+      return matchedRideData.driverLocation;
+    }
 
-    console.log(
-      "⚠️ No driver location in candidates, using mock offset from pickup"
-    );
+    // PRIORITY 4: Fallback to pickup location with offset
+    const pickupPoint =
+      matchData?.pickupLatitude && matchData?.pickupLongitude
+        ? {
+            latitude: matchData.pickupLatitude,
+            longitude: matchData.pickupLongitude,
+          }
+        : matchedRideData.originCoordinate || {
+            latitude: 10.7769,
+            longitude: 106.7009,
+          };
+
+    console.log('📍 Using fallback driver location (pickup offset):', pickupPoint);
     return {
       latitude: pickupPoint.latitude - 0.008,
       longitude: pickupPoint.longitude - 0.006,
     };
-  }, [
-    matchedRideData.matchedDriverCandidates,
-    matchedRideData.originCoordinate,
-  ]);
+  }, [matchData, matchedRideData, driverLocation, isDriver, currentLocation]);
 
-  const [simRoutePoints, setSimRoutePoints] = useState([]);
-  const simIndexRef = useRef(0);
-
-  // KHÔNG reset simIndex khi đổi phase - để xe tiếp tục từ vị trí hiện tại
-  // simIndex chỉ reset khi có route mới (trong handleRouteFetched)
-
-  // Simulation Effect cho Driver - Mượt mà như Grab (Update mỗi 1.5s)
-  useEffect(() => {
-    let interval;
-    if (
-      matchedRideData.isDriver &&
-      (isMovingToPickup || rideStatus === "ongoing") &&
-      !driverArrived // Dừng simulation khi đã đến điểm đón
-    ) {
-      interval = setInterval(() => {
-        // 1. Nếu có Route Points (Ưu tiên bám đường)
-        if (simRoutePoints.length > 0) {
-          // Giảm STEP xuống 1 điểm để chậm hơn
-          const STEP = 1; // Di chuyển 1 điểm mỗi 2s → chậm và mượt
-          let nextIndex = simIndexRef.current + STEP;
-
-          // Clamp to end
-          if (nextIndex >= simRoutePoints.length) {
-            nextIndex = simRoutePoints.length - 1;
-          }
-
-          simIndexRef.current = nextIndex;
-          const newPoint = simRoutePoints[nextIndex];
-
-          console.log(
-            `🚗 Sim Step (Route): Index ${nextIndex}/${simRoutePoints.length}`,
-            newPoint
-          );
-          setVehicleLocation(newPoint);
-
-          // API Update
-          axiosClient
-            .post(endpoints.driver.location, newPoint)
-            .catch((err) => console.log("❌ Update loc error:", err));
-        }
-        // 2. Fallback: Di chuyển thẳng (Linear)
-        else {
-          setVehicleLocation((prev) => {
-            if (!prev) return prev;
-
-            const target =
-              rideStatus === "ongoing"
-                ? matchesDestinationCoordinate(
-                    matchedRideData.destinationCoordinate
-                  )
-                : matchesOriginCoordinate(matchedRideData.originCoordinate);
-
-            if (!target || !target.latitude) return prev;
-
-            // Giảm MOVE_STEP để di chuyển chậm hơn
-            const MOVE_STEP = 0.0004; // ~45m mỗi 2s
-
-            const dLat = target.latitude - prev.latitude;
-            const dLng = target.longitude - prev.longitude;
-            const dist = Math.sqrt(dLat * dLat + dLng * dLng);
-
-            if (dist < MOVE_STEP) {
-              return { latitude: target.latitude, longitude: target.longitude };
-            }
-
-            const ratio = MOVE_STEP / dist;
-            const newLat = prev.latitude + dLat * ratio;
-            const newLng = prev.longitude + dLng * ratio;
-
-            const newLoc = { latitude: newLat, longitude: newLng };
-
-            console.log("🚗 Sim Step (Linear):", newLoc);
-
-            axiosClient
-              .post(endpoints.driver.location, newLoc)
-              .catch((err) => console.log("❌ Update loc error:", err));
-
-            return newLoc;
-          });
-        }
-      }, 2000); // Tăng lên 2s để chậm hơn
+  // ============================================
+  // COORDINATES
+  // ============================================
+  const originCoordinate = useMemo(() => {
+    if (matchData?.pickupLatitude && matchData?.pickupLongitude) {
+      return {
+        latitude: matchData.pickupLatitude,
+        longitude: matchData.pickupLongitude,
+        description: matchData.pickupAddress || "Điểm đón",
+      };
     }
-    return () => clearInterval(interval);
-  }, [
-    matchedRideData.isDriver,
-    isMovingToPickup,
-    rideStatus,
-    simRoutePoints,
-    driverArrived,
-  ]);
-
-  const handleRouteFetched = useCallback((points) => {
-    // Chỉ update nếu points khác rỗng
-    if (points && points.length > 0) {
-      console.log("📍 Route Fetched for simulation:", points.length, "points");
-      setSimRoutePoints(points);
-      simIndexRef.current = 0; // Reset index khi có route mới
-    }
-  }, []);
-
-  // Helper safe access
-  const matchesOriginCoordinate = (coord) =>
-    coord || { latitude: 21.0285, longitude: 105.8542 };
-  const matchesDestinationCoordinate = (coord) =>
-    coord || { latitude: 21.03, longitude: 105.85 };
-
-  const [vehicleLocation, setVehicleLocation] = useState(initialDriverLocation);
-  const [driverETA, setDriverETA] = useState("7 phút");
-  const [driverDistance, setDriverDistance] = useState("2.3 km");
-
-  // Logic to calculate info
-  const calculateDistanceAndETA = (from, to) => {
-    console.log("🧮 calculateDistanceAndETA called with:", {
-      from: { lat: from?.latitude, lng: from?.longitude },
-      to: { lat: to?.latitude, lng: to?.longitude },
-    });
-
-    const distanceKm = Math.sqrt(
-      Math.pow((to.latitude - from.latitude) * 111, 2) +
-        Math.pow((to.longitude - from.longitude) * 85, 2)
-    );
-
-    const durationMin = Math.ceil(distanceKm * 3);
-    setDriverETA(`${Math.max(1, durationMin)} phút`);
-    setDriverDistance(`${distanceKm.toFixed(1)} km`);
-
-    console.log("📊 Calculated:", {
-      distanceKm: distanceKm.toFixed(2),
-      durationMin,
-    });
-  };
-
-  const rideDetails = useMemo(
-    () => ({
-      from: matchedRideData.from || "Bến Xe Giáp Bát - Cống Đón/Trả Khách",
-      to: matchedRideData.to || "Vincom Plaza",
-      departureTime: matchedRideData.departureTime || "14:30",
-      price: matchedRideData.price || "25,000đ",
-      duration: matchedRideData.duration || "5 phút",
-      distance: matchedRideData.distance || "2 km",
-    }),
-    [matchedRideData]
-  );
-
-  const originCoordinate = useMemo(
-    () =>
+    return (
       matchedRideData.originCoordinate || {
-        latitude: 21.0285,
-        longitude: 105.8542,
-        description: rideDetails.from,
-      },
-    [matchedRideData.originCoordinate, rideDetails.from]
-  );
-
-  const destinationCoordinate = useMemo(
-    () =>
-      matchedRideData.destinationCoordinate || {
-        latitude: 21.0152,
-        longitude: 105.8415,
-        description: rideDetails.to,
-      },
-    [matchedRideData.destinationCoordinate, rideDetails.to]
-  );
-
-  // 🎯 Ref để track đã notify arrival chưa (tránh duplicate)
-  const hasNotifiedArrival = useRef(false);
-
-  // Custom Alert Helper
-  const showCustomAlert = (
-    title,
-    message,
-    buttons = [{ text: "OK", onPress: () => {} }]
-  ) => {
-    setCustomAlert({
-      visible: true,
-      title,
-      message,
-      buttons,
-    });
-  };
-
-  // 🎯 Callback khi tài xế đến điểm đón
-  const handleDriverArrived = useCallback(() => {
-    // Chỉ trigger một lần duy nhất
-    if (hasNotifiedArrival.current) {
-      console.log("⏭️ Already notified arrival, skipping...");
-      return;
-    }
-
-    console.log("🏁 Driver arrived at pickup location!");
-    hasNotifiedArrival.current = true;
-    setDriverArrived(true); // Enable button "Bắt đầu chuyến đi"
-
-    // Chỉ hiện thông báo cho driver
-    if (matchedRideData.isDriver) {
-      showCustomAlert(
-        "Bạn đã đến điểm đón",
-        "Hành khách đang chờ bạn. Hãy nhấn 'Bắt đầu chuyến đi' khi khách đã lên xe."
-      );
-    }
-  }, [matchedRideData.isDriver]);
-
-  // 🎯 Callback khi đến điểm đích
-  const handleDestinationArrived = useCallback(() => {
-    console.log("🏁 Arrived at destination!");
-
-    // Chỉ set flag để hiển thị button "Hoàn thành chuyến đi"
-    setDestinationArrived(true);
-
-    // Hiển thị thông báo cho driver
-    if (matchedRideData.isDriver) {
-      showCustomAlert(
-        "Đã đến điểm đích",
-        "Bạn đã đến nơi. Hãy nhấn 'Hoàn thành chuyến đi' để kết thúc."
-      );
-    }
-  }, [matchedRideData.isDriver]);
-
-  // Initial ETA calc
-  useEffect(() => {
-    const pickupPoint = originCoordinate;
-    console.log(
-      "🚗 Initial vehicle location (from candidates):",
-      initialDriverLocation
-    );
-    console.log("📍 Pickup point:", pickupPoint);
-    calculateDistanceAndETA(initialDriverLocation, pickupPoint);
-  }, []);
-
-  // Fetch real driver location from Supabase on mount
-  useEffect(() => {
-    const fetchDriverLocation = async () => {
-      const driverId = matchedRideData.isDriver
-        ? matchedRideData.currentUserId
-        : matchedRideData.driverId;
-
-      if (!driverId) return;
-
-      try {
-        console.log(
-          "📍 Fetching initial driver location for driver:",
-          driverId
-        );
-
-        const { data, error } = await supabase
-          .from("driver_locations")
-          .select("latitude, longitude")
-          .eq("driver_id", driverId)
-          .limit(1);
-
-        if (error) {
-          console.warn("⚠️ Could not fetch driver location:", error.message);
-          return;
-        }
-
-        console.log("📦 Supabase response:", {
-          data,
-          hasData: !!data,
-          length: data?.length,
-        });
-
-        if (data && data.length > 0 && data[0].latitude && data[0].longitude) {
-          const realLocation = {
-            latitude: data[0].latitude,
-            longitude: data[0].longitude,
-          };
-
-          console.log(
-            "✅ Real driver location fetched from Supabase:",
-            realLocation
-          );
-          setVehicleLocation(realLocation);
-
-          // Recalculate ETA with real location
-          calculateDistanceAndETA(realLocation, originCoordinate);
-        } else {
-          console.warn("⚠️ No driver location data in Supabase response");
-        }
-      } catch (err) {
-        console.error("❌ Error fetching driver location:", err);
+        latitude: 10.7769,
+        longitude: 106.7009,
+        description: matchedRideData.pickupAddress || "Điểm đón",
       }
-    };
+    );
+  }, [matchData, matchedRideData]);
 
-    fetchDriverLocation();
-  }, [matchedRideData.driverId, matchedRideData.isDriver]);
+  const destinationCoordinate = useMemo(() => {
+    if (matchData?.destinationLatitude && matchData?.destinationLongitude) {
+      return {
+        latitude: matchData.destinationLatitude,
+        longitude: matchData.destinationLongitude,
+        description: matchData.destinationAddress || "Điểm đến",
+      };
+    }
+    return (
+      matchedRideData.destinationCoordinate || {
+        latitude: 10.773,
+        longitude: 106.6583,
+        description: matchedRideData.destinationAddress || "Điểm đến",
+      }
+    );
+  }, [matchData, matchedRideData]);
 
-  // Real-time Driver Location Tracking (subscribe to updates only)
-  const isFirstUpdate = useRef(true);
-
-  useEffect(() => {
-    const driverId = matchedRideData.isDriver
-      ? matchedRideData.currentUserId
-      : matchedRideData.driverId;
-
-    if (!driverId) return;
-
-    console.log("📡 Subscribing to driver location:", driverId);
-
-    const channel = supabase
-      .channel(`driver_loc_${driverId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "driver_locations",
-          filter: `driver_id=eq.${driverId}`,
-        },
-        (payload) => {
-          console.log("📍 Realtime Location Update:", payload.new);
-
-          // Skip proximity check for first update (might be stale data)
-          if (isFirstUpdate.current) {
-            console.log("⏭️ Skipping first update proximity check");
-            isFirstUpdate.current = false;
-            return;
-          }
-
-          // QUAN TRỌNG: Nếu là driver đang simulation, BỎ QUA update từ Supabase
-          // Vì simulation đang control vehicleLocation, không để Supabase ghi đè
-          if (
-            matchedRideData.isDriver &&
-            (isMovingToPickup || rideStatus === "ongoing")
-          ) {
-            console.log(
-              "⏭️ Skipping Supabase update - driver is in simulation mode"
-            );
-            return;
-          }
-
-          if (payload.new && payload.new.latitude && payload.new.longitude) {
-            const newLoc = {
-              latitude: payload.new.latitude,
-              longitude: payload.new.longitude,
-            };
-            setVehicleLocation(newLoc);
-
-            // Check proximity
-            const target =
-              rideStatus === "matched"
-                ? originCoordinate
-                : destinationCoordinate;
-
-            // Calculate distance roughly
-            const dist = Math.sqrt(
-              Math.pow((target.latitude - newLoc.latitude) * 111, 2) +
-                Math.pow((target.longitude - newLoc.longitude) * 85, 2)
-            );
-
-            console.log(
-              `📏 Distance to target (${rideStatus}): ${dist.toFixed(3)} km`
-            );
-
-            // If close (< 100m) and matched, trigger arrived
-            if (rideStatus === "matched" && dist < 0.1) {
-              handleDriverArrived();
-            }
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [matchedRideData.driverId, matchedRideData.isDriver, rideStatus]);
-
-  // Dynamic Route Logic
+  // FIX VẤN ĐỀ 1: Route origin/destination cho đúng theo phase
+  // Phase 1 (matched): driver location → pickup
+  // Phase 2 (ongoing): pickup → destination
   const currentRouteOrigin = useMemo(() => {
-    const origin =
-      rideStatus === "matched" ? vehicleLocation : originCoordinate;
-    console.log("🗺️ currentRouteOrigin:", { rideStatus, origin });
-    return origin;
-  }, [rideStatus, vehicleLocation, originCoordinate]);
+    if (rideStatus === "ongoing") {
+      // Phase 2: Từ pickup location
+      return originCoordinate;
+    }
+    // Phase 1: Từ driver location
+    return vehicleLocation || initialDriverLocation;
+  }, [rideStatus, vehicleLocation, originCoordinate, initialDriverLocation]);
 
   const currentRouteDestination = useMemo(() => {
-    const destination =
-      rideStatus === "matched" ? originCoordinate : destinationCoordinate;
-    console.log("🗺️ currentRouteDestination:", { rideStatus, destination });
-    return destination;
+    if (rideStatus === "ongoing") {
+      // Phase 2: Đến destination
+      return destinationCoordinate;
+    }
+    // Phase 1: Đến pickup
+    return originCoordinate;
   }, [rideStatus, originCoordinate, destinationCoordinate]);
 
-  // ... rest of code
-  // Update RouteMap render:
-  // origin={currentRouteOrigin}
-  // destination={currentRouteDestination}
-
-  const handlePress = (value) => {
-    setRating(value);
-  };
-
-  const getReviewText = () => {
-    const reviews = ["Tệ", "Ổn", "Tốt", "Rất tốt", "Xuất sắc"];
-    return reviews[rating - 1] || "";
-  };
-
-  // Initialize Stream Chat channel on mount
+  // Debug logging for ride flow
   useEffect(() => {
-    const initializeChat = async () => {
+    console.log('🔄 MatchedRideScreen state:', {
+      matchId: matchedRideData.id || matchedRideData.rideId,
+      driverId: matchedRideData.driverId,
+      isDriver,
+      rideStatus,
+      driverLocation: driverLocation ? {
+        lat: driverLocation.latitude?.toFixed(5),
+        lng: driverLocation.longitude?.toFixed(5),
+      } : null,
+      vehicleLocation: vehicleLocation ? {
+        lat: vehicleLocation.latitude?.toFixed(5),
+        lng: vehicleLocation.longitude?.toFixed(5),
+      } : null,
+      driverArrived,
+      destinationArrived,
+    });
+  }, [matchedRideData, isDriver, rideStatus, driverLocation, vehicleLocation, driverArrived, destinationArrived]);
+
+  // Fetch driver's location from Supabase on mount (for driver only)
+  useEffect(() => {
+    if (!isDriver) return; // Only for driver
+
+    const fetchDriverLocationFromSupabase = async () => {
       try {
-        setLoadingChat(true);
-
-        // Get current user ID from API
-        const profileResp = await getProfile();
-        const currentUser = profileResp?.data?.data;
-        const currentUserId = currentUser?.id;
-        const otherUserId = matchedRideData.isDriver
-          ? matchedRideData.passengerId
-          : matchedRideData.driverId;
-
-        if (!currentUserId || !otherUserId) {
-          console.warn("Missing user IDs for chat initialization", {
-            currentUserId,
-            otherUserId,
-          });
-          setLoadingChat(false);
+        // Get driver ID from matchData or matchedRideData
+        const currentDriverId = matchData?.driverId || matchedRideData.driverId;
+        
+        if (!currentDriverId) {
+          console.warn('⚠️ Driver: No driverId found in matchData');
+          // Fallback to GPS
+          console.log('📍 Driver: Fetching GPS location as fallback...');
+          const location = await getCurrentLocation();
+          if (location) {
+            console.log('✅ Driver GPS location:', location);
+          }
           return;
         }
 
-        // Create or get direct message channel
-        const chatChannel = await getOrCreateDirectChannel(
-          currentUserId,
-          otherUserId,
-          {
-            rideId: matchedRideData.rideId,
-            from: matchedRideData.from,
-            to: matchedRideData.to,
+        console.log('📍 Driver: Fetching location from Supabase for driverId:', currentDriverId);
+        
+        const { data, error } = await supabase
+          .from('driver_locations')
+          .select('driver_id, latitude, longitude, last_updated, driver_status')
+          .eq('driver_id', currentDriverId)
+          .maybeSingle();
+
+        if (error) {
+          console.error('❌ Error fetching driver location from Supabase:', error);
+          // Fallback to GPS
+          const location = await getCurrentLocation();
+          if (location) {
+            console.log('✅ Driver GPS location (fallback):', location);
           }
-        );
-
-        // Watch channel for real-time updates
-        await watchChannel(chatChannel, {
-          messages: { limit: 50 },
-        });
-
-        // Set up listener for new messages
-        const handleMessage = (event) => {
-          if (event.message) {
-            setMessages((prev) => [...prev, event.message]);
-          }
-        };
-
-        chatChannel.on("message.new", handleMessage);
-
-        setChannel(chatChannel);
-
-        // Load initial messages
-        const initialMessages = chatChannel.state.messages || [];
-        setMessages(initialMessages);
-
-        setLoadingChat(false);
-
-        return () => {
-          chatChannel.off("message.new", handleMessage);
-          unwatchChannel(chatChannel);
-        };
-      } catch (error) {
-        console.warn("Error initializing chat:", error);
-        setLoadingChat(false);
-      }
-    };
-
-    initializeChat();
-  }, [matchedRideData]);
-
-  // Force refresh SafeArea khi app resume từ background
-  useEffect(() => {
-    const handleAppStateChange = (nextAppState) => {
-      if (nextAppState === "active") {
-        // Force component re-render để refresh SafeArea insets
-        setRefreshKey((prev) => prev + 1);
-      }
-    };
-
-    const subscription = AppState.addEventListener(
-      "change",
-      handleAppStateChange
-    );
-    return () => subscription?.remove();
-  }, []);
-
-  // Memoize objects to prevent unnecessary re-renders
-  const otherPerson = useMemo(
-    () =>
-      matchedRideData.isDriver
-        ? {
-            name: matchedRideData.passengerName || "Nguyễn Văn A",
-            phone: matchedRideData.passengerPhone || "0901234568",
-            avatar:
-              matchedRideData.passengerAvatar ||
-              "https://i.pravatar.cc/150?img=13",
-          }
-        : {
-            name: matchedRideData.driverName || "Nguyễn Xuân Tứ",
-            phone: matchedRideData.driverPhone || "0901234569",
-            avatar:
-              matchedRideData.driverAvatar ||
-              "https://i.pravatar.cc/150?img=14",
-            rating: 4.9,
-            vehicleModel: matchedRideData.vehicleModel || "Toyota Vios",
-            licensePlate: matchedRideData.licensePlate || "30A-12345",
-          },
-    [matchedRideData]
-  );
-
-  const handleSend = async () => {
-    if (!inputText.trim() || !channel) return;
-
-    try {
-      // Send message via Stream Chat
-      await sendMessage(channel, inputText.trim());
-      setInputText("");
-    } catch (error) {
-      console.warn("Error sending message:", error);
-      showCustomAlert("Lỗi", "Không thể gửi tin nhắn. Vui lòng thử lại.");
-    }
-  };
-
-  const handleCompleteRide = async () => {
-    try {
-      const rideId = matchedRideData.id || matchedRideData.rideId;
-      console.log("Completing ride:", rideId);
-
-      // 1. Cập nhật vị trí cuối cùng (tại điểm trả khách = destination) nếu là driver
-      if (matchedRideData.isDriver) {
-        const finalLocation = destinationCoordinate || vehicleLocation;
-        console.log(
-          "📍 Updating final driver location to destination:",
-          finalLocation
-        );
-        try {
-          // Update backend API
-          await axiosClient.post(endpoints.driver.location, {
-            latitude: finalLocation.latitude,
-            longitude: finalLocation.longitude,
-          });
-          console.log(
-            "✅ Driver location updated to destination successfully (API)"
-          );
-
-          // Also update Supabase directly để đảm bảo sync
-          const driverId =
-            matchedRideData.driverId || matchedRideData.currentUserId;
-          if (driverId) {
-            const { error } = await supabase
-              .from("driver_locations")
-              .update({
-                latitude: finalLocation.latitude,
-                longitude: finalLocation.longitude,
-                last_updated: new Date().toISOString(),
-              })
-              .eq("driver_id", driverId);
-
-            if (error) {
-              console.warn("⚠️ Failed to update Supabase:", error);
-            } else {
-              console.log(
-                "✅ Driver location updated to destination successfully (Supabase)"
-              );
-            }
-          }
-        } catch (locError) {
-          console.warn("⚠️ Failed to update final location:", locError);
+          return;
         }
+
+        if (data) {
+          console.log('✅ Driver location from Supabase:', {
+            driverId: data.driver_id,
+            lat: data.latitude,
+            lng: data.longitude,
+            status: data.driver_status,
+          });
+          
+          // Set as currentLocation so it's available for route rendering
+          setCurrentLocation({
+            latitude: data.latitude,
+            longitude: data.longitude,
+          });
+        } else {
+          console.warn('⚠️ No driver location found in Supabase for driverId:', currentDriverId);
+          // Fallback to GPS
+          const location = await getCurrentLocation();
+          if (location) {
+            console.log('✅ Driver GPS location (fallback):', location);
+          }
+        }
+      } catch (err) {
+        console.error('❌ Exception fetching driver location:', err);
       }
+    };
 
-      // 2. Update backend status
-      await axiosClient.put(endpoints.match.status(rideId), {
-        status: "COMPLETED",
-      });
+    fetchDriverLocationFromSupabase();
+  }, [isDriver, matchData?.driverId, matchedRideData.driverId, getCurrentLocation]);
 
-      setRideStatus("completed");
-      // Cộng điểm thưởng ngẫu nhiên
-      const earned = Math.floor(Math.random() * 20) + 10;
-      setRewardPoints(earned);
+  // ============================================
+  // OTHER PERSON INFO
+  // ============================================
+  const otherPerson = useMemo(() => {
+    if (isDriver) {
+      return {
+        name: matchedRideData.passengerName || "Hành khách",
+        phone: matchedRideData.passengerPhone || "",
+        avatar:
+          matchedRideData.passengerAvatar || "https://i.pravatar.cc/150?img=3",
+        rating: matchedRideData.passengerRating || 4.8,
+      };
+    }
+    return {
+      name: matchedRideData.driverName || "Tài xế",
+      phone: matchedRideData.driverPhone || "",
+      avatar: matchedRideData.driverAvatar || "https://i.pravatar.cc/150?img=5",
+      rating: matchedRideData.driverRating || 4.9,
+      vehiclePlate: matchedRideData.vehiclePlateNumber || "XX-XXXX",
+      vehicleName: matchedRideData.vehicleName || "Xe máy",
+    };
+  }, [isDriver, matchedRideData]);
 
-      // 3. Nếu là Driver, thông báo xong và về Home
-      if (matchedRideData.isDriver) {
+  // ============================================
+  // HANDLE RIDE NAVIGATION STATUS
+  // ============================================
+  useEffect(() => {
+    if (rideStatus === "completed") {
+      // Only show feedback modal for passenger
+      // Driver will see coin reward notification and navigate
+      if (isDriver) {
+        // Driver: Show coin reward notification
+        const earnedCoins = matchData?.coin || 10; // Get coins from match data
         showCustomAlert(
           "Hoàn thành chuyến đi",
-          `Bạn đã hoàn thành chuyến đi thành công!\n+${earned} điểm thưởng`,
+          `Bạn đã hoàn thành chuyến đi thành công!\n+${earnedCoins} coin`,
           [
             {
-              text: "Về Đang Hoạt Động",
+              text: "Về trang chủ",
               onPress: () => {
-                // Navigate về DriverMap với vị trí hiện tại (điểm trả khách)
-                navigation.reset({
-                  index: 0,
-                  routes: [
-                    {
-                      name: "DriverMap",
-                      params: {
-                        initialLocation:
-                          vehicleLocation || destinationCoordinate,
-                      },
-                    },
-                  ],
-                });
+                // Clear route state
+                setCurrentMapPath(null);
+                currentMapPathRef.current = null;
+                navigation.navigate("MainTabs");
               },
             },
           ]
         );
       } else {
-        // Nếu là Passenger, hiện modal đánh giá
+        // Passenger: Show feedback modal
         setShowFeedbackModal(true);
       }
-    } catch (error) {
-      console.error("Failed to complete ride:", error);
-      showCustomAlert(
-        "Lỗi",
-        "Không thể hoàn thành chuyến đi. Vui lòng thử lại."
-      );
+    } else if (rideStatus === "cancelled") {
+      Alert.alert("Thông báo", "Chuyến đi đã bị hủy.");
+      navigation.navigate("Home");
     }
+  }, [rideStatus, navigation, isDriver, matchData]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      console.log('🧹 Cleaning up MatchedRideScreen');
+      setCurrentMapPath(null);
+      currentMapPathRef.current = null;
+    };
+  }, []);
+
+  // ============================================
+  // HELPERS
+  // ============================================
+  const haversine = (coord1, coord2) => {
+    if (!coord1 || !coord2) return Infinity;
+    const R = 6371; // km
+    const dLat = ((coord2.latitude - coord1.latitude) * Math.PI) / 180;
+    const dLon = ((coord2.longitude - coord1.longitude) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos((coord1.latitude * Math.PI) / 180) *
+        Math.cos((coord2.latitude * Math.PI) / 180) *
+        Math.sin(dLon / 2) ** 2;
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
   };
 
-  const handleAudioCall = useCallback(async () => {
-    if (!channel) return;
-    try {
-      // Initiate audio call through Stream
-      // In a real implementation, this would use Stream's Video SDK
-      showCustomAlert("Gọi điện thoại", `Đang gọi ${otherPerson.name}...`, [
-        { text: "Hủy", onPress: () => {} },
-      ]);
-      // TODO: Implement actual audio call using Stream Video SDK
-    } catch (error) {
-      console.warn("Error initiating audio call:", error);
-    }
-  }, [channel, otherPerson.name]);
+  const shouldSyncPath = useMemo(() => {
+    if (!routePoints || routePoints.length === 0) return false;
 
-  const handleVideoCall = useCallback(async () => {
-    if (!channel) return;
-    try {
-      // Initiate video call through Stream
-      showCustomAlert("Gọi video", `Đang gọi video ${otherPerson.name}...`, [
-        { text: "Hủy", onPress: () => {} },
-      ]);
-      // TODO: Implement actual video call using Stream Video SDK
-    } catch (error) {
-      console.warn("Error initiating video call:", error);
+    // Phase 2 (ongoing): Sync route for PASSENGER only
+    // Driver updates route, passenger syncs it
+    if (rideStatus === "ongoing") {
+      if (!isDriver) {
+        console.log("✅ Passenger syncing route for Phase 2 (ongoing):", routePoints.length, "points");
+        return true;
+      } else {
+        console.log("⏭️ Driver: Skipping route sync for Phase 2 - using local route");
+        return false;
+      }
     }
-  }, [channel, otherPerson.name]);
+
+    // Phase 1 (matched): DON'T sync routePoints from database
+    // The database route is pickup → destination (initial route)
+    // But we need driver location → pickup
+    // Let RouteMap fetch its own route based on origin/destination props
+    console.log("⏭️ Skipping route sync for Phase 1 (matched) - let RouteMap fetch driver→pickup route");
+    return false;
+  }, [routePoints, vehicleLocation, rideStatus, isDriver]);
+
+  const showCustomAlert = useCallback(
+    (title, message, buttons = [{ text: "OK", onPress: () => {} }]) => {
+      setCustomAlert({ visible: true, title, message, buttons });
+    },
+    []
+  );
+
+  // ============================================
+  // CALLBACKS
+  // ============================================
+  const handleDriverArrived = useCallback(() => {
+    console.log("🏁 Driver arrived at pickup!");
+    markDriverArrived();
+
+    if (isDriver) {
+      showCustomAlert(
+        "Bạn đã đến điểm đón",
+        "Hành khách đang chờ bạn. Hãy nhấn 'Bắt đầu chuyến đi' khi khách đã lên xe."
+      );
+    } else {
+      showCustomAlert(
+        "Tài xế đã đến điểm đón",
+        "Tài xế đang chờ bạn. Vui lòng lên xe để bắt đầu chuyến đi."
+      );
+    }
+  }, [isDriver, markDriverArrived, showCustomAlert]);
+
+  const handleDestinationArrived = useCallback(() => {
+    console.log("🏁 Arrived at destination!");
+    markDestinationArrived();
+
+    if (isDriver) {
+      showCustomAlert(
+        "Đã đến điểm đích",
+        "Bạn đã đến nơi. Hãy nhấn 'Hoàn thành chuyến đi' để kết thúc."
+      );
+    } else {
+      showCustomAlert(
+        "Đã đến điểm đích",
+        "Bạn đã đến nơi. Chuyến đi sắp hoàn thành."
+      );
+    }
+  }, [isDriver, markDestinationArrived, showCustomAlert]);
+
+  const handleRouteFetched = useCallback(
+    (points) => {
+      console.log(
+        `📍 Route fetched: ${
+          points?.length || 0
+        } points for phase: ${rideStatus}`
+      );
+      setCurrentMapPath(points);
+      currentMapPathRef.current = points; // Store in ref for callbacks
+      // Sync route to Supabase if driver
+      if (isDriver && points && points.length > 0) {
+        updateRoute(points);
+      }
+    },
+    [isDriver, updateRoute, rideStatus]
+  );
+
+  // FIX VẤN ĐỀ 2: Simulation hoạt động đúng cho cả 2 phase
+  const handleSimulate = useCallback(() => {
+    // Luôn sử dụng currentMapPath (route mới nhất được fetch từ RouteMap)
+    const pointsToSimulate = currentMapPath || routePoints;
+
+    if (!pointsToSimulate || pointsToSimulate.length === 0) {
+      Alert.alert("Chưa có lộ trình", "Vui lòng đợi bản đồ tải lộ trình.");
+      return;
+    }
+
+    const phaseText =
+      rideStatus === "ongoing" ? "Phase 2 (đến đích)" : "Phase 1 (đón khách)";
+
+    Alert.alert(
+      "Bắt đầu mô phỏng",
+      `${phaseText}\nSẽ di chuyển qua ${pointsToSimulate.length} điểm trong 20 giây.`,
+      [
+        { text: "Hủy", style: "cancel" },
+        {
+          text: "Bắt đầu",
+          onPress: () => {
+            console.log(`🚗 Starting simulation for ${phaseText}`);
+            console.log(`Route: ${pointsToSimulate.length} points`);
+            console.log(`From: ${JSON.stringify(pointsToSimulate[0])}`);
+            console.log(
+              `To: ${JSON.stringify(
+                pointsToSimulate[pointsToSimulate.length - 1]
+              )}`
+            );
+
+            // Không reset arrival flags nữa - để RouteMap tự xử lý
+            // Chỉ cần gọi simulateRoute với đúng route
+            simulateRoute(pointsToSimulate, 20000);
+          },
+        },
+      ]
+    );
+  }, [rideStatus, currentMapPath, routePoints, simulateRoute]);
+
+  const handleStartRide = useCallback(async () => {
+    console.log("🚀 Starting ride (Phase 1 → Phase 2)");
+    
+    // Clear the local route so RouteMap will fetch fresh route for Phase 2
+    setCurrentMapPath(null);
+    currentMapPathRef.current = null;
+    
+    const result = await startRide();
+    if (result.success) {
+      showCustomAlert(
+        "Chuyến đi đã bắt đầu",
+        "Bạn đang trên đường đến điểm đích.",
+        [
+          {
+            text: "OK",
+            onPress: () => {
+              // Wait for route to be fetched and check multiple times
+              let attempts = 0;
+              const maxAttempts = 10; // Try for 5 seconds (10 * 500ms)
+              
+              const checkAndStartSimulation = () => {
+                attempts++;
+                const route = currentMapPathRef.current; // Use ref for latest value
+                console.log(`🔍 Checking for Phase 2 route (attempt ${attempts}/${maxAttempts})`);
+                
+                if (route && route.length > 10) {
+                  console.log(`✅ Route ready with ${route.length} points, starting simulation`);
+                  simulateRoute(route, 20000);
+                } else if (attempts < maxAttempts) {
+                  console.log(`⏳ Route not ready yet (${route?.length || 0} points), waiting...`);
+                  setTimeout(checkAndStartSimulation, 500);
+                } else {
+                  console.warn('⚠️ Timeout waiting for Phase 2 route');
+                }
+              };
+              
+              // Start checking after 1 second
+              setTimeout(checkAndStartSimulation, 1000);
+            }
+          }
+        ]
+      );
+    } else {
+      showCustomAlert("Lỗi", result.error || "Không thể bắt đầu chuyến đi.");
+    }
+  }, [startRide, showCustomAlert, simulateRoute]);
+
+  const handleCompleteRide = useCallback(async () => {
+    console.log("✅ Completing ride");
+    setIsCompletingRide(true);
+    try {
+      const result = await completeRide();
+      if (result.success) {
+        // Don't show feedback modal here - let useEffect handle it
+        // based on rideStatus change
+      } else {
+        showCustomAlert(
+          "Lỗi",
+          result.error || "Không thể hoàn thành chuyến đi."
+        );
+      }
+    } finally {
+      setIsCompletingRide(false);
+    }
+  }, [completeRide, showCustomAlert]);
+
+  const handleRouteTruncated = useCallback(
+    (truncatedRoute) => {
+      if (isDriver && truncatedRoute && truncatedRoute.length > 0) {
+        // Throttle updates: only update every 5 seconds or if significant change
+        const now = Date.now();
+        if (now - lastRouteUpdateRef.current > 5000) {
+          lastRouteUpdateRef.current = now;
+          updateRoute(truncatedRoute);
+        }
+      }
+    },
+    [isDriver, updateRoute]
+  );
 
   const handleFeedbackSubmit = async (feedbackData) => {
-    try {
-      setIsSubmittingFeedback(true);
-      const rideId = matchedRideData.id || matchedRideData.rideId;
-      
-      console.log("📝 Submitting feedback for ride:", rideId, feedbackData);
-      
-      await submitFeedback(
-        rideId, 
-        feedbackData.rating, 
-        feedbackData.comment, 
-        feedbackData.tags
+    setIsSubmittingFeedback(true);
+    const rideId = matchedRideData.id || matchedRideData.rideId;
+
+    const result = await submitFeedback(
+      rideId,
+      feedbackData.rating,
+      feedbackData.comment,
+      feedbackData.tags
+    );
+    
+    setIsSubmittingFeedback(false);
+    
+    if (result.success) {
+      Alert.alert(
+        "Cảm ơn bạn!",
+        "Đánh giá của bạn đã được gửi thành công."
       );
-      
-      setShowFeedbackModal(false);
-      
-      showCustomAlert(
-        "Hoàn tất",
-        "Cảm ơn bạn đã gửi đánh giá!",
-        [{
-            text: "Về trang chủ",
-            onPress: () => {
-                 navigation.reset({
-                  index: 0,
-                  routes: [{ name: "Home" }],
-                });
-            }
-        }]
-      );
-    } catch (error) {
-      console.error("Feedback submit error:", error);
-      Alert.alert("Lỗi", "Không thể gửi đánh giá. Vui lòng thử lại.");
-    } finally {
-      setIsSubmittingFeedback(false);
+    } else {
+      // Check if error is duplicate feedback
+      if (result.error && result.error.includes("already submitted feedback")) {
+        Alert.alert(
+          "Thông báo",
+          "Bạn đã đánh giá chuyến đi này rồi. Cảm ơn bạn!"
+        );
+      }
+      // Silently ignore other errors - don't show to user
     }
+    
+    // Always close modal and navigate
+    setShowFeedbackModal(false);
+    setCurrentMapPath(null);
+    currentMapPathRef.current = null;
+    navigation.navigate("MainTabs");
   };
 
+  const handleCall = useCallback(() => {
+    if (otherPerson.phone) {
+      Linking.openURL(`tel:${otherPerson.phone}`);
+    }
+  }, [otherPerson.phone]);
+
+  // ============================================
+  // RENDER
+  // ============================================
+  if (rideLoading) {
+    return (
+      <SafeAreaView style={[styles.container, styles.loadingContainer]}>
+        <ActivityIndicator size="large" color={COLORS.PRIMARY} />
+        <Text style={styles.loadingText}>Đang tải...</Text>
+      </SafeAreaView>
+    );
+  }
+
   return (
-    <SafeAreaView key={refreshKey} style={styles.container} edges={["top"]}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: insets.bottom }}
+        contentContainerStyle={{ paddingBottom: 100 }}
       >
         {/* Header */}
         <View style={styles.headerContainer}>
@@ -828,8 +698,12 @@ const MatchedRideScreen = ({ navigation, route }) => {
             </TouchableOpacity>
             <View style={styles.headerCenter}>
               <Text style={styles.headerTitle}>
-                {matchedRideData.isDriver
-                  ? "Hành khách đã tham gia"
+                {isDriver
+                  ? rideStatus === "ongoing"
+                    ? "Đang đưa khách"
+                    : "Đang đón khách"
+                  : rideStatus === "ongoing"
+                  ? "Đang di chuyển"
                   : "Tài xế sắp đến"}
               </Text>
             </View>
@@ -837,31 +711,32 @@ const MatchedRideScreen = ({ navigation, route }) => {
           </View>
         </View>
 
-        {/* Map Section - Takes 50% of screen */}
+        {/* Map Section */}
         <View style={styles.mapContainer}>
           <RouteMap
-            vehicleLocation={vehicleLocation}
+            vehicleLocation={
+              vehicleLocation ||
+              (driverArrived ? originCoordinate : initialDriverLocation)
+            }
             driverLocation={initialDriverLocation}
-            pickupLocation={originCoordinate} // Luôn luôn là điểm đón
+            pickupLocation={originCoordinate}
             origin={currentRouteOrigin}
             destination={currentRouteDestination}
-            height={height * 0.55} // Map chiếm 55% màn hình
+            path={shouldSyncPath ? routePoints : null}
+            height={height * 0.55}
             showRoute={true}
             fullScreen={false}
             rideStatus={rideStatus}
-            isDriver={matchedRideData.isDriver}
-            // Chỉ hiện xe và chạy animation khi đã bấm "Bắt đầu đón khách" hoặc đang chở khách
-            showVehicle={
-              (rideStatus === "matched" && isMovingToPickup) ||
-              rideStatus === "ongoing"
-            }
+            isDriver={isDriver}
+            showVehicle={true}
             startAnimation={
-              (rideStatus === "matched" && isMovingToPickup) ||
-              rideStatus === "ongoing"
+              rideStatus === "matched" || rideStatus === "ongoing"
             }
             onDriverArrived={handleDriverArrived}
             onDestinationArrived={handleDestinationArrived}
             onRouteFetched={handleRouteFetched}
+            onRouteTruncated={handleRouteTruncated}
+            matchedDriverId={matchData?.driverId || matchedRideData.driverId}
           />
         </View>
 
@@ -869,386 +744,146 @@ const MatchedRideScreen = ({ navigation, route }) => {
         <KeyboardAvoidingView
           style={styles.infoPanel}
           behavior={Platform.OS === "ios" ? "padding" : "height"}
-          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
         >
-          {/* Ride Action Buttons */}
-          <View
-            style={{ paddingHorizontal: 16, marginTop: 10, marginBottom: 20 }}
-          >
-            {/* 🎯 THÔNG TIN KHÁCH HÀNG - Hiển thị cho cả matched và ongoing */}
-            {matchedRideData.isDriver &&
-              (rideStatus === "matched" || rideStatus === "ongoing") && (
-                <View style={styles.customerInfoCard}>
-                  <View style={styles.customerHeader}>
-                    <Image
-                      source={{
-                        uri:
-                          matchedRideData.passengerAvatar ||
-                          "https://i.pravatar.cc/150?img=3",
-                      }}
-                      style={styles.customerAvatar}
-                    />
-                    <View style={{ marginLeft: 12, flex: 1 }}>
-                      <Text style={styles.customerNameLabel}>Khách hàng</Text>
-                      <Text style={styles.customerName}>
-                        {matchedRideData.passengerName}
-                      </Text>
-                      <View style={styles.customerRatingRow}>
-                        <MaterialIcons
-                          name="star"
-                          size={16}
-                          color={COLORS.ORANGE}
-                        />
-                        <Text style={styles.customerRatingText}>
-                          {matchedRideData.passengerRating
-                            ? matchedRideData.passengerRating.toFixed(1)
-                            : "5.0"}
-                        </Text>
-                        <Text style={styles.customerPhone}>
-                          {" "}
-                          • {matchedRideData.passengerPhone}
-                        </Text>
-                      </View>
-                    </View>
-
-                    {/* Nút Chat Nhanh */}
-                    <TouchableOpacity
-                      style={styles.callButton}
-                      onPress={() => setShowChatModal(true)}
-                    >
-                      <MaterialIcons
-                        name="chat"
-                        size={24}
-                        color={COLORS.WHITE}
-                      />
-                      {messages.length > 0 && (
-                        <View style={styles.chatBadgeSmall}>
-                          <Text style={styles.chatBadgeTextSmall}>
-                            {messages.length}
-                          </Text>
-                        </View>
-                      )}
-                    </TouchableOpacity>
-                  </View>
-
-                  <View style={styles.divider} />
-
-                  <View style={styles.locationSummary}>
-                    <View style={styles.locationRow}>
-                      <MaterialIcons
-                        name="my-location"
-                        size={16}
-                        color={COLORS.BLUE}
-                      />
-                      <Text style={styles.locationText} numberOfLines={1}>
-                        {matchedRideData.pickupAddress}
-                      </Text>
-                    </View>
-                    <View style={[styles.locationRow, { marginTop: 8 }]}>
-                      <MaterialIcons
-                        name="location-on"
-                        size={16}
-                        color={COLORS.RED}
-                      />
-                      <Text style={styles.locationText} numberOfLines={1}>
-                        {matchedRideData.destinationAddress}
-                      </Text>
-                    </View>
-                  </View>
+          {/* Person Info Card */}
+          <View style={styles.personCard}>
+            <View style={styles.personHeader}>
+              <Image
+                source={{ uri: otherPerson.avatar }}
+                style={styles.personAvatar}
+              />
+              <View style={styles.personInfo}>
+                <Text style={styles.personLabel}>
+                  {isDriver ? "Hành khách" : "Tài xế"}
+                </Text>
+                <Text style={styles.personName}>{otherPerson.name}</Text>
+                <View style={styles.ratingRow}>
+                  <FontAwesome name="star" size={14} color="#FFD700" />
+                  <Text style={styles.ratingText}>{otherPerson.rating}</Text>
                 </View>
-              )}
+              </View>
+              <TouchableOpacity style={styles.callButton} onPress={handleCall}>
+                <MaterialIcons name="call" size={22} color={COLORS.WHITE} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.callButton,
+                  { backgroundColor: COLORS.PRIMARY, marginLeft: 8 },
+                ]}
+                onPress={() => setShowChatModal(true)}
+              >
+                <MaterialIcons name="chat" size={22} color={COLORS.WHITE} />
+              </TouchableOpacity>
+            </View>
 
-            {/* 🎯 Giai đoạn matched: Nút điều khiển cho driver */}
-            {rideStatus === "matched" && matchedRideData.isDriver && (
-              <View>
-                {/* Logic nút bấm 3 trạng thái */}
-                {!isMovingToPickup ? (
-                  // 1. CHƯA ĐI => Button "Bắt đầu đón khách"
-                  <TouchableOpacity
-                    style={[
-                      styles.actionBtn,
-                      { backgroundColor: COLORS.PRIMARY, marginTop: 16 },
-                    ]}
-                    onPress={() => {
-                      hasNotifiedArrival.current = false; // Reset để có thể notify khi đến
-                      setIsMovingToPickup(true);
-                      console.log("🚀 Driver started moving to pickup");
-                      console.log(
-                        "📍 Current simRoutePoints:",
-                        simRoutePoints.length,
-                        "points"
-                      );
-                      console.log(
-                        "📍 Current vehicleLocation:",
-                        vehicleLocation
-                      );
-                    }}
-                  >
-                    <Text style={styles.actionBtnText}>Bắt đầu đón khách</Text>
-                  </TouchableOpacity>
-                ) : !driverArrived ? (
-                  // 2. ĐANG ĐI => Button Disabled
-                  <TouchableOpacity
-                    style={[
-                      styles.actionBtn,
-                      { backgroundColor: COLORS.GRAY, marginTop: 16 },
-                    ]}
-                    disabled={true}
-                  >
-                    <Text style={styles.actionBtnText}>
-                      Đang di chuyển đến điểm đón...
-                    </Text>
-                  </TouchableOpacity>
-                ) : (
-                  // 3. ĐÃ ĐẾN => Button "Bắt đầu chuyến đi"
-                  <TouchableOpacity
-                    style={[
-                      styles.actionBtn,
-                      { backgroundColor: COLORS.PRIMARY, marginTop: 16 },
-                    ]}
-                    onPress={() => {
-                      showCustomAlert(
-                        "Bắt đầu chuyến đi",
-                        "Xác nhận khách đã lên xe?",
-                        [
-                          {
-                            text: "Hủy",
-                            style: "cancel",
-                            onPress: () => {},
-                          },
-                          {
-                            text: "Bắt đầu",
-                            onPress: () => {
-                              console.log("🚀 Driver started trip");
-                              hasNotifiedArrival.current = false; // Reset cho phase tiếp theo
-                              setDriverArrived(false); // Reset để xe có thể chạy tiếp
-                              setRideStatus("ongoing");
-                            },
-                          },
-                        ]
-                      );
-                    }}
-                  >
-                    <Text style={styles.actionBtnText}>Bắt đầu chuyến đi</Text>
-                  </TouchableOpacity>
-                )}
+            {/* Vehicle Info (for passenger) */}
+            {!isDriver && otherPerson.vehiclePlate && (
+              <View style={styles.vehicleInfo}>
+                <MaterialIcons
+                  name="two-wheeler"
+                  size={20}
+                  color={COLORS.GRAY}
+                />
+                <Text style={styles.vehicleText}>
+                  {otherPerson.vehicleName} • {otherPerson.vehiclePlate}
+                </Text>
               </View>
             )}
 
-            {/* 🎯 THÔNG TIN TÀI XẾ - Hiển thị cho passenger khi matched */}
-            {rideStatus === "matched" && !matchedRideData.isDriver && (
-              <View style={styles.customerInfoCard}>
-                <View style={styles.customerHeader}>
-                  <Image
-                    source={{
-                      uri:
-                        matchedRideData.driverAvatar ||
-                        "https://i.pravatar.cc/150?img=1",
-                    }}
-                    style={styles.customerAvatar}
-                  />
-                  <View style={{ marginLeft: 12, flex: 1 }}>
-                    <Text style={styles.customerNameLabel}>Tài xế</Text>
-                    <Text style={styles.customerName}>
-                      {matchedRideData.driverName || "Tài xế"}
-                    </Text>
-                    <View style={styles.customerRatingRow}>
-                      <MaterialIcons
-                        name="star"
-                        size={16}
-                        color={COLORS.ORANGE}
-                      />
-                      <Text style={styles.customerRatingText}>
-                        {matchedRideData.driverRating
-                          ? matchedRideData.driverRating.toFixed(1)
-                          : "5.0"}
-                      </Text>
-                      <Text style={styles.customerPhone}>
-                        {" "}
-                        • {matchedRideData.driverPhone || ""}
-                      </Text>
-                    </View>
-                  </View>
+            {/* Divider */}
+            <View style={styles.divider} />
 
-                  {/* Nút Chat Nhanh */}
-                  <TouchableOpacity
-                    style={styles.callButton}
-                    onPress={() => setShowChatModal(true)}
-                  >
-                    <MaterialIcons name="chat" size={24} color={COLORS.WHITE} />
-                    {messages.length > 0 && (
-                      <View style={styles.chatBadgeSmall}>
-                        <Text style={styles.chatBadgeTextSmall}>
-                          {messages.length}
-                        </Text>
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                </View>
+            {/* Route Info */}
+            <View style={styles.routeInfo}>
+              <View style={styles.routeRow}>
+                <View
+                  style={[styles.routeDot, { backgroundColor: COLORS.GREEN }]}
+                />
+                <Text style={styles.routeText} numberOfLines={1}>
+                  {matchedRideData.pickupAddress ||
+                    originCoordinate.description}
+                </Text>
+              </View>
+              <View style={styles.routeLine} />
+              <View style={styles.routeRow}>
+                <View
+                  style={[styles.routeDot, { backgroundColor: COLORS.PRIMARY }]}
+                />
+                <Text style={styles.routeText} numberOfLines={1}>
+                  {matchedRideData.destinationAddress ||
+                    destinationCoordinate.description}
+                </Text>
+              </View>
+            </View>
 
-                <View style={styles.divider} />
+            {/* Price Info */}
+            {matchedRideData.fare && (
+              <View style={styles.priceRow}>
+                <Text style={styles.priceLabel}>Giá chuyến đi</Text>
+                <Text style={styles.priceValue}>
+                  {matchedRideData.fare.toLocaleString("vi-VN")}đ
+                </Text>
+              </View>
+            )}
+          </View>
 
-                {/* Vehicle Info - XanhSM Style */}
-                {(matchedRideData.vehicleInfo ||
-                  matchedRideData.vehicleModel ||
-                  matchedRideData.licensePlate) && (
-                  <View style={styles.vehicleInfoSection}>
-                    <View style={styles.vehicleInfoCard}>
-                      <View style={styles.vehicleInfoRow}>
-                        <View style={styles.vehicleIconContainer}>
-                          <MaterialIcons
-                            name="two-wheeler"
-                            size={24}
-                            color={COLORS.PRIMARY}
-                          />
-                        </View>
-                        <View style={styles.vehicleInfoContent}>
-                          {matchedRideData.vehicleInfo ? (
-                            <Text style={styles.vehicleModel}>
-                              {matchedRideData.vehicleInfo}
-                            </Text>
-                          ) : (
-                            <>
-                              <Text style={styles.vehicleModel}>
-                                {matchedRideData.vehicleModel || "Xe máy"}
-                              </Text>
-                              {matchedRideData.licensePlate && (
-                                <Text style={styles.licensePlate}>
-                                  {matchedRideData.licensePlate}
-                                </Text>
-                              )}
-                            </>
-                          )}
-                        </View>
-                      </View>
-                    </View>
-                  </View>
-                )}
+          {/* Action Buttons */}
+          <View style={styles.actionButtons}>
+            {isDriver && rideStatus === "matched" && (
+              <TouchableOpacity
+                style={[
+                  styles.primaryButton,
+                  { backgroundColor: driverArrived ? COLORS.GREEN : COLORS.PRIMARY },
+                  isSimulating && styles.disabledButton,
+                ]}
+                disabled={isSimulating}
+                onPress={driverArrived ? handleStartRide : handleSimulate}
+              >
+                <Text style={styles.primaryButtonText}>
+                  {driverArrived ? "Bắt đầu chuyến đi" : "Bắt đầu đón khách"}
+                </Text>
+              </TouchableOpacity>
+            )}
 
-                <View style={styles.divider} />
-
-                <View style={styles.locationSummary}>
-                  <View style={styles.locationRow}>
-                    <MaterialIcons
-                      name="my-location"
-                      size={16}
-                      color={COLORS.BLUE}
-                    />
-                    <Text style={styles.locationText} numberOfLines={1}>
-                      {matchedRideData.from || matchedRideData.pickupAddress}
-                    </Text>
-                  </View>
-                  <View style={[styles.locationRow, { marginTop: 8 }]}>
-                    <MaterialIcons
-                      name="location-on"
-                      size={16}
-                      color={COLORS.RED}
-                    />
-                    <Text style={styles.locationText} numberOfLines={1}>
-                      {matchedRideData.to || matchedRideData.destinationAddress}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* ETA Info */}
-                <View style={styles.etaInfoRow}>
-                  <MaterialIcons
-                    name="schedule"
-                    size={16}
-                    color={COLORS.PRIMARY}
-                  />
-                  <Text style={styles.etaInfoText}>
-                    Tài xế đang đến • ETA: {driverETA}
+            {isDriver && rideStatus === "ongoing" && (
+              <TouchableOpacity
+                style={[
+                  styles.primaryButton,
+                  { backgroundColor: destinationArrived ? COLORS.GREEN : COLORS.PRIMARY },
+                  (isCompletingRide || isSimulating) && styles.disabledButton,
+                ]}
+                disabled={isCompletingRide || isSimulating}
+                onPress={
+                  destinationArrived ? handleCompleteRide : handleSimulate
+                }
+              >
+                {isCompletingRide ? (
+                  <ActivityIndicator color={COLORS.WHITE} />
+                ) : (
+                  <Text style={styles.primaryButtonText}>
+                    {destinationArrived
+                      ? "Hoàn thành chuyến đi"
+                      : "Mô phỏng đến điểm đích"}
                   </Text>
-                </View>
-              </View>
+                )}
+              </TouchableOpacity>
             )}
 
-            {/* 🎯 Giai đoạn ongoing: Đang trên đường đến đích */}
-            {rideStatus === "ongoing" && (
-              <>
-                {/* Driver Coming Info - Only show for passengers */}
-                {!matchedRideData.isDriver && (
-                  <View style={styles.driverComingSection}>
-                    <View style={styles.driverComingHeader}>
-                      <View>
-                        <Text style={styles.driverComingTitle}>
-                          Tài xế đang đến
-                        </Text>
-                        <Text style={styles.driverComingSubtitle}>
-                          Cách bạn {driverDistance}
-                        </Text>
-                      </View>
-                      <View style={styles.etaBox}>
-                        <MaterialIcons
-                          name="schedule"
-                          size={20}
-                          color={COLORS.PRIMARY}
-                        />
-                        <Text style={styles.etaText}>{driverETA}</Text>
-                      </View>
-                    </View>
-
-                    {/* Progress Bar */}
-                    <View style={styles.progressContainer}>
-                      <View style={styles.progressBar} />
-                    </View>
-
-                    {/* Location Info */}
-                    <View style={styles.locationInfoRow}>
-                      <View style={styles.locationInfoItem}>
-                        <MaterialIcons
-                          name="my-location"
-                          size={14}
-                          color={COLORS.GREEN}
-                        />
-                        <Text style={styles.locationInfoText}>
-                          {rideDetails.from}
-                        </Text>
-                      </View>
-                      <View style={styles.locationInfoItem}>
-                        <MaterialIcons
-                          name="place"
-                          size={14}
-                          color={COLORS.RED}
-                        />
-                        <Text style={styles.locationInfoText}>
-                          {rideDetails.to}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                )}
-
-                {/* Button Hoàn thành - Chỉ enable khi đã đến đích */}
-                {matchedRideData.isDriver ? (
-                  <TouchableOpacity
-                    style={[
-                      styles.actionBtn,
-                      {
-                        backgroundColor: destinationArrived
-                          ? COLORS.GREEN
-                          : COLORS.GRAY,
-                      },
-                    ]}
-                    onPress={() => handleCompleteRide()}
-                    disabled={!destinationArrived}
-                  >
-                    <Text style={styles.actionBtnText}>
-                      {destinationArrived
-                        ? "Hoàn thành chuyến đi"
-                        : "Đang đến điểm đích..."}
-                    </Text>
-                  </TouchableOpacity>
-                ) : (
-                  <View style={styles.waitingSection}>
-                    <ActivityIndicator size="small" color={COLORS.PRIMARY} />
-                    <Text style={styles.waitingText}>
-                      Đang trên đường đến đích...
-                    </Text>
-                  </View>
-                )}
-              </>
+            {!isDriver && (
+              <View style={styles.statusInfo}>
+                <MaterialIcons
+                  name={
+                    rideStatus === "ongoing" ? "directions-car" : "access-time"
+                  }
+                  size={20}
+                  color={COLORS.PRIMARY}
+                />
+                <Text style={styles.statusText}>
+                  {rideStatus === "ongoing"
+                    ? "Đang trên đường đến điểm đích"
+                    : "Tài xế đang đến đón bạn"}
+                </Text>
+              </View>
             )}
           </View>
         </KeyboardAvoidingView>
@@ -1258,18 +893,30 @@ const MatchedRideScreen = ({ navigation, route }) => {
       <ChatModal
         visible={showChatModal}
         onClose={() => setShowChatModal(false)}
-        messages={messages}
-        inputText={inputText}
-        onInputChange={setInputText}
-        onSend={handleSend}
-        onAudioCall={handleAudioCall}
-        onVideoCall={handleVideoCall}
-        loading={loadingChat}
-        currentUserId={matchedRideData.currentUserId}
-        otherPersonName={otherPerson.name}
+        otherUser={{
+          id: isDriver ? matchedRideData.passengerId : matchedRideData.driverId,
+          name: otherPerson.name,
+          avatar: otherPerson.avatar,
+        }}
       />
 
-      {/* Custom Alert Modal */}
+      {/* Feedback Modal */}
+      <FeedbackModal
+        visible={showFeedbackModal}
+        onClose={() => {
+          setShowFeedbackModal(false);
+          // Clear route state
+          setCurrentMapPath(null);
+          currentMapPathRef.current = null;
+          navigation.navigate("MainTabs");
+        }}
+        onSubmit={handleFeedbackSubmit}
+        isSubmitting={isSubmittingFeedback}
+        otherPersonName={otherPerson.name}
+        isDriver={isDriver}
+      />
+
+      {/* Custom Alert */}
       <CustomAlert
         visible={customAlert.visible}
         title={customAlert.title}
@@ -1277,633 +924,209 @@ const MatchedRideScreen = ({ navigation, route }) => {
         buttons={customAlert.buttons}
         onClose={() => setCustomAlert({ ...customAlert, visible: false })}
       />
-
-      {/* Feedback Modal */}
-      <FeedbackModal
-        visible={showFeedbackModal}
-        onClose={() => setShowFeedbackModal(false)}
-        onSubmit={handleFeedbackSubmit}
-        isLoading={isSubmittingFeedback}
-        driverName={matchedRideData.driverName}
-      />
     </SafeAreaView>
   );
 };
 
+// ============================================
+// STYLES
+// ============================================
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.WHITE,
   },
+  loadingContainer: {
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: COLORS.GRAY,
+  },
+  // Header
   headerContainer: {
     backgroundColor: COLORS.WHITE,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.GRAY_LIGHT,
-  },
-  mapContainer: {
-    height: height * 0.48,
-    backgroundColor: COLORS.WHITE,
+    borderBottomColor: "#F0F0F0",
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 12,
   },
   backBtn: {
-    padding: 4,
+    padding: 8,
   },
   headerCenter: {
     flex: 1,
     alignItems: "center",
   },
   headerTitle: {
-    fontSize: 16,
-    fontWeight: "600",
+    fontSize: 18,
+    fontWeight: "700",
     color: COLORS.BLACK,
   },
   headerSpacer: {
-    width: 36,
+    width: 40,
   },
+  // Map
+  mapContainer: {
+    backgroundColor: "#F5F5F5",
+  },
+  // Info Panel
   infoPanel: {
-    flex: 1, // Đảm bảo fill hết height
-    backgroundColor: COLORS.WHITE,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingTop: 30,
-    shadowColor: COLORS.BLACK,
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 8,
+    padding: 16,
   },
-  chatIconContainer: {
-    position: "relative",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  chatBadgeSmall: {
-    position: "absolute",
-    top: -6,
-    right: -6,
-    backgroundColor: COLORS.RED,
-    borderRadius: 8,
-    minWidth: 16,
-    height: 16,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 4,
-  },
-  chatBadgeTextSmall: {
-    color: COLORS.WHITE,
-    fontSize: 10,
-    fontWeight: "bold",
-  },
-  routeInfoSection: {
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.GRAY_LIGHT,
-  },
-  locationRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  locationText: {
-    fontSize: 14,
-    color: COLORS.BLACK,
-    marginLeft: 12,
-    flex: 1,
-    fontWeight: "500",
-  },
-  personInfoCard: {
-    margin: 16,
+  // Person Card
+  personCard: {
     backgroundColor: COLORS.WHITE,
     borderRadius: 16,
-    padding: 18,
-    shadowColor: COLORS.BLACK,
+    padding: 16,
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
     elevation: 4,
-    borderWidth: 1,
-    borderColor: "#f0f0f0",
-  },
-  driverMainInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 16,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
-  },
-  personAvatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: COLORS.GRAY_LIGHT,
-  },
-  driverTextInfo: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  personName: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: COLORS.BLACK,
-    marginBottom: 2,
-  },
-  driverRole: {
-    fontSize: 12,
-    color: COLORS.GRAY,
-    fontWeight: "500",
-  },
-  vehicleInfoBox: {
-    alignItems: "flex-end",
-  },
-  vehicleModel: {
-    fontSize: 16,
-    color: COLORS.BLACK,
-    fontWeight: "600",
-    marginBottom: 6,
-  },
-  licensePlate: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: COLORS.PRIMARY,
-    backgroundColor: COLORS.WHITE,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-    alignSelf: "flex-start",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-  },
-  ratingSection: {
-    marginBottom: 16,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
-  },
-  ratingSectionLabel: {
-    fontSize: 12,
-    color: COLORS.GRAY,
-    fontWeight: "600",
-    marginBottom: 6,
-  },
-  starsRow: {
-    flexDirection: "row",
-    gap: 4,
-  },
-  threeColumnInfo: {
-    flexDirection: "row",
-    marginBottom: 16,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
-  },
-  infoColumn: {
-    flex: 1,
-  },
-  infoColumnDivider: {
-    width: 1,
-    backgroundColor: "#e0e0e0",
-    marginHorizontal: 12,
-  },
-  infoColumnLabel: {
-    fontSize: 11,
-    color: COLORS.GRAY,
-    fontWeight: "600",
-    marginBottom: 6,
-  },
-  infoColumnValue: {
-    fontSize: 13,
-    color: COLORS.BLACK,
-    fontWeight: "700",
   },
   personHeader: {
     flexDirection: "row",
     alignItems: "center",
   },
-  personInfo: {
-    flex: 1,
-  },
-  personName: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: COLORS.BLACK,
-    marginBottom: 2,
-  },
-  callBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: COLORS.GREEN,
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: COLORS.BLACK,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  messagesContainer: {
-    maxHeight: 200,
-    paddingHorizontal: 16,
-    marginBottom: 8,
-    height: 105,
-  },
-  loadingContainer: {
-    height: 105,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 16,
-  },
-  emptyMessagesContainer: {
-    height: 105,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 16,
-  },
-  emptyMessagesText: {
-    marginTop: 8,
-    fontSize: 14,
-    color: COLORS.GRAY,
-  },
-  messageRow: {
-    marginBottom: 10,
-    flexDirection: "row",
-    justifyContent: "flex-start",
-  },
-  messageRowMyMessage: {
-    justifyContent: "flex-end",
-  },
-  messageBubble: {
-    backgroundColor: "#e8f0fe",
-    padding: 12,
-    borderRadius: 14,
-    maxWidth: "80%",
-    borderBottomLeftRadius: 4,
-  },
-  messageBubbleOwn: {
-    backgroundColor: COLORS.PRIMARY,
-    borderBottomLeftRadius: 14,
-    borderBottomRightRadius: 4,
-  },
-  messageText: {
-    fontSize: 14,
-    color: COLORS.BLACK,
-  },
-  messageTextOwn: {
-    color: COLORS.WHITE,
-  },
-  messageTime: {
-    fontSize: 11,
-    color: COLORS.GRAY,
-    marginTop: 4,
-  },
-  messageTimeOwn: {
-    color: "rgba(255,255,255,0.7)",
-  },
-  inputBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderTopWidth: 1,
-    minHeight: 52,
-    borderTopColor: COLORS.GRAY_LIGHT,
-    backgroundColor: COLORS.WHITE,
-    gap: 8,
-  },
-  inputField: {
-    flex: 1,
-    backgroundColor: "#f5f5f5",
-    borderRadius: 24,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    fontSize: 14,
-    minHeight: 36,
-    maxHeight: 100,
-    lineHeight: 20,
-    color: COLORS.BLACK,
-  },
-  sendButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.PRIMARY,
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: COLORS.BLACK,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  callButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.GREEN,
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: COLORS.BLACK,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  actionBtn: {
-    borderRadius: 12,
-    paddingVertical: 13,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 10,
-    shadowColor: COLORS.BLACK,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  actionBtnText: {
-    color: COLORS.WHITE,
-    fontWeight: "700",
-    fontSize: 15,
-    letterSpacing: 0.3,
-  },
-  waitingSection: {
-    backgroundColor: "#FFF8E1",
-    borderRadius: 12,
-    padding: 16,
-    alignItems: "center",
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "#FFD54F",
-  },
-  waitingText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: COLORS.BLACK,
-    marginTop: 8,
-    textAlign: "center",
-  },
-  waitingSubtext: {
-    fontSize: 13,
-    color: COLORS.GRAY,
-    marginTop: 4,
-    textAlign: "center",
-  },
-  driverComingSection: {
-    backgroundColor: "#f0fef9",
-    borderRadius: 20,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "#d4f4ea",
-    shadowColor: COLORS.GREEN,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  driverComingHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 12,
-  },
-  driverComingTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: COLORS.BLACK,
-    marginBottom: 4,
-  },
-  driverComingSubtitle: {
-    fontSize: 13,
-    color: COLORS.GRAY,
-    fontWeight: "500",
-  },
-  etaBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: COLORS.WHITE,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
-    gap: 6,
-    shadowColor: COLORS.BLACK,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  etaText: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: COLORS.PRIMARY,
-  },
-  progressContainer: {
-    height: 4,
-    backgroundColor: "#e0e0e0",
-    borderRadius: 2,
-    marginBottom: 12,
-    overflow: "hidden",
-  },
-  progressBar: {
-    height: "100%",
-    width: "45%",
-    backgroundColor: COLORS.GREEN,
-    borderRadius: 2,
-  },
-  locationInfoRow: {
-    gap: 10,
-  },
-  locationInfoItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingVertical: 6,
-  },
-  locationInfoText: {
-    fontSize: 13,
-    color: COLORS.BLACK,
-    fontWeight: "500",
-    flex: 1,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-  },
-  modalBox: {
-    backgroundColor: COLORS.WHITE,
-    borderRadius: 20,
-    padding: 24,
-    width: "90%",
-    shadowColor: COLORS.BLACK,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    textAlign: "center",
-    marginBottom: 8,
-    color: COLORS.BLACK,
-  },
-  modalSubtitle: {
-    textAlign: "center",
-    fontSize: 15,
-    color: COLORS.GRAY,
-    marginBottom: 16,
-  },
-  commentInput: {
-    borderWidth: 1,
-    borderColor: COLORS.GRAY_LIGHT,
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 14,
-    color: COLORS.BLACK,
-    marginTop: 12,
-    minHeight: 80,
-  },
-  starsContainer: {
-    flexDirection: "row",
-    justifyContent: "center",
-  },
-  star: {
-    marginHorizontal: 5,
-  },
-  reviewText: {
-    marginTop: 10,
-    fontSize: 18,
-    fontWeight: "600",
-    color: COLORS.BLACK,
-  },
-  // Customer Info Card Styles
-  customerInfoCard: {
-    backgroundColor: COLORS.WHITE,
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  customerHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  customerAvatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+  personAvatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: COLORS.LIGHT_GRAY,
   },
-  vehicleInfoSection: {
-    paddingVertical: 8,
+  personInfo: {
+    flex: 1,
+    marginLeft: 12,
   },
-  vehicleInfoCard: {
-    backgroundColor: "#F8F9FA",
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+  personLabel: {
+    fontSize: 12,
+    color: COLORS.GRAY,
   },
-  vehicleInfoRow: {
+  personName: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: COLORS.BLACK,
+  },
+  ratingRow: {
     flexDirection: "row",
     alignItems: "center",
+    marginTop: 4,
   },
-  vehicleIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: COLORS.WHITE,
+  ratingText: {
+    fontSize: 14,
+    color: COLORS.BLACK,
+    fontWeight: "600",
+    marginLeft: 4,
+  },
+  callButton: {
+    backgroundColor: COLORS.GREEN,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    marginRight: 12,
   },
-  vehicleInfoContent: {
-    flex: 1,
-  },
-  etaInfoRow: {
+  vehicleInfo: {
     flexDirection: "row",
     alignItems: "center",
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: "#f0f0f0",
+    borderTopColor: "#F0F0F0",
   },
-  etaInfoText: {
-    fontSize: 13,
-    color: COLORS.PRIMARY,
-    fontWeight: "600",
+  vehicleText: {
+    fontSize: 14,
+    color: COLORS.GRAY,
     marginLeft: 8,
-  },
-  customerNameLabel: {
-    fontSize: 12,
-    color: COLORS.GRAY,
-    marginBottom: 4,
-  },
-  customerName: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: COLORS.BLACK,
-  },
-  customerRatingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 4,
-  },
-  customerRatingText: {
-    fontSize: 14,
-    color: COLORS.BLACK,
-    fontWeight: "600",
-    marginLeft: 4,
-    marginRight: 4,
-  },
-  customerPhone: {
-    fontSize: 14,
-    color: COLORS.GRAY,
-  },
-  callButton: {
-    backgroundColor: COLORS.GREEN,
-    padding: 10,
-    borderRadius: 25,
-    marginLeft: 10,
   },
   divider: {
     height: 1,
     backgroundColor: "#F0F0F0",
-    marginVertical: 12,
+    marginVertical: 16,
   },
-  locationSummary: {
+  // Route Info
+  routeInfo: {
     paddingHorizontal: 4,
   },
-  locationRow: {
+  routeRow: {
     flexDirection: "row",
     alignItems: "center",
   },
-  locationText: {
+  routeDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 12,
+  },
+  routeText: {
     fontSize: 14,
     color: COLORS.BLACK,
-    marginLeft: 8,
     flex: 1,
+  },
+  routeLine: {
+    width: 2,
+    height: 24,
+    backgroundColor: "#E0E0E0",
+    marginLeft: 4,
+    marginVertical: 4,
+  },
+  priceRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#F0F0F0",
+  },
+  priceLabel: {
+    fontSize: 14,
+    color: COLORS.GRAY,
+  },
+  priceValue: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: COLORS.PRIMARY,
+  },
+  // Action Buttons
+  actionButtons: {
+    marginTop: 16,
+  },
+  primaryButton: {
+    backgroundColor: COLORS.PRIMARY,
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  disabledButton: {
+    backgroundColor: COLORS.GRAY_LIGHT,
+  },
+  primaryButtonText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: COLORS.WHITE,
+  },
+  statusInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 16,
+    backgroundColor: "#F0F7FF",
+    borderRadius: 12,
+  },
+  statusText: {
+    fontSize: 14,
+    color: COLORS.PRIMARY,
+    fontWeight: "600",
+    marginLeft: 8,
   },
 });
 

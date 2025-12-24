@@ -125,7 +125,8 @@ const MyFixedRoutesScreen = ({ navigation }) => {
     // Always display date if specificDates exists
     const displayDate = item.specificDates || null;
     const isActive = item.status === "ACTIVE";
-    const bookedSeats = item.totalSeats - item.availableSeats;
+    // Always count driver as +1 (driver is always included)
+    const bookedSeats = item.totalSeats - item.availableSeats + 1;
     const seatPercentage = (bookedSeats / item.totalSeats) * 100;
 
     // Debug log
@@ -302,6 +303,24 @@ const MyFixedRoutesScreen = ({ navigation }) => {
               >
                 <MaterialIcons name="people" size={20} color="#FFF" />
                 <Text style={styles.actionButtonTextPrimary}>Xem đặt chỗ</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.actionButtonStart}
+              onPress={() => {
+                // TODO: Navigate to start trip screen
+                Alert.alert("Thông báo", "Chức năng đang phát triển");
+              }}
+            >
+              <LinearGradient
+                colors={["#10b981", "#059669"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.gradientButton}
+              >
+                <MaterialIcons name="play-arrow" size={20} color="#FFF" />
+                <Text style={styles.actionButtonTextPrimary}>Bắt đầu</Text>
               </LinearGradient>
             </TouchableOpacity>
 
@@ -745,6 +764,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderWidth: 1,
     borderColor: "#E5E7EB",
+  },
+  actionButtonStart: {
+    flex: 1,
+    borderRadius: 12,
+    overflow: "hidden",
+    elevation: 2,
+    shadowColor: "#10b981",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
   },
   emptyContainer: {
     flex: 1,

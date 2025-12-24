@@ -11,7 +11,8 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import COLORS from "../../../constant/colors";
-import DriverLocationService from "../../../services/driverLocationService";
+// import DriverLocationService from "../../../services/driverLocationService"; // DEPRECATED
+import useDriverLocation from "../../../hooks/useDriverLocation";
 import axiosClient from "../../../api/axiosClient";
 import { getProfile } from "../../../services/userService";
 import useDriverOnlineStatus from "../../../hooks/useDriverOnlineStatus";
@@ -20,7 +21,9 @@ import GradientHeader from "../../../components/GradientHeader";
 
 const DriverStatusScreen = ({ navigation }) => {
   const { isOnline, setOnlineStatus, loading } = useDriverOnlineStatus();
-  const [currentLocation, setCurrentLocation] = useState(null);
+  // Use new hook to manage location broadcasting based on online status
+  const { currentLocation, isTracking } = useDriverLocation(isOnline);
+  // const [currentLocation, setCurrentLocation] = useState(null); // Managed by hook now
 
   const handleToggleStatus = async (value) => {
     if (value) {

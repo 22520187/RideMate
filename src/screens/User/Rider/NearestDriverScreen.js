@@ -13,7 +13,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import COLORS from '../../../constant/colors';
-import useNearestDriver from '../../../hooks/useNearestDriver';
+// import useNearestDriver from '../../../hooks/useNearestDriver';
+import { supabase } from '../../../config/supabaseClient';
 import axiosClient from '../../../api/axiosClient';
 import Toast from 'react-native-toast-message';
 
@@ -28,17 +29,72 @@ const NearestDriverScreen = ({ navigation, route }) => {
   const [selectedDriver, setSelectedDriver] = useState(null);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
 
-  // Sử dụng hook để lấy driver gần nhất real-time
-  const { nearestDriver, allDrivers, loading, error } = useNearestDriver(
-    pickupLocation,
-    7 // 7km radius
-  );
+  // State for drivers
+  const [allDrivers, setAllDrivers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
+  // Helper to calculate distance
+  const calculateDistance = (lat1, lon1, lat2, lon2) => {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  };
+
+  // Fetch drivers logic
   useEffect(() => {
-    if (nearestDriver) {
-      setSelectedDriver(nearestDriver);
-    }
-  }, [nearestDriver]);
+    const fetchDrivers = async () => {
+      try {
+        setLoading(true);
+        const { data, error: fetchError } = await supabase
+          .from('driver_locations')
+          .select('*')
+          .eq('driver_status', 'ONLINE'); // Removed gt/lt filters for simplicity, filtering by distance in JS
+
+        if (fetchError) throw fetchError;
+
+        if (data && pickupLocation) {
+          const driversWithDistance = data.map(d => {
+            const dist = calculateDistance(
+              pickupLocation.latitude,
+              pickupLocation.longitude,
+              d.latitude, 
+              d.longitude
+            );
+            return {
+              ...d,
+              driver_name: d.driver_id, // Simple fallback if name not joined
+              distance: dist.toFixed(1),
+              eta: Math.ceil(dist * 2) // Rough estimate 30km/h -> 2 min/km
+            };
+          }).filter(d => parseFloat(d.distance) <= 7) // 7km radius
+            .sort((a, b) => parseFloat(a.distance) - parseFloat(b.distance));
+
+          setAllDrivers(driversWithDistance);
+          if (driversWithDistance.length > 0) {
+            setSelectedDriver(driversWithDistance[0]);
+          }
+        } else {
+          setAllDrivers([]);
+        }
+      } catch (err) {
+        console.error('Error fetching drivers:', err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDrivers();
+
+    // Subscribe to changes (optional, for now just fetch once on mount is enough for this screen)
+    // to keep it simple and avoid complexity in this file.
+  }, [pickupLocation]);
 
   const handleApproveDriver = async () => {
     if (!selectedDriver) {
@@ -69,8 +125,9 @@ const NearestDriverScreen = ({ navigation, route }) => {
       });
 
       // Navigate to matched ride screen
-      navigation.replace('MatchedRideScreen', {
+      navigation.replace('MatchedRide', {
         matchId: matchData.id,
+        rideId: matchData.id,
         driverId: selectedDriver.driver_id,
         driverName: selectedDriver.driver_name || 'Tài xế',
         driverLocation: {

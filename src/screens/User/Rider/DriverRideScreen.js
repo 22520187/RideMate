@@ -698,6 +698,8 @@ const DriverRideScreen = ({ navigation, route }) => {
         rideId: matchData?.id || selectedPassenger.id, // Use real match ID if available
         from: fromLocation,
         to: toLocation,
+        originCoordinate,
+        destinationCoordinate,
         departureTime: scheduledRide?.time || selectedPassenger.departureTime,
         price: routeInfo.price,
         duration: routeInfo.duration,

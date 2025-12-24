@@ -316,7 +316,7 @@ const RideDetail = ({ route, navigation }) => {
         {/* Status Card */}
         <View style={styles.statusCard}>
           <LinearGradient colors={[statusColor, statusColor + "CC"]} style={styles.statusGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-            <Ionicons name={ride.status === "COMPLETED" ? "checkmark-circle" : "alert-circle"} size={48} color="#fff" />
+            <Ionicons name={ride.status === "COMPLETED" ? "checkmark-circle" : "alert-circle"} size={32} color="#fff" />
             <Text style={styles.statusText}>{getStatusText(ride.status)}</Text>
             <Text style={styles.statusSubtext}>{new Date(ride.createdAt).toLocaleString("vi-VN")}</Text>
           </LinearGradient>
@@ -372,6 +372,36 @@ const RideDetail = ({ route, navigation }) => {
                    <Text style={styles.routeAddress}>{ride.destinationAddress}</Text>
                 </View>
              </View>
+          </View>
+        </View>
+
+        {/* Ride Details */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Thông tin chuyến đi</Text>
+          <View style={styles.detailsCard}>
+            <View style={styles.detailRow}>
+              <View style={styles.detailItem}>
+                <Ionicons name="cash-outline" size={20} color={COLORS.PRIMARY} />
+                <Text style={styles.detailLabel}>Giá cước</Text>
+                <Text style={styles.detailValue}>{ride.coin} coin</Text>
+              </View>
+              <View style={styles.detailDivider} />
+              <View style={styles.detailItem}>
+                <Ionicons name="navigate-outline" size={20} color={COLORS.PRIMARY} />
+                <Text style={styles.detailLabel}>Khoảng cách</Text>
+                <Text style={styles.detailValue}>
+                  {ride.distance >= 1000 
+                    ? `${(ride.distance / 1000).toFixed(1)} km` 
+                    : `${Math.round(ride.distance)} m`}
+                </Text>
+              </View>
+              <View style={styles.detailDivider} />
+              <View style={styles.detailItem}>
+                <Ionicons name="time-outline" size={20} color={COLORS.PRIMARY} />
+                <Text style={styles.detailLabel}>Thời gian</Text>
+                <Text style={styles.detailValue}>{ride.duration || 0} phút</Text>
+              </View>
+            </View>
           </View>
         </View>
 
@@ -456,8 +486,8 @@ const styles = StyleSheet.create({
     backButton: { width: 40, height: 40, borderRadius: 20, backgroundColor: "#F5F5F5", justifyContent: "center", alignItems: "center" },
     headerTitle: { fontSize: 18, fontWeight: "700", color: "#1C1C1E" },
     statusCard: { margin: 20, borderRadius: 20, overflow: "hidden", elevation: 6 },
-    statusGradient: { padding: 32, alignItems: "center" },
-    statusText: { fontSize: 24, fontWeight: "700", color: "#fff", marginTop: 12 },
+    statusGradient: { padding: 24, alignItems: "center" },
+    statusText: { fontSize: 18, fontWeight: "700", color: "#fff", marginTop: 8 },
     statusSubtext: { fontSize: 14, color: "rgba(255,255,255,0.9)", marginTop: 4 },
     section: { marginBottom: 20, paddingHorizontal: 20 },
     sectionTitle: { fontSize: 18, fontWeight: "700", color: "#1C1C1E", marginBottom: 12 },
@@ -475,6 +505,14 @@ const styles = StyleSheet.create({
     routeContent: { flex: 1 },
     routeLabel: { fontSize: 12, color: "#8E8E93" },
     routeAddress: { fontSize: 15, fontWeight: "600" },
+    detailsCard: { backgroundColor: "#F8F9FA", borderRadius: 16, padding: 16 },
+    detailRow: { flexDirection: "row", justifyContent: "space-between" },
+    detailItem: { flex: 1, alignItems: "center", gap: 4 },
+    detailDivider: { width: 1, backgroundColor: "#E0E0E0", marginHorizontal: 8 },
+    detailLabel: { fontSize: 12, color: "#8E8E93", marginTop: 4 },
+    detailValue: { fontSize: 16, fontWeight: "700", color: "#1C1C1E" },
+    phoneText: { fontSize: 14, color: "#8E8E93", marginTop: 2 },
+    vehicleText: { fontSize: 13, color: "#8E8E93", marginTop: 4 },
     actionSection: { paddingHorizontal: 20, gap: 12, marginBottom: 20 },
     primaryButton: { backgroundColor: COLORS.PRIMARY, padding: 16, borderRadius: 12, flexDirection: "row", justifyContent: "center" },
     primaryButtonText: { color: "#fff", fontWeight: "700" },

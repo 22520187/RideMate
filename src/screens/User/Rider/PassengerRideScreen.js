@@ -27,7 +27,8 @@ import CustomAlert from "../../../components/CustomAlert";
 import { getCurrentLocation, reverseGeocode } from "../../../config/maps";
 import { searchPlaces as osmSearchPlaces, getRoute } from "../../../utils/api";
 import { getProfile } from "../../../services/userService";
-import useDriverLocations from "../../../hooks/useDriverLocations";
+import { useSharedPath } from "../../../hooks/useSharedPath";
+// import useDriverLocations from "../../../hooks/useDriverLocations";
 import {
   bookRide,
   cancelMatch,
@@ -36,6 +37,7 @@ import {
 
 const PassengerRideScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
+  const { updatePath } = useSharedPath();
   const [refreshKey, setRefreshKey] = useState(0);
 
   // User profile state
@@ -93,8 +95,10 @@ const PassengerRideScreen = ({ navigation, route }) => {
   const [fromSuggestions, setFromSuggestions] = useState([]);
   const [toSuggestions, setToSuggestions] = useState([]);
   const [routePath, setRoutePath] = useState([]);
+  const [routePolyline, setRoutePolyline] = useState(null); // Encoded polyline string để gửi lên backend
   const [activeInput, setActiveInput] = useState(null); // 'from' or 'to'
   const [isGettingLocation, setIsGettingLocation] = useState(false);
+  const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
   const [shouldAnimateRoute, setShouldAnimateRoute] = useState(false); // Kiểm soát animation
   const [routeDistance, setRouteDistance] = useState("0");
   const [routeDuration, setRouteDuration] = useState("0");
@@ -127,10 +131,9 @@ const PassengerRideScreen = ({ navigation, route }) => {
     });
   };
 
-  const { drivers, loading: driversLoading } = useDriverLocations(
-    originCoordinate,
-    7
-  );
+  // Removed useDriverLocations hook - RouteMap now handles driver fetching internaly
+  const drivers = [];
+  const driversLoading = false;
 
   // Keep pricing consistent with DriverRideScreen
   const calculatePrice = (distanceKm) => {
@@ -199,26 +202,38 @@ const PassengerRideScreen = ({ navigation, route }) => {
 
   // Tính toán route, khoảng cách và thời gian khi có cả origin và destination
   useEffect(() => {
+    let isMounted = true;
     const calculateRoute = async () => {
       if (originCoordinate && destinationCoordinate) {
         try {
+          setIsCalculatingRoute(true);
           console.log("🗺️ Calculating route...");
-          const path = await getRoute(originCoordinate, destinationCoordinate);
+          const routeResult = await getRoute(
+            originCoordinate,
+            destinationCoordinate
+          );
+
+          if (!isMounted) return;
+
+          // Handle both object {path, encodedPolyline} and array (fallback) responses
+          let path = Array.isArray(routeResult)
+            ? routeResult
+            : routeResult?.path || [];
+          const encodedPolyline = routeResult?.encodedPolyline || null;
 
           if (!path || path.length === 0) {
             console.warn("⚠️ No route found");
-            Alert.alert(
-              "Không tìm thấy đường đi",
-              "Không thể tính toán lộ trình giữa hai điểm này. Vui lòng chọn địa điểm khác.",
-              [{ text: "OK" }]
-            );
             setRoutePath([]);
+            setRoutePolyline(null);
             setRouteDistance("0");
             setRouteDuration("0");
             return;
           }
 
           setRoutePath(path);
+          setRoutePolyline(encodedPolyline); // Lưu encoded polyline để gửi lên backend
+          // Cập nhật shared path để MatchedRideScreen (passenger & driver) dùng chung
+          updatePath(path);
 
           // Tính khoảng cách từ path
           let distanceKm = 0;
@@ -254,6 +269,8 @@ const PassengerRideScreen = ({ navigation, route }) => {
           );
         } catch (error) {
           console.error("❌ Error calculating route:", error);
+        } finally {
+          if (isMounted) setIsCalculatingRoute(false);
         }
       } else {
         // Reset khi không có đủ tọa độ
@@ -263,7 +280,13 @@ const PassengerRideScreen = ({ navigation, route }) => {
       }
     };
 
-    calculateRoute();
+    // Debounce nhẹ để tránh fetch quá nhiều khi user đang chọn điểm
+    // Giảm từ 500ms xuống 300ms để nhanh hơn
+    const timeoutId = setTimeout(calculateRoute, 300);
+    return () => {
+      isMounted = false;
+      clearTimeout(timeoutId);
+    };
   }, [originCoordinate, destinationCoordinate]);
 
   // Tính toán chiều rộng cho suggestions
@@ -458,7 +481,10 @@ const PassengerRideScreen = ({ navigation, route }) => {
         pickupLongitude: originCoordinate.longitude,
         destinationLatitude: destinationCoordinate.latitude,
         destinationLongitude: destinationCoordinate.longitude,
+        distance: Math.round(distanceKm * 1000), // Convert km to meters
+        duration: parseInt(routeDuration, 10), // Duration in minutes
         vehicleType: "MOTORBIKE",
+        routePolyline: routePolyline, // Gửi encoded polyline lên backend
       });
 
       console.log("✅ bookRide API response:", bookingResp);
@@ -665,20 +691,10 @@ const PassengerRideScreen = ({ navigation, route }) => {
           fullScreen={true}
           startAnimation={false}
           showVehicle={false}
+          disableInternalFetch={true}
         />
 
-        {!isSearching &&
-          drivers &&
-          drivers.length > 0 &&
-          drivers.map((driver) => (
-            <DriverMapMarker
-              key={driver.driver_id}
-              driver={driver}
-              onPress={(driver) => {
-                console.log("Driver selected:", driver);
-              }}
-            />
-          ))}
+        {/* Drivers are now rendered inside RouteMap component */}
 
         {isSearching && (
           <View style={styles.searchingOverlay}>

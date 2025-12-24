@@ -9,8 +9,12 @@ export const submitFeedback = async (matchId, rating, comment, tags) => {
       comment,
       tags: JSON.stringify(tags), // Backend stores as TEXT/String
     });
-    return response.data;
+    return { success: true, data: response.data };
   } catch (error) {
-    throw error;
+    console.log('Feedback API error (silent):', error.message);
+    return { 
+      success: false, 
+      error: error?.response?.data?.message || error?.message || 'Unknown error'
+    };
   }
 };
