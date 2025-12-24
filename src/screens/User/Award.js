@@ -25,13 +25,14 @@ import {
   redeemVoucher,
 } from "../../services/voucherService";
 import { getProfile } from "../../services/userService";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import GradientHeader from "../../components/GradientHeader";
 
 const { width: screenWidth } = Dimensions.get("window");
 
 const Award = () => {
   const navigation = useNavigation();
+  const route = useRoute();
   const [points, setPoints] = useState(0);
   const insets = useSafeAreaInsets();
   const [refreshKey, setRefreshKey] = useState(0);
@@ -85,27 +86,12 @@ const Award = () => {
   ]);
   const [selectedPromo, setSelectedPromo] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
-  const [activeTab, setActiveTab] = useState("vouchers"); // 'vouchers', 'history'
+  const [activeTab, setActiveTab] = useState(
+    route?.params?.initialTab || "vouchers"
+  ); // 'vouchers', 'history'
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
   const [selectedCategory, setSelectedCategory] = useState("all");
   const bannerScrollRef = useRef(null);
-
-  const [pointsHistory] = useState([
-    {
-      id: "h1",
-      amount: 200,
-      type: "earned",
-      desc: "Hoàn thành chuyến đi #123",
-      date: "2025-10-08",
-    },
-    {
-      id: "h2",
-      amount: -400,
-      type: "spent",
-      desc: "Đổi voucher",
-      date: "2025-10-07",
-    },
-  ]);
 
   // Load data from API
   const loadData = async () => {
@@ -440,7 +426,7 @@ const Award = () => {
         </View>
         <View style={styles.promoContent}>
           <View style={styles.promoHeader}>
-            <Text style={styles.promoBrand}>{item.voucherCode}</Text>
+            <Text style={styles.promoBrand}>{typeInfo.label}</Text>
             <View style={styles.costPill}>
               <MaterialIcons
                 name="stars"
@@ -486,31 +472,6 @@ const Award = () => {
       </TouchableOpacity>
     );
   };
-
-  const renderPointHistoryItem = ({ item }) => (
-    <View style={styles.historyCard}>
-      <View style={styles.historyLeft}>
-        <MaterialIcons
-          name={item.type === "earned" ? "add-circle" : "remove-circle"}
-          size={24}
-          color={item.type === "earned" ? COLORS.GREEN : COLORS.ORANGE_DARK}
-        />
-        <View style={styles.historyTextWrap}>
-          <Text style={styles.historyDesc}>{item.desc}</Text>
-          <Text style={styles.historyDate}>{item.date}</Text>
-        </View>
-      </View>
-      <Text
-        style={[
-          styles.historyAmount,
-          item.type === "earned" ? styles.earnedAmount : styles.spentAmount,
-        ]}
-      >
-        {item.type === "earned" ? "+" : "-"}
-        {Math.abs(item.amount)}
-      </Text>
-    </View>
-  );
 
   const renderRedeemedVoucherItem = ({ item }) => {
     const voucher = item.voucher;
@@ -655,23 +616,6 @@ const Award = () => {
                 <Text style={styles.emptyText}>Bạn chưa đổi voucher nào</Text>
               </View>
             }
-            ListFooterComponent={
-              myVouchers.length > 0 ? (
-                <>
-                  <Text
-                    style={[styles.historyTitle, styles.pointsHistoryTitle]}
-                  >
-                    Lịch sử điểm thưởng
-                  </Text>
-                  <FlatList
-                    data={pointsHistory}
-                    keyExtractor={(item) => item.id}
-                    renderItem={renderPointHistoryItem}
-                    scrollEnabled={false}
-                  />
-                </>
-              ) : null
-            }
           />
         </View>
       )}
@@ -687,12 +631,6 @@ const Award = () => {
             <Text style={styles.modalTitle}>Xác nhận đổi voucher</Text>
             {selectedPromo && (
               <View style={styles.modalBody}>
-                <Text style={styles.modalLine}>
-                  Mã voucher:{" "}
-                  <Text style={styles.modalStrong}>
-                    {selectedPromo.voucherCode}
-                  </Text>
-                </Text>
                 <Text style={styles.modalLine}>
                   Mô tả:{" "}
                   <Text style={styles.modalStrong}>

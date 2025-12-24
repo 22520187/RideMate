@@ -1,12 +1,25 @@
 import React, { useState, useEffect } from 'react'
-import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native'
+import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity, Alert, ActivityIndicator, FlatList } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { CalendarClock, ChevronLeft, TicketPercent, Gift } from 'lucide-react-native'
 import COLORS from '../../constant/colors'
 import { redeemVoucher } from '../../services/voucherService'
 
 const Voucher = ({ route, navigation }) => {
-  const { voucher, userVoucher } = route.params || {}
+  const {
+    voucher,
+    userVoucher,
+    mockVouchers,
+    myVouchers,
+    title,
+    subtitle,
+    image,
+    badge: promoBadge,
+    validFrom,
+    validTo,
+    terms,
+    code: promoCode,
+  } = route.params || {}
   const [isRedeeming, setIsRedeeming] = useState(false)
   const [redeemed, setRedeemed] = useState(!!userVoucher)
 
@@ -70,6 +83,250 @@ const Voucher = ({ route, navigation }) => {
   const expiryDate = voucherData?.expiryDate
   const description = voucherData?.description
 
+  // MY VOUCHERS LIST MODE (Home service button passes myVouchers from API)
+  if (!voucherData && Array.isArray(myVouchers) && !Array.isArray(mockVouchers)) {
+    // UserVoucherDto: { id, status: UNUSED|REDEEMED|EXPIRED, acquiredDate, voucher: VoucherDto }
+    const list = myVouchers
+      .slice()
+      .sort((a, b) => {
+        const da = a?.voucher?.expiryDate ? new Date(a.voucher.expiryDate).getTime() : 0
+        const db = b?.voucher?.expiryDate ? new Date(b.voucher.expiryDate).getTime() : 0
+        return da - db
+      })
+
+    const statusLabel = (s) => {
+      switch (s) {
+        case 'UNUSED':
+          return 'Khả dụng'
+        case 'REDEEMED':
+          return 'Đã dùng'
+        case 'EXPIRED':
+          return 'Hết hạn'
+        default:
+          return 'Voucher'
+      }
+    }
+
+    const renderMyVoucherItem = ({ item }) => {
+      const v = item?.voucher
+      const itemBadge = getVoucherTypeBadge(v?.voucherType)
+      const pillText = statusLabel(item?.status)
+      return (
+        <TouchableOpacity
+          style={styles.listCard}
+          activeOpacity={0.85}
+          onPress={() => navigation.push('Voucher', { userVoucher: item })}
+        >
+          <View style={styles.listTopRow}>
+            <View style={styles.listIconWrap}>
+              <TicketPercent size={18} color={COLORS.WHITE} />
+            </View>
+            <View style={styles.listMain}>
+              <Text style={styles.listCode}>{v?.voucherCode || 'VOUCHER'}</Text>
+              {!!itemBadge && <Text style={styles.listBadgeText}>{itemBadge}</Text>}
+              {!!v?.description && (
+                <Text style={styles.listDesc} numberOfLines={2}>
+                  {v.description}
+                </Text>
+              )}
+            </View>
+            <View style={styles.listPill}>
+              <Text style={styles.listPillText}>{pillText}</Text>
+            </View>
+          </View>
+
+          <View style={styles.listMetaRow}>
+            <CalendarClock size={16} color={COLORS.PRIMARY} />
+            <Text style={styles.listMetaText}>
+              Hết hạn: {v?.expiryDate ? formatDate(v.expiryDate) : 'Không giới hạn'}
+            </Text>
+          </View>
+        </TouchableOpacity>
+      )
+    }
+
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+            <ChevronLeft size={22} color={COLORS.WHITE} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Voucher của tôi</Text>
+          <View style={{ width: 32 }} />
+        </View>
+
+        {list.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>Bạn chưa có voucher nào</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={list}
+            keyExtractor={(item) => String(item.id)}
+            renderItem={renderMyVoucherItem}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
+          />
+        )}
+      </SafeAreaView>
+    )
+  }
+
+  // PROMOTION MODE (Home "Ưu đãi hot" cards pass marketing params)
+  if (!voucherData && !Array.isArray(mockVouchers) && (title || subtitle || image || promoBadge || validFrom || validTo || terms || promoCode)) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+            <ChevronLeft size={22} color={COLORS.WHITE} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Chi tiết ưu đãi</Text>
+          <View style={{ width: 32 }} />
+        </View>
+
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
+          {!!image && (
+            <View style={styles.promoHero}>
+              <Image source={{ uri: image }} style={styles.promoHeroImage} />
+              <View style={styles.promoHeroOverlay} />
+              <View style={styles.promoHeroContent}>
+                {!!promoBadge && (
+                  <View style={styles.badge}>
+                    <TicketPercent size={14} color={COLORS.WHITE} />
+                    <Text style={styles.badgeText}>{promoBadge}</Text>
+                  </View>
+                )}
+                {!!title && <Text style={styles.title}>{title}</Text>}
+                {!!subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
+              </View>
+            </View>
+          )}
+
+          {!image && (
+            <View style={styles.section}>
+              {!!promoBadge && (
+                <View style={styles.badge}>
+                  <TicketPercent size={14} color={COLORS.WHITE} />
+                  <Text style={styles.badgeText}>{promoBadge}</Text>
+                </View>
+              )}
+              {!!title && <Text style={[styles.sectionTitle, { marginBottom: 8 }]}>{title}</Text>}
+              {!!subtitle && <Text style={styles.bodyText}>{subtitle}</Text>}
+            </View>
+          )}
+
+          {(validFrom || validTo) && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Thời gian hiệu lực</Text>
+              <View style={styles.card}>
+                <View style={styles.row}>
+                  <CalendarClock size={18} color={COLORS.PRIMARY} />
+                  <Text style={styles.rowText}>
+                    {validFrom ? `Từ ${validFrom}` : ''}
+                    {validFrom && validTo ? '  •  ' : ''}
+                    {validTo ? `Đến ${validTo}` : ''}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          )}
+
+          {!!promoCode && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Mã ưu đãi</Text>
+              <View style={styles.card}>
+                <Text style={styles.code}>{promoCode}</Text>
+                <Text style={styles.note}>Sao chép và nhập mã khi thanh toán (nếu có).</Text>
+              </View>
+            </View>
+          )}
+
+          {!!terms && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Điều kiện áp dụng</Text>
+              <View style={styles.card}>
+                <Text style={styles.bodyText}>{terms}</Text>
+              </View>
+            </View>
+          )}
+        </ScrollView>
+      </SafeAreaView>
+    )
+  }
+
+  // LIST MODE (Home service button passes mockVouchers)
+  if (!voucherData && Array.isArray(mockVouchers)) {
+    const list = mockVouchers
+      .filter((v) => v?.status === 'AVAILABLE')
+      .sort((a, b) => {
+        const da = a?.expiryDate ? new Date(a.expiryDate).getTime() : 0
+        const db = b?.expiryDate ? new Date(b.expiryDate).getTime() : 0
+        return da - db
+      })
+
+    const renderListItem = ({ item }) => {
+      const itemBadge = getVoucherTypeBadge(item?.voucherType)
+      return (
+        <TouchableOpacity
+          style={styles.listCard}
+          activeOpacity={0.85}
+          onPress={() => navigation.push('Voucher', { voucher: item })}
+        >
+          <View style={styles.listTopRow}>
+            <View style={styles.listIconWrap}>
+              <TicketPercent size={18} color={COLORS.WHITE} />
+            </View>
+            <View style={styles.listMain}>
+              <Text style={styles.listCode}>{item?.voucherCode || 'VOUCHER'}</Text>
+              {!!itemBadge && <Text style={styles.listBadgeText}>{itemBadge}</Text>}
+              {!!item?.description && (
+                <Text style={styles.listDesc} numberOfLines={2}>
+                  {item.description}
+                </Text>
+              )}
+            </View>
+            <View style={styles.listPill}>
+              <Text style={styles.listPillText}>Khả dụng</Text>
+            </View>
+          </View>
+
+          <View style={styles.listMetaRow}>
+            <CalendarClock size={16} color={COLORS.PRIMARY} />
+            <Text style={styles.listMetaText}>
+              Hết hạn: {item?.expiryDate ? formatDate(item.expiryDate) : 'Không giới hạn'}
+            </Text>
+          </View>
+        </TouchableOpacity>
+      )
+    }
+
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+            <ChevronLeft size={22} color={COLORS.WHITE} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Voucher</Text>
+          <View style={{ width: 32 }} />
+        </View>
+
+        {list.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>Chưa có voucher khả dụng</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={list}
+            keyExtractor={(item) => String(item.id)}
+            renderItem={renderListItem}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
+          />
+        )}
+      </SafeAreaView>
+    )
+  }
+
   if (!voucherData) {
     return (
       <SafeAreaView style={styles.container}>
@@ -109,8 +366,12 @@ const Voucher = ({ route, navigation }) => {
               <TicketPercent size={14} color={COLORS.WHITE} />
               <Text style={styles.badgeText}>{badge}</Text>
             </View>
-            <Text style={styles.title}>{voucherData.voucherCode}</Text>
-            {!!description && <Text style={styles.subtitle}>{description}</Text>}
+            <Text style={styles.title}>{description || 'Ưu đãi'}</Text>
+            {!redeemed ? (
+              <Text style={styles.subtitle}>Mã sẽ hiển thị sau khi bạn đổi voucher.</Text>
+            ) : (
+              !!code && <Text style={styles.subtitle}>Mã: {code}</Text>
+            )}
           </View>
         </View>
 
@@ -165,12 +426,23 @@ const Voucher = ({ route, navigation }) => {
           </View>
         </View>
 
-        {!!code && (
+        {redeemed ? (
+          !!code && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Mã áp dụng</Text>
+              <View style={styles.card}>
+                <Text style={styles.code}>{code}</Text>
+                <Text style={styles.note}>Sao chép và nhập mã khi thanh toán.</Text>
+              </View>
+            </View>
+          )
+        ) : (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Mã áp dụng</Text>
             <View style={styles.card}>
-              <Text style={styles.code}>{code}</Text>
-              <Text style={styles.note}>Sao chép và nhập mã khi thanh toán.</Text>
+              <Text style={styles.note}>
+                Bạn cần đổi voucher để xem mã.
+              </Text>
             </View>
           </View>
         )}
@@ -394,6 +666,99 @@ const styles = StyleSheet.create({
     color: COLORS.WHITE,
     fontSize: 16,
     fontWeight: '700',
+  },
+
+  // List mode styles
+  listCard: {
+    backgroundColor: COLORS.WHITE,
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  listTopRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  listIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: COLORS.PRIMARY,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  listMain: {
+    flex: 1,
+    paddingRight: 10,
+  },
+  listCode: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: COLORS.BLACK,
+  },
+  listBadgeText: {
+    marginTop: 2,
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.GRAY,
+  },
+  listDesc: {
+    marginTop: 6,
+    fontSize: 13,
+    color: COLORS.GRAY,
+    lineHeight: 18,
+  },
+  listPill: {
+    backgroundColor: 'rgba(34, 197, 94, 0.12)',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  listPillText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.GREEN,
+  },
+  listMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  listMetaText: {
+    marginLeft: 8,
+    fontSize: 12,
+    color: COLORS.BLACK,
+  },
+
+  // Promotion mode styles
+  promoHero: {
+    height: 220,
+    backgroundColor: COLORS.GRAY_LIGHT,
+  },
+  promoHeroImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  promoHeroOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+  },
+  promoHeroContent: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    bottom: 16,
   },
 })
 

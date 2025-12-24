@@ -14,11 +14,7 @@ import {
   ArrowLeft,
   Gift,
   Star,
-  CheckCircle,
   Calendar,
-  Target,
-  TrendingUp,
-  Award,
 } from "lucide-react-native";
 import COLORS from "../../constant/colors";
 import {
@@ -30,7 +26,193 @@ import {
 } from "../../services/missionService";
 import { getProfile } from "../../services/userService";
 
-const Mission = ({ navigation }) => {
+const Mission = ({ navigation, route }) => {
+  const { mockMissions } = route?.params || {};
+
+  // LIST MODE (Home service button passes mockMissions) -> do NOT call APIs
+  if (Array.isArray(mockMissions)) {
+    const [tab, setTab] = useState("available"); // 'available' | 'my'
+
+    const formatDate = (dateString) => {
+      if (!dateString) return "";
+      const d = new Date(dateString);
+      return d.toLocaleDateString("vi-VN");
+    };
+
+    const available = mockMissions.filter(
+      (m) => m?.status === "AVAILABLE" || m?.status === "IN_PROGRESS"
+    );
+    const mine = mockMissions.filter(
+      (m) => m?.status === "IN_PROGRESS" || m?.status === "COMPLETED"
+    );
+
+    const getStatusLabel = (status) => {
+      switch (status) {
+        case "AVAILABLE":
+          return "Sẵn có";
+        case "IN_PROGRESS":
+          return "Đang làm";
+        case "COMPLETED":
+          return "Hoàn thành";
+        case "EXPIRED":
+          return "Hết hạn";
+        default:
+          return "Nhiệm vụ";
+      }
+    };
+
+    const getStatusColor = (status) => {
+      switch (status) {
+        case "COMPLETED":
+          return COLORS.GREEN;
+        case "IN_PROGRESS":
+          return COLORS.PRIMARY;
+        case "EXPIRED":
+          return COLORS.GRAY;
+        default:
+          return COLORS.ORANGE_DARK || COLORS.ORANGE || COLORS.PRIMARY;
+      }
+    };
+
+    const renderMockItem = ({ item }) => {
+      const progress = Number(item?.progress ?? 0);
+      const target = Number(item?.target ?? 1);
+      const percent = Math.min(100, Math.round((progress / target) * 100));
+      const status = item?.status;
+      const statusColor = getStatusColor(status);
+
+      return (
+        <View style={styles.missionCard}>
+          <View style={styles.missionHeader}>
+            <View style={[styles.iconContainer, { backgroundColor: "#00000010" }]}>
+              <Gift size={20} color={COLORS.PRIMARY} />
+            </View>
+            <View style={styles.missionInfo}>
+              <Text style={styles.missionTitle}>{item?.title || "Nhiệm vụ"}</Text>
+              {!!item?.expiresAt && (
+                <Text style={styles.missionDescription}>
+                  Hết hạn: {formatDate(item.expiresAt)}
+                </Text>
+              )}
+            </View>
+            <View style={styles.pointsContainer}>
+              <Text style={styles.pointsText}>+{item?.rewardCoins ?? 0}</Text>
+              <Star size={16} color={COLORS.YELLOW} />
+            </View>
+          </View>
+
+          <View style={styles.progressContainer}>
+            <View style={styles.progressBar}>
+              <View
+                style={[
+                  styles.progressFill,
+                  {
+                    width: `${percent}%`,
+                    backgroundColor: percent === 100 ? COLORS.GREEN : COLORS.PRIMARY,
+                  },
+                ]}
+              />
+            </View>
+            <Text style={styles.progressText}>
+              {progress}/{target}
+            </Text>
+          </View>
+
+          <View style={styles.missionFooter}>
+            <View style={[styles.typeBadge, { backgroundColor: statusColor + "20" }]}>
+              <Calendar size={12} color={statusColor} />
+              <Text style={[styles.typeText, { color: statusColor }]}>
+                {getStatusLabel(status)}
+              </Text>
+            </View>
+
+            {status === "AVAILABLE" ? (
+              <TouchableOpacity
+                style={[styles.button, styles.acceptButton]}
+                onPress={() =>
+                  Alert.alert("Mock", "Đây là mockdata nên không nhận nhiệm vụ thật.")
+                }
+              >
+                <Text style={styles.buttonText}>Nhận</Text>
+              </TouchableOpacity>
+            ) : status === "COMPLETED" ? (
+              <TouchableOpacity
+                style={[styles.button, styles.claimButton]}
+                onPress={() =>
+                  Alert.alert("Mock", "Đây là mockdata nên không nhận thưởng thật.")
+                }
+              >
+                <Text style={styles.buttonText}>Nhận thưởng</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity style={[styles.button, styles.disabledButton]} disabled>
+                <Text style={styles.buttonText}>
+                  {status === "IN_PROGRESS" ? "Đang tiến trình" : "Không khả dụng"}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      );
+    };
+
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <ArrowLeft size={20} color={COLORS.WHITE} />
+          </TouchableOpacity>
+
+          <View style={{ flex: 1, marginLeft: 12 }}>
+            <Text style={styles.headerTitle}>Nhiệm vụ</Text>
+            <Text style={styles.headerSubtitle}>Mockdata (không gọi API)</Text>
+          </View>
+        </View>
+
+        <View style={styles.tabRow}>
+          <TouchableOpacity
+            style={[styles.tabButton, tab === "available" && styles.tabActive]}
+            onPress={() => setTab("available")}
+          >
+            <Text
+              style={[
+                styles.tabText,
+                tab === "available" && styles.tabTextActive,
+              ]}
+            >
+              Sẵn có
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tabButton, tab === "my" && styles.tabActive]}
+            onPress={() => setTab("my")}
+          >
+            <Text style={[styles.tabText, tab === "my" && styles.tabTextActive]}>
+              Của tôi
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        <FlatList
+          data={tab === "available" ? available : mine}
+          keyExtractor={(item) => String(item.id)}
+          renderItem={renderMockItem}
+          contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={() => (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyTitle}>Không có nhiệm vụ</Text>
+              <Text style={styles.emptySubtitle}>Mockdata trống</Text>
+            </View>
+          )}
+        />
+      </SafeAreaView>
+    );
+  }
+
   const [userPoints, setUserPoints] = useState(0);
   const [availableMissions, setAvailableMissions] = useState([]);
   const [myMissions, setMyMissions] = useState([]);
