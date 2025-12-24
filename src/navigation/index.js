@@ -283,16 +283,6 @@ const MainStackNavigator = () => {
       <Stack.Screen name={SCREENS.DRIVER_MAP} component={DriverMapScreen} />
       <Stack.Screen name="DriverStatistics" component={DriverStatistics} />
       <Stack.Screen
-        name={SCREENS.DRIVER_RIDE_REQUESTS}
-        component={DriverRideRequestsScreen}
-      />
-      <Stack.Screen
-        name={SCREENS.DRIVER_STATUS}
-        component={DriverStatusScreen}
-      />
-      <Stack.Screen name={SCREENS.DRIVER_MAP} component={DriverMapScreen} />
-      <Stack.Screen name="DriverStatistics" component={DriverStatistics} />
-      <Stack.Screen
         name={SCREENS.PASSENGER_RIDE}
         component={PassengerRideScreen}
       />

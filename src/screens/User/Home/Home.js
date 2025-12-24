@@ -88,6 +88,7 @@ const Home = ({ navigation }) => {
 
       // Load from storage first
       const storedUser = await getUserData();
+      let profileData = storedUser || null;
       if (storedUser) {
         console.log("👤 Home: Loaded from storage:", storedUser);
         setUserProfile(storedUser);
@@ -102,6 +103,9 @@ const Home = ({ navigation }) => {
           const profile = profileResp?.data?.data; // Fix: nested data
           console.log("👤 Home: Profile data:", profile);
           setUserProfile(profile);
+
+          // Track latest profile locally for follow-up logic
+          if (profile) profileData = profile;
 
           // Update storage with fresh data
           if (profile) {
@@ -118,7 +122,7 @@ const Home = ({ navigation }) => {
         console.log("⚠️ Home: No token, using stored data only");
       }
 
-      if (profile && profile.userType === "DRIVER") {
+      if (profileData && profileData.userType === "DRIVER") {
         try {
           const vehicleResp = await getMyVehicle();
           const vehicle = vehicleResp?.data;
