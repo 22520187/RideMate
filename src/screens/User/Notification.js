@@ -283,9 +283,14 @@ const Notification = () => {
         
         case 'NEW_MESSAGE':
             if (item.referenceId) {
-                // item.referenceId is likely userId or matchId depending on backend implementation
-                // Assuming it links to the chat room
-                navigation.navigate('ChatScreen', { matchId: item.referenceId });
+                // Navigate to chat - phone not available from notification
+                navigation.navigate('ChatScreen', { 
+                    channelId: `match-${item.referenceId}`,
+                    otherUserId: null,
+                    otherUserName: 'User',
+                    otherUserAvatar: null,
+                    otherUserPhone: null,
+                });
             }
             break;
 

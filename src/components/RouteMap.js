@@ -103,6 +103,7 @@ const RouteMap = ({
   path = null,
   matchedDriverId = null,
   disableInternalFetch = false,
+  isSimulating = false,
 }) => {
   // Refs
   const mapRef = useRef(null);
@@ -112,6 +113,7 @@ const RouteMap = ({
   const lastFetchTime = useRef(0);
   const lastFetchCoords = useRef(null);
   const fetchTimerRef = useRef(null);
+  const shouldKeepRouteCleared = useRef(false); // Flag to prevent route from being set again after arrival
 
   // State
   const [routeCoordinates, setRouteCoordinates] = useState([]);
@@ -167,23 +169,47 @@ const RouteMap = ({
   // ============================================
   // PHASE MANAGEMENT
   // ============================================
+  // Track previous phase to detect transitions
+  const prevPhaseRef = useRef("to_pickup");
+
   useEffect(() => {
     if (rideStatus === "ongoing") {
+      const wasPhase1 = prevPhaseRef.current === "to_pickup";
       setPhase("to_destination");
+      prevPhaseRef.current = "to_destination";
+
       // DON'T reset hasNotifiedArrival - driver has already arrived at pickup
       // Only reset destination flag
       hasNotifiedDestination.current = false;
       console.log("🔄 Phase changed to: to_destination");
+
+      // In Phase 2, only clear route if transitioning from Phase 1
+      // This allows route to persist if already fetched
+      if (wasPhase1) {
+        setRouteCoordinates([]);
+        lastFetchTime.current = 0; // Allow immediate re-fetch
+      }
     } else {
       setPhase("to_pickup");
+      prevPhaseRef.current = "to_pickup";
       hasNotifiedArrival.current = false; // Reset pickup arrival flag
       hasNotifiedDestination.current = false; // Reset destination arrival flag
       console.log("🔄 Phase: to_pickup");
+
+      // Clear route when going back to Phase 1
+      setRouteCoordinates([]);
+      lastFetchTime.current = 0; // Allow immediate re-fetch
     }
 
-    // Clear old route when phase changes to ensure fresh fetch/sync
-    setRouteCoordinates([]);
-    lastFetchTime.current = 0; // Allow immediate re-fetch
+    // Clear route when ride is completed
+    if (rideStatus === "COMPLETED" || rideStatus === "completed") {
+      shouldKeepRouteCleared.current = true; // Prevent route from being set again
+      setRouteCoordinates([]);
+      console.log("🧹 Route cleared - ride completed");
+    } else if (rideStatus !== "ongoing" && rideStatus !== "IN_PROGRESS") {
+      // Reset flag when ride status changes (e.g., new ride started)
+      shouldKeepRouteCleared.current = false;
+    }
   }, [rideStatus]);
 
   // ============================================
@@ -211,6 +237,12 @@ const RouteMap = ({
   // SYNC ROUTE FROM PATH PROP (from parent)
   // ============================================
   useEffect(() => {
+    // Don't sync route if we've arrived at destination
+    if (shouldKeepRouteCleared.current) {
+      console.log("⏭️ Skipping route sync - already arrived at destination");
+      return;
+    }
+
     if (!path || path.length === 0) return;
 
     let decodedPath = path;
@@ -241,6 +273,12 @@ const RouteMap = ({
   // ============================================
   const fetchRoute = useCallback(
     async (force = false) => {
+      // Don't fetch route if we've arrived at destination
+      if (shouldKeepRouteCleared.current) {
+        console.log("⏭️ Skipping route fetch - already arrived at destination");
+        return;
+      }
+
       // Skip if disabled or we already have path from parent
       if (
         disableInternalFetch ||
@@ -260,7 +298,9 @@ const RouteMap = ({
 
       // Fallback if props not provided
       if (!startPoint?.latitude || !endPoint?.latitude) {
-        console.warn('⚠️ RouteMap: origin or destination not provided, using fallback logic');
+        console.warn(
+          "⚠️ RouteMap: origin or destination not provided, using fallback logic"
+        );
         if (phase === "to_pickup") {
           startPoint = currentVehicle || userLocation;
           endPoint = pickupPoint;
@@ -271,7 +311,7 @@ const RouteMap = ({
       }
 
       if (!startPoint?.latitude || !endPoint?.latitude) {
-        console.warn('⚠️ RouteMap: Cannot fetch route - missing coordinates');
+        console.warn("⚠️ RouteMap: Cannot fetch route - missing coordinates");
         return;
       }
 
@@ -354,7 +394,15 @@ const RouteMap = ({
             }));
 
             console.log(`✅ Route fetched: ${points.length} points (${phase})`);
-            setRouteCoordinates(points);
+
+            // Don't set route if we've arrived at destination
+            if (!shouldKeepRouteCleared.current) {
+              setRouteCoordinates(points);
+            } else {
+              console.log(
+                "⏭️ Skipping route set - already arrived at destination"
+              );
+            }
 
             if (onRouteFetched) {
               onRouteFetched(points);
@@ -396,6 +444,27 @@ const RouteMap = ({
       }
     }
 
+    // Check if we have valid origin and destination
+    const hasOrigin = origin?.latitude && origin?.longitude;
+    const hasDestination = destination?.latitude && destination?.longitude;
+
+    if (!hasOrigin || !hasDestination) {
+      // If no valid origin/destination, try fallback points
+      const fallbackOrigin =
+        phase === "to_pickup"
+          ? currentVehicle || userLocation || pickupPoint
+          : currentVehicle || pickupPoint;
+      const fallbackDestination =
+        phase === "to_pickup" ? pickupPoint : destinationPoint;
+
+      if (!fallbackOrigin?.latitude || !fallbackDestination?.latitude) {
+        console.log(
+          "⏳ RouteMap: Waiting for origin/destination coordinates..."
+        );
+        return;
+      }
+    }
+
     // Clear existing timer
     if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current);
 
@@ -404,13 +473,36 @@ const RouteMap = ({
     const delay = 300;
 
     fetchTimerRef.current = setTimeout(() => {
+      console.log("🔄 RouteMap: Fetching route...", {
+        phase,
+        hasOrigin,
+        hasDestination,
+        origin: origin
+          ? `${origin.latitude?.toFixed(5)}, ${origin.longitude?.toFixed(5)}`
+          : "null",
+        destination: destination
+          ? `${destination.latitude?.toFixed(
+              5
+            )}, ${destination.longitude?.toFixed(5)}`
+          : "null",
+      });
       fetchRoute();
     }, delay);
 
     return () => {
       if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current);
     };
-  }, [phase, fetchRoute, path, origin, destination]);
+  }, [
+    phase,
+    fetchRoute,
+    path,
+    origin,
+    destination,
+    currentVehicle,
+    userLocation,
+    pickupPoint,
+    destinationPoint,
+  ]);
 
   // ============================================
   // ARRIVAL DETECTION
@@ -434,17 +526,15 @@ const RouteMap = ({
     // Log distance occasionally or if close
     if (distance < 1.0) {
       // Log if within 1km
-      console.log(
-        `📏 Distance to target:`, {
-          phase,
-          rideStatus,
-          distance: `${distance.toFixed(4)} km`,
-          targetLat: targetPoint.latitude.toFixed(5),
-          targetLng: targetPoint.longitude.toFixed(5),
-          vehicleLat: currentVehicle.latitude.toFixed(5),
-          vehicleLng: currentVehicle.longitude.toFixed(5),
-        }
-      );
+      console.log(`📏 Distance to target:`, {
+        phase,
+        rideStatus,
+        distance: `${distance.toFixed(4)} km`,
+        targetLat: targetPoint.latitude.toFixed(5),
+        targetLng: targetPoint.longitude.toFixed(5),
+        vehicleLat: currentVehicle.latitude.toFixed(5),
+        vehicleLng: currentVehicle.longitude.toFixed(5),
+      });
     }
 
     if (distance < ARRIVAL_THRESHOLD) {
@@ -457,13 +547,13 @@ const RouteMap = ({
         !hasNotifiedDestination.current
       ) {
         hasNotifiedDestination.current = true;
+        shouldKeepRouteCleared.current = true; // Prevent route from being set again
         console.log("🏁 Arrived at destination!");
+        // Clear route when arrived at destination
+        setRouteCoordinates([]);
         onDestinationArrived?.();
       }
     } else {
-      // Reset flags if vehicle moves away from target
-      // This prevents false positives when vehicle is close but then moves away
-      // Only reset if we're far enough away (more than 2x threshold)
       if (distance > ARRIVAL_THRESHOLD * 2) {
         if (
           phase === "to_pickup" &&
@@ -485,14 +575,26 @@ const RouteMap = ({
       }
     }
 
-    // Track for route truncation (both driver and passenger)
+    // Track for route truncation
+    // Phase 1 (to_pickup): Always truncate to show route from current vehicle position
+    // Phase 2 (to_destination): Only truncate when simulating (for demo/testing)
+    //                          In real rides, show full route from pickup to destination
     if (routeCoordinates.length > 0 && currentVehicle) {
-      const truncated = truncateRoute(currentVehicle, routeCoordinates);
-      if (truncated.length < routeCoordinates.length && truncated.length > 0) {
-        setRouteCoordinates(truncated);
-        // Only driver should trigger onRouteTruncated to update database
-        if (isDriver) {
-          onRouteTruncated?.(truncated);
+      const shouldTruncate =
+        phase === "to_pickup" || // Always truncate in Phase 1
+        (phase === "to_destination" && isSimulating); // Only truncate in Phase 2 when simulating
+
+      if (shouldTruncate) {
+        const truncated = truncateRoute(currentVehicle, routeCoordinates);
+        if (
+          truncated.length < routeCoordinates.length &&
+          truncated.length > 0
+        ) {
+          setRouteCoordinates(truncated);
+          // Only driver should trigger onRouteTruncated to update database
+          if (isDriver) {
+            onRouteTruncated?.(truncated);
+          }
         }
       }
     }
@@ -522,6 +624,7 @@ const RouteMap = ({
     onDriverArrived,
     onDestinationArrived,
     onRouteTruncated,
+    isSimulating,
   ]);
 
   // ============================================
@@ -538,8 +641,10 @@ const RouteMap = ({
     const fetchNearbyDrivers = async () => {
       try {
         // Calculate timestamp 15 minutes ago
-        const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
-        
+        const fifteenMinutesAgo = new Date(
+          Date.now() - 15 * 60 * 1000
+        ).toISOString();
+
         const { data, error } = await supabase
           .from("driver_locations")
           .select("driver_id, latitude, longitude, driver_status, last_updated")

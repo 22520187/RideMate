@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  ScrollView,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import COLORS from "../constant/colors";
@@ -76,14 +77,17 @@ const SuggestionsList = ({
         {isLoading ? (
           renderLoading()
         ) : (
-          <FlatList
-            data={suggestions}
-            renderItem={renderSuggestion}
-            keyExtractor={(item) => item.place_id}
+          <ScrollView
+            style={styles.list}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
-            style={styles.list}
-          />
+          >
+            {suggestions.map((item, index) => (
+              <React.Fragment key={item.place_id || index}>
+                {renderSuggestion({ item, index })}
+              </React.Fragment>
+            ))}
+          </ScrollView>
         )}
       </View>
     </View>

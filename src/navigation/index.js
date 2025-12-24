@@ -14,6 +14,7 @@ import DriverRideScreen from "../screens/User/Rider/DriverRideScreen";
 import DriverRideRequestsScreen from "../screens/User/Driver/DriverRideRequestsScreen";
 import DriverStatusScreen from "../screens/User/Driver/DriverStatusScreen";
 import DriverMapScreen from "../screens/User/Driver/DriverMapScreen";
+import DriverPersonalRideScreen from "../screens/User/Driver/DriverPersonalRideScreen";
 import DriverStatistics from "../screens/User/Driver/DriverStatistics";
 import PassengerRideScreen from "../screens/User/Rider/PassengerRideScreen";
 import MatchedRideScreen from "../screens/User/Rider/MatchedRideScreen";
@@ -281,6 +282,7 @@ const MainStackNavigator = () => {
         component={DriverStatusScreen}
       />
       <Stack.Screen name={SCREENS.DRIVER_MAP} component={DriverMapScreen} />
+      <Stack.Screen name="DriverPersonalRideScreen" component={DriverPersonalRideScreen} />
       <Stack.Screen name="DriverStatistics" component={DriverStatistics} />
       <Stack.Screen
         name={SCREENS.PASSENGER_RIDE}

@@ -103,8 +103,8 @@ const MatchedRideScreen = ({ navigation, route }) => {
     } else {
       mappedStatus = "matched"; // WAITING, ACCEPTED, or null
     }
-    
-    console.log('🔄 Ride status mapping:', { apiStatus, mappedStatus });
+
+    console.log("🔄 Ride status mapping:", { apiStatus, mappedStatus });
     return mappedStatus;
   }, [apiStatus]);
 
@@ -143,12 +143,18 @@ const MatchedRideScreen = ({ navigation, route }) => {
     // PRIORITY 1: For driver - use currentLocation from Supabase (fetched on mount)
     // For passenger - use driverLocation from Supabase subscription
     if (isDriver && currentLocation?.latitude && currentLocation?.longitude) {
-      console.log('📍 Driver: Using currentLocation from Supabase:', currentLocation);
+      console.log(
+        "📍 Driver: Using currentLocation from Supabase:",
+        currentLocation
+      );
       return currentLocation;
     }
-    
+
     if (driverLocation?.latitude && driverLocation?.longitude) {
-      console.log('📍 Passenger: Using driverLocation from Supabase subscription:', driverLocation);
+      console.log(
+        "📍 Passenger: Using driverLocation from Supabase subscription:",
+        driverLocation
+      );
       return driverLocation;
     }
 
@@ -159,7 +165,7 @@ const MatchedRideScreen = ({ navigation, route }) => {
     if (candidates?.length > 0) {
       const candidate = candidates[0];
       if (candidate.currentLatitude && candidate.currentLongitude) {
-        console.log('📍 Using driver location from candidates:', {
+        console.log("📍 Using driver location from candidates:", {
           lat: candidate.currentLatitude,
           lng: candidate.currentLongitude,
         });
@@ -171,8 +177,14 @@ const MatchedRideScreen = ({ navigation, route }) => {
     }
 
     // PRIORITY 3: Try from matchedRideData.driverLocation passed from NearestDriverScreen
-    if (matchedRideData.driverLocation?.latitude && matchedRideData.driverLocation?.longitude) {
-      console.log('📍 Using driverLocation from route params:', matchedRideData.driverLocation);
+    if (
+      matchedRideData.driverLocation?.latitude &&
+      matchedRideData.driverLocation?.longitude
+    ) {
+      console.log(
+        "📍 Using driverLocation from route params:",
+        matchedRideData.driverLocation
+      );
       return matchedRideData.driverLocation;
     }
 
@@ -188,7 +200,10 @@ const MatchedRideScreen = ({ navigation, route }) => {
             longitude: 106.7009,
           };
 
-    console.log('📍 Using fallback driver location (pickup offset):', pickupPoint);
+    console.log(
+      "📍 Using fallback driver location (pickup offset):",
+      pickupPoint
+    );
     return {
       latitude: pickupPoint.latitude - 0.008,
       longitude: pickupPoint.longitude - 0.006,
@@ -199,6 +214,7 @@ const MatchedRideScreen = ({ navigation, route }) => {
   // COORDINATES
   // ============================================
   const originCoordinate = useMemo(() => {
+    // Priority 1: Use matchData from API
     if (matchData?.pickupLatitude && matchData?.pickupLongitude) {
       return {
         latitude: matchData.pickupLatitude,
@@ -206,16 +222,33 @@ const MatchedRideScreen = ({ navigation, route }) => {
         description: matchData.pickupAddress || "Điểm đón",
       };
     }
-    return (
-      matchedRideData.originCoordinate || {
-        latitude: 10.7769,
-        longitude: 106.7009,
-        description: matchedRideData.pickupAddress || "Điểm đón",
-      }
-    );
+    // Priority 2: Use matchedRideData from navigation params
+    if (matchedRideData.pickupLatitude && matchedRideData.pickupLongitude) {
+      return {
+        latitude: matchedRideData.pickupLatitude,
+        longitude: matchedRideData.pickupLongitude,
+        description:
+          matchedRideData.pickupAddress || matchedRideData.from || "Điểm đón",
+      };
+    }
+    // Priority 3: Use originCoordinate from navigation params
+    if (
+      matchedRideData.originCoordinate?.latitude &&
+      matchedRideData.originCoordinate?.longitude
+    ) {
+      return matchedRideData.originCoordinate;
+    }
+    // Fallback: Default location
+    return {
+      latitude: 10.7769,
+      longitude: 106.7009,
+      description:
+        matchedRideData.pickupAddress || matchedRideData.from || "Điểm đón",
+    };
   }, [matchData, matchedRideData]);
 
   const destinationCoordinate = useMemo(() => {
+    // Priority 1: Use matchData from API
     if (matchData?.destinationLatitude && matchData?.destinationLongitude) {
       return {
         latitude: matchData.destinationLatitude,
@@ -223,13 +256,34 @@ const MatchedRideScreen = ({ navigation, route }) => {
         description: matchData.destinationAddress || "Điểm đến",
       };
     }
-    return (
-      matchedRideData.destinationCoordinate || {
-        latitude: 10.773,
-        longitude: 106.6583,
-        description: matchedRideData.destinationAddress || "Điểm đến",
-      }
-    );
+    // Priority 2: Use matchedRideData from navigation params
+    if (
+      matchedRideData.destinationLatitude &&
+      matchedRideData.destinationLongitude
+    ) {
+      return {
+        latitude: matchedRideData.destinationLatitude,
+        longitude: matchedRideData.destinationLongitude,
+        description:
+          matchedRideData.destinationAddress ||
+          matchedRideData.to ||
+          "Điểm đến",
+      };
+    }
+    // Priority 3: Use destinationCoordinate from navigation params
+    if (
+      matchedRideData.destinationCoordinate?.latitude &&
+      matchedRideData.destinationCoordinate?.longitude
+    ) {
+      return matchedRideData.destinationCoordinate;
+    }
+    // Fallback: Default location
+    return {
+      latitude: 10.773,
+      longitude: 106.6583,
+      description:
+        matchedRideData.destinationAddress || matchedRideData.to || "Điểm đến",
+    };
   }, [matchData, matchedRideData]);
 
   // FIX VẤN ĐỀ 1: Route origin/destination cho đúng theo phase
@@ -238,40 +292,77 @@ const MatchedRideScreen = ({ navigation, route }) => {
   const currentRouteOrigin = useMemo(() => {
     if (rideStatus === "ongoing") {
       // Phase 2: Từ pickup location
-      return originCoordinate;
+      const origin = originCoordinate;
+      console.log("📍 currentRouteOrigin (ongoing):", {
+        latitude: origin?.latitude,
+        longitude: origin?.longitude,
+        description: origin?.description,
+      });
+      return origin;
     }
     // Phase 1: Từ driver location
-    return vehicleLocation || initialDriverLocation;
+    const origin = vehicleLocation || initialDriverLocation;
+    console.log("📍 currentRouteOrigin (matched):", {
+      latitude: origin?.latitude,
+      longitude: origin?.longitude,
+      fromVehicle: !!vehicleLocation,
+      fromInitial: !!initialDriverLocation,
+    });
+    return origin;
   }, [rideStatus, vehicleLocation, originCoordinate, initialDriverLocation]);
 
   const currentRouteDestination = useMemo(() => {
     if (rideStatus === "ongoing") {
       // Phase 2: Đến destination
-      return destinationCoordinate;
+      const dest = destinationCoordinate;
+      console.log("📍 currentRouteDestination (ongoing):", {
+        latitude: dest?.latitude,
+        longitude: dest?.longitude,
+        description: dest?.description,
+      });
+      return dest;
     }
     // Phase 1: Đến pickup
-    return originCoordinate;
+    const dest = originCoordinate;
+    console.log("📍 currentRouteDestination (matched):", {
+      latitude: dest?.latitude,
+      longitude: dest?.longitude,
+      description: dest?.description,
+    });
+    return dest;
   }, [rideStatus, originCoordinate, destinationCoordinate]);
 
   // Debug logging for ride flow
   useEffect(() => {
-    console.log('🔄 MatchedRideScreen state:', {
+    console.log("🔄 MatchedRideScreen state:", {
       matchId: matchedRideData.id || matchedRideData.rideId,
       driverId: matchedRideData.driverId,
       isDriver,
       rideStatus,
-      driverLocation: driverLocation ? {
-        lat: driverLocation.latitude?.toFixed(5),
-        lng: driverLocation.longitude?.toFixed(5),
-      } : null,
-      vehicleLocation: vehicleLocation ? {
-        lat: vehicleLocation.latitude?.toFixed(5),
-        lng: vehicleLocation.longitude?.toFixed(5),
-      } : null,
+      driverLocation: driverLocation
+        ? {
+            lat: driverLocation.latitude?.toFixed(5),
+            lng: driverLocation.longitude?.toFixed(5),
+          }
+        : null,
+      vehicleLocation: vehicleLocation
+        ? {
+            lat: vehicleLocation.latitude?.toFixed(5),
+            lng: vehicleLocation.longitude?.toFixed(5),
+          }
+        : null,
       driverArrived,
       destinationArrived,
     });
-  }, [matchedRideData, isDriver, rideStatus, driverLocation, vehicleLocation, driverArrived, destinationArrived]);
+  }, [
+    matchedRideData,
+    isDriver,
+    rideStatus,
+    driverLocation,
+    vehicleLocation,
+    driverArrived,
+    destinationArrived,
+  ]);
 
   // Fetch driver's location from Supabase on mount (for driver only)
   useEffect(() => {
@@ -281,64 +372,78 @@ const MatchedRideScreen = ({ navigation, route }) => {
       try {
         // Get driver ID from matchData or matchedRideData
         const currentDriverId = matchData?.driverId || matchedRideData.driverId;
-        
+
         if (!currentDriverId) {
-          console.warn('⚠️ Driver: No driverId found in matchData');
+          console.warn("⚠️ Driver: No driverId found in matchData");
           // Fallback to GPS
-          console.log('📍 Driver: Fetching GPS location as fallback...');
+          console.log("📍 Driver: Fetching GPS location as fallback...");
           const location = await getCurrentLocation();
           if (location) {
-            console.log('✅ Driver GPS location:', location);
+            console.log("✅ Driver GPS location:", location);
           }
           return;
         }
 
-        console.log('📍 Driver: Fetching location from Supabase for driverId:', currentDriverId);
-        
+        console.log(
+          "📍 Driver: Fetching location from Supabase for driverId:",
+          currentDriverId
+        );
+
         const { data, error } = await supabase
-          .from('driver_locations')
-          .select('driver_id, latitude, longitude, last_updated, driver_status')
-          .eq('driver_id', currentDriverId)
+          .from("driver_locations")
+          .select("driver_id, latitude, longitude, last_updated, driver_status")
+          .eq("driver_id", currentDriverId)
           .maybeSingle();
 
         if (error) {
-          console.error('❌ Error fetching driver location from Supabase:', error);
+          console.error(
+            "❌ Error fetching driver location from Supabase:",
+            error
+          );
           // Fallback to GPS
           const location = await getCurrentLocation();
           if (location) {
-            console.log('✅ Driver GPS location (fallback):', location);
+            console.log("✅ Driver GPS location (fallback):", location);
           }
           return;
         }
 
         if (data) {
-          console.log('✅ Driver location from Supabase:', {
+          console.log("✅ Driver location from Supabase:", {
             driverId: data.driver_id,
             lat: data.latitude,
             lng: data.longitude,
             status: data.driver_status,
           });
-          
+
           // Set as currentLocation so it's available for route rendering
           setCurrentLocation({
             latitude: data.latitude,
             longitude: data.longitude,
           });
         } else {
-          console.warn('⚠️ No driver location found in Supabase for driverId:', currentDriverId);
+          console.warn(
+            "⚠️ No driver location found in Supabase for driverId:",
+            currentDriverId
+          );
           // Fallback to GPS
           const location = await getCurrentLocation();
           if (location) {
-            console.log('✅ Driver GPS location (fallback):', location);
+            console.log("✅ Driver GPS location (fallback):", location);
           }
         }
       } catch (err) {
-        console.error('❌ Exception fetching driver location:', err);
+        console.error("❌ Exception fetching driver location:", err);
       }
     };
 
     fetchDriverLocationFromSupabase();
-  }, [isDriver, matchData?.driverId, matchedRideData.driverId, getCurrentLocation]);
+  }, [
+    isDriver,
+    matchData?.driverId,
+    matchedRideData.driverId,
+    getCurrentLocation,
+  ]);
 
   // ============================================
   // OTHER PERSON INFO
@@ -401,7 +506,7 @@ const MatchedRideScreen = ({ navigation, route }) => {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      console.log('🧹 Cleaning up MatchedRideScreen');
+      console.log("🧹 Cleaning up MatchedRideScreen");
       setCurrentMapPath(null);
       currentMapPathRef.current = null;
     };
@@ -431,10 +536,16 @@ const MatchedRideScreen = ({ navigation, route }) => {
     // Driver updates route, passenger syncs it
     if (rideStatus === "ongoing") {
       if (!isDriver) {
-        console.log("✅ Passenger syncing route for Phase 2 (ongoing):", routePoints.length, "points");
+        console.log(
+          "✅ Passenger syncing route for Phase 2 (ongoing):",
+          routePoints.length,
+          "points"
+        );
         return true;
       } else {
-        console.log("⏭️ Driver: Skipping route sync for Phase 2 - using local route");
+        console.log(
+          "⏭️ Driver: Skipping route sync for Phase 2 - using local route"
+        );
         return false;
       }
     }
@@ -443,7 +554,9 @@ const MatchedRideScreen = ({ navigation, route }) => {
     // The database route is pickup → destination (initial route)
     // But we need driver location → pickup
     // Let RouteMap fetch its own route based on origin/destination props
-    console.log("⏭️ Skipping route sync for Phase 1 (matched) - let RouteMap fetch driver→pickup route");
+    console.log(
+      "⏭️ Skipping route sync for Phase 1 (matched) - let RouteMap fetch driver→pickup route"
+    );
     return false;
   }, [routePoints, vehicleLocation, rideStatus, isDriver]);
 
@@ -540,7 +653,8 @@ const MatchedRideScreen = ({ navigation, route }) => {
 
             // Không reset arrival flags nữa - để RouteMap tự xử lý
             // Chỉ cần gọi simulateRoute với đúng route
-            simulateRoute(pointsToSimulate, 20000);
+            // Tăng duration lên 60 giây để simulation mượt hơn
+            simulateRoute(pointsToSimulate, 60000);
           },
         },
       ]
@@ -549,11 +663,11 @@ const MatchedRideScreen = ({ navigation, route }) => {
 
   const handleStartRide = useCallback(async () => {
     console.log("🚀 Starting ride (Phase 1 → Phase 2)");
-    
+
     // Clear the local route so RouteMap will fetch fresh route for Phase 2
     setCurrentMapPath(null);
     currentMapPathRef.current = null;
-    
+
     const result = await startRide();
     if (result.success) {
       showCustomAlert(
@@ -566,27 +680,36 @@ const MatchedRideScreen = ({ navigation, route }) => {
               // Wait for route to be fetched and check multiple times
               let attempts = 0;
               const maxAttempts = 10; // Try for 5 seconds (10 * 500ms)
-              
+
               const checkAndStartSimulation = () => {
                 attempts++;
                 const route = currentMapPathRef.current; // Use ref for latest value
-                console.log(`🔍 Checking for Phase 2 route (attempt ${attempts}/${maxAttempts})`);
-                
+                console.log(
+                  `🔍 Checking for Phase 2 route (attempt ${attempts}/${maxAttempts})`
+                );
+
                 if (route && route.length > 10) {
-                  console.log(`✅ Route ready with ${route.length} points, starting simulation`);
-                  simulateRoute(route, 20000);
+                  console.log(
+                    `✅ Route ready with ${route.length} points, starting simulation`
+                  );
+                  // Tăng duration lên 60 giây để simulation mượt hơn
+                  simulateRoute(route, 60000);
                 } else if (attempts < maxAttempts) {
-                  console.log(`⏳ Route not ready yet (${route?.length || 0} points), waiting...`);
+                  console.log(
+                    `⏳ Route not ready yet (${
+                      route?.length || 0
+                    } points), waiting...`
+                  );
                   setTimeout(checkAndStartSimulation, 500);
                 } else {
-                  console.warn('⚠️ Timeout waiting for Phase 2 route');
+                  console.warn("⚠️ Timeout waiting for Phase 2 route");
                 }
               };
-              
+
               // Start checking after 1 second
               setTimeout(checkAndStartSimulation, 1000);
-            }
-          }
+            },
+          },
         ]
       );
     } else {
@@ -637,14 +760,11 @@ const MatchedRideScreen = ({ navigation, route }) => {
       feedbackData.comment,
       feedbackData.tags
     );
-    
+
     setIsSubmittingFeedback(false);
-    
+
     if (result.success) {
-      Alert.alert(
-        "Cảm ơn bạn!",
-        "Đánh giá của bạn đã được gửi thành công."
-      );
+      Alert.alert("Cảm ơn bạn!", "Đánh giá của bạn đã được gửi thành công.");
     } else {
       // Check if error is duplicate feedback
       if (result.error && result.error.includes("already submitted feedback")) {
@@ -655,7 +775,7 @@ const MatchedRideScreen = ({ navigation, route }) => {
       }
       // Silently ignore other errors - don't show to user
     }
-    
+
     // Always close modal and navigate
     setShowFeedbackModal(false);
     setCurrentMapPath(null);
@@ -737,6 +857,7 @@ const MatchedRideScreen = ({ navigation, route }) => {
             onRouteFetched={handleRouteFetched}
             onRouteTruncated={handleRouteTruncated}
             matchedDriverId={matchData?.driverId || matchedRideData.driverId}
+            isSimulating={isSimulating}
           />
         </View>
 
@@ -833,7 +954,11 @@ const MatchedRideScreen = ({ navigation, route }) => {
               <TouchableOpacity
                 style={[
                   styles.primaryButton,
-                  { backgroundColor: driverArrived ? COLORS.GREEN : COLORS.PRIMARY },
+                  {
+                    backgroundColor: driverArrived
+                      ? COLORS.GREEN
+                      : COLORS.PRIMARY,
+                  },
                   isSimulating && styles.disabledButton,
                 ]}
                 disabled={isSimulating}
@@ -849,7 +974,11 @@ const MatchedRideScreen = ({ navigation, route }) => {
               <TouchableOpacity
                 style={[
                   styles.primaryButton,
-                  { backgroundColor: destinationArrived ? COLORS.GREEN : COLORS.PRIMARY },
+                  {
+                    backgroundColor: destinationArrived
+                      ? COLORS.GREEN
+                      : COLORS.PRIMARY,
+                  },
                   (isCompletingRide || isSimulating) && styles.disabledButton,
                 ]}
                 disabled={isCompletingRide || isSimulating}
@@ -898,6 +1027,7 @@ const MatchedRideScreen = ({ navigation, route }) => {
           name: otherPerson.name,
           avatar: otherPerson.avatar,
         }}
+        otherPersonName={otherPerson.name}
       />
 
       {/* Feedback Modal */}
