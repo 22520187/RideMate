@@ -4,7 +4,6 @@ RideMate là dự án **ứng dụng đi chung xe** gồm:
 
 - **Mobile app (Expo / React Native)**: `RideMate/`
 - **Backend (Spring Boot / Java)**: `ridemate-server/`
-- **Face Recognition microservice (Python / TensorFlow FaceNet)**: `ridemate-server/face-recognition-service/`
 
 ---
 
@@ -12,41 +11,19 @@ RideMate là dự án **ứng dụng đi chung xe** gồm:
 
 - **Node.js**: 18+ (để chạy Expo)
 - **Java**: **21** (backend dùng Spring Boot 3.3.x)
-- **PostgreSQL**: 14+ (khuyến nghị có **pgvector** nếu dùng eKYC/face verification)
-- (Tuỳ chọn) **Docker Desktop**: để chạy face-recognition service
+- **PostgreSQL**: 14+
 
 ---
 
 ## Chạy nhanh (local)
 
-### 1) Database (PostgreSQL + pgvector)
-
-- Tạo database (ví dụ): `ridemate_db`
-- (Tuỳ chọn) Enable `pgvector` và setup bằng script:
-
-- File: `ridemate-server/setup_pgvector.sql`
-- Gợi ý chạy:
-  - `psql -U postgres -d ridemate_db -f setup_pgvector.sql`
-
-### 2) (Tuỳ chọn) Face Recognition Service (Python)
-
-Chạy bằng Docker (khuyến nghị):
-
-```bash
-cd ridemate-server/face-recognition-service
-docker compose up -d
-```
-
-Mặc định service chạy tại `http://localhost:5000` (health check: `GET /health`).
-
-Tài liệu chi tiết: `ridemate-server/face-recognition-service/README.md`
-
-### 3) Backend (Spring Boot)
+### 1) Backend (Spring Boot)
 
 1) Tạo file env:
 
 - Copy `ridemate-server/env.example` → `ridemate-server/.env`
 - Điền tối thiểu: `DB_URL`, `DB_USER`, `DB_PASSWORD`, `JWT_SECRET`
+  - Lưu ý: chỉ cần **PostgreSQL đang chạy** và `DB_URL` trỏ đúng database là backend chạy được.
 
 2) Chạy backend:
 
@@ -58,7 +35,7 @@ cd ridemate-server
 - Base URL: `http://localhost:8080/api` (do backend cấu hình `server.servlet.context-path=/api`)
 - Swagger UI: `http://localhost:8080/api/swagger-ui.html`
 
-### 4) Mobile App (Expo)
+### 2) Mobile App (Expo)
 
 1) Tạo env cho app: tạo file `RideMate/.env` và set:
 
