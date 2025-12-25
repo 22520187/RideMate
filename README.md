@@ -40,7 +40,7 @@ cd ridemate-server
 1) Tạo env cho app: tạo file `RideMate/.env` và set:
 
 ```
-EXPO_PUBLIC_API_BASE_URL=http://10.200.100.56:8080/api
+EXPO_PUBLIC_API_BASE_URL=http://<IPv4>:8080/api
 ```
 
 #### Lấy IPv4 trên Windows để thay vào URL (bắt buộc khi chạy trên máy thật)
@@ -49,28 +49,13 @@ EXPO_PUBLIC_API_BASE_URL=http://10.200.100.56:8080/api
 - Tìm adapter đang dùng mạng (**Wi-Fi** hoặc **Ethernet**)
 - Copy dòng **IPv4 Address** (ví dụ `10.200.100.56`)
 - Gắn vào `.env` như trên: `http://<IPv4>:8080/api`
-
-> Nếu bạn dùng Android emulator thì thường gọi host bằng `http://10.0.2.2:8080/api`.
-> Nếu bị không gọi được backend từ máy thật, kiểm tra **Windows Firewall** (mở port 8080) và đảm bảo điện thoại + PC cùng mạng LAN.
-
+- 
 2) Cài dependencies và chạy:
 
 ```bash
 cd RideMate
 npm install
-npm run start
+npx expo start -c
 ```
 
 ---
-
-## Tài liệu liên quan
-
-- Backend APIs (một phần): `ridemate-server/USER_MANAGEMENT_API.md`
-- Diagram: `DIAGRAMS.md`
-
----
-
-## Ghi chú (base URL)
-
-- Backend đang dùng `server.servlet.context-path=/api` nên base URL chuẩn là `http://<host>:8080/api`
-- Trong app mobile, nếu gặp lỗi kiểu `.../api/api/...` hoặc 404, hãy kiểm tra lại việc **endpoint có bị prefix `/api` 2 lần** hay không (tham khảo `RideMate/src/api/endpoints.js`).
