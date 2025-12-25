@@ -11,10 +11,12 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import COLORS from "../../../constant/colors";
 import routeBookingService from "../../../services/routeBookingService";
 import Toast from "react-native-toast-message";
 import GradientHeader from "../../../components/GradientHeader";
+import SnowEffect from "../../../components/SnowEffect";
 
 /**
  * Screen for passengers to view their fixed route bookings/requests
@@ -92,7 +94,7 @@ const MyBookingsScreen = ({ navigation }) => {
       case "IN_PROGRESS":
         return COLORS.info;
       case "COMPLETED":
-        return COLORS.primary;
+        return "#FF5370";
       case "REJECTED":
       case "CANCELLED":
         return COLORS.error;
@@ -125,14 +127,14 @@ const MyBookingsScreen = ({ navigation }) => {
   const filterTabs = ["ALL", "PENDING", "ACCEPTED", "HISTORY"];
 
   // Tab selection state: 'active' or 'history'
-  const [activeTab, setActiveTab] = useState('active');
+  const [activeTab, setActiveTab] = useState("active");
 
   const filteredBookings = bookings.filter((booking) => {
     if (activeTab === "active") {
-        return ["PENDING", "ACCEPTED", "IN_PROGRESS"].includes(booking.status);
+      return ["PENDING", "ACCEPTED", "IN_PROGRESS"].includes(booking.status);
     }
     if (activeTab === "history") {
-        return ["COMPLETED", "CANCELLED", "REJECTED"].includes(booking.status);
+      return ["COMPLETED", "CANCELLED", "REJECTED"].includes(booking.status);
     }
     return true;
   });
@@ -144,12 +146,12 @@ const MyBookingsScreen = ({ navigation }) => {
       day: "2-digit",
       month: "2-digit",
     });
-    
+
     if (timeString) {
-        const [hours, minutes] = timeString.split(':');
-        return `${hours}:${minutes} - ${formattedDate}`;
+      const [hours, minutes] = timeString.split(":");
+      return `${hours}:${minutes} - ${formattedDate}`;
     }
-    
+
     return formattedDate;
   };
 
@@ -160,10 +162,14 @@ const MyBookingsScreen = ({ navigation }) => {
       <View style={styles.bookingCard}>
         <View style={styles.bookingHeader}>
           <View style={styles.routeInfo}>
-            <MaterialIcons name="directions-bus" size={24} color={COLORS.primary} />
+            <MaterialIcons name="directions-bus" size={24} color="#FF5370" />
             <View style={styles.routeDetails}>
-              <Text style={styles.routeName} numberOfLines={1}>{routeInfo.routeName || "Chuyến đi"}</Text>
-               <Text style={styles.routePrice}>{item.totalPrice?.toLocaleString()}đ</Text>
+              <Text style={styles.routeName} numberOfLines={1}>
+                {routeInfo.routeName || "Chuyến đi"}
+              </Text>
+              <Text style={styles.routePrice}>
+                {item.totalPrice?.toLocaleString()}đ
+              </Text>
             </View>
           </View>
           <View
@@ -191,7 +197,11 @@ const MyBookingsScreen = ({ navigation }) => {
 
         <View style={styles.locationInfo}>
           <View style={styles.locationRow}>
-            <MaterialIcons name="trip-origin" size={16} color={COLORS.success} />
+            <MaterialIcons
+              name="trip-origin"
+              size={16}
+              color={COLORS.success}
+            />
             <Text style={styles.locationText} numberOfLines={1}>
               {item.pickupAddress}
             </Text>
@@ -220,28 +230,61 @@ const MyBookingsScreen = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      <GradientHeader title="Yêu cầu của tôi" onBackPress={() => navigation.goBack()} />
+      <SnowEffect />
+      <GradientHeader
+        title="🎫 Yêu cầu của tôi"
+        onBackPress={() => navigation.goBack()}
+        showBackButton={true}
+      />
 
       <View style={styles.tabWrapper}>
         <View style={styles.tabContainer}>
           <TouchableOpacity
-            style={[styles.tabButton, activeTab === 'active' && styles.activeTab]}
-            onPress={() => setActiveTab('active')}
+            style={[
+              styles.tabButton,
+              activeTab === "active" && styles.activeTab,
+            ]}
+            onPress={() => setActiveTab("active")}
           >
-            <Text style={[styles.tabText, activeTab === 'active' && styles.activeTabText]}>Đang thực hiện</Text>
+            {activeTab === "active" ? (
+              <LinearGradient
+                colors={["#FF5370", "#FF6B9D", "#FF8FAB"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.tabGradient}
+              >
+                <Text style={styles.activeTabText}>Đang thực hiện</Text>
+              </LinearGradient>
+            ) : (
+              <Text style={styles.tabText}>Đang thực hiện</Text>
+            )}
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.tabButton, activeTab === 'history' && styles.activeTab]}
-            onPress={() => setActiveTab('history')}
+            style={[
+              styles.tabButton,
+              activeTab === "history" && styles.activeTab,
+            ]}
+            onPress={() => setActiveTab("history")}
           >
-            <Text style={[styles.tabText, activeTab === 'history' && styles.activeTabText]}>Lịch sử</Text>
+            {activeTab === "history" ? (
+              <LinearGradient
+                colors={["#FF5370", "#FF6B9D", "#FF8FAB"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.tabGradient}
+              >
+                <Text style={styles.activeTabText}>Lịch sử</Text>
+              </LinearGradient>
+            ) : (
+              <Text style={styles.tabText}>Lịch sử</Text>
+            )}
           </TouchableOpacity>
         </View>
       </View>
 
       {loading && !refreshing ? (
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
+          <ActivityIndicator size="large" color="#FF5370" />
         </View>
       ) : (
         <FlatList
@@ -254,7 +297,11 @@ const MyBookingsScreen = ({ navigation }) => {
           }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <MaterialIcons name="assignment" size={80} color={COLORS.lightGray} />
+              <MaterialIcons
+                name="assignment"
+                size={80}
+                color={COLORS.lightGray}
+              />
               <Text style={styles.emptyText}>Chưa có yêu cầu nào</Text>
             </View>
           }
@@ -267,60 +314,77 @@ const MyBookingsScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: "#FFF5F7",
   },
   centerContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: "#FFF5F7",
   },
   tabWrapper: {
     paddingHorizontal: 16,
-    marginBottom: 16,
+    paddingTop: 8,
+    paddingBottom: 12,
+    backgroundColor: "#FFF5F7",
   },
   tabContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#F5F5F5',
-    borderRadius: 12,
+    flexDirection: "row",
+    backgroundColor: COLORS.WHITE,
+    borderRadius: 16,
     padding: 4,
+    borderWidth: 2,
+    borderColor: "#FFE5EC",
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
   },
   tabButton: {
     flex: 1,
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  tabGradient: {
     paddingVertical: 10,
-    alignItems: 'center',
-    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
   },
   activeTab: {
-    backgroundColor: COLORS.PRIMARY,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
   },
   tabText: {
     fontSize: 14,
-    fontWeight: '500',
-    color: COLORS.GRAY,
+    fontWeight: "600",
+    color: "#8E8E93",
+    paddingVertical: 10,
+    textAlign: "center",
   },
   activeTabText: {
-    fontWeight: '700',
+    fontWeight: "700",
     color: COLORS.WHITE,
+    fontSize: 14,
   },
   listContainer: {
     padding: 16,
   },
   bookingCard: {
-    backgroundColor: "#F5F5F5",
-    borderRadius: 12,
+    backgroundColor: COLORS.WHITE,
+    borderRadius: 16,
     padding: 16,
     marginBottom: 16,
-    elevation: 1,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
+    borderWidth: 2,
+    borderColor: "#FFE5EC",
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   bookingHeader: {
     flexDirection: "row",
@@ -344,7 +408,7 @@ const styles = StyleSheet.create({
   },
   routePrice: {
     fontSize: 14,
-    color: COLORS.primary,
+    color: "#FF5370",
     fontWeight: "700",
     marginTop: 2,
   },
@@ -403,14 +467,19 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   cancelButton: {
-    backgroundColor: "#FFEBEE",
-    borderWidth: 1,
-    borderColor: COLORS.error,
+    backgroundColor: COLORS.WHITE,
+    borderWidth: 2,
+    borderColor: "#FF5370",
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   actionButtonText: {
     fontSize: 14,
     fontWeight: "600",
-    color: COLORS.error,
+    color: "#FF5370",
   },
   emptyContainer: {
     flex: 1,

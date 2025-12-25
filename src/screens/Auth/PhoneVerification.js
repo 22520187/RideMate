@@ -62,11 +62,15 @@ const PhoneVerification = ({ navigation, route }) => {
   const sendOTP = async () => {
     try {
       // Call API to send OTP (fallback to general sendOtp if needed)
-      await sendOtp({ phoneNumber: formattedPhone, purpose: "REGISTER" });
+      await sendOtp({
+        phoneNumber: formattedPhone,
+        purpose: "REGISTER",
+      });
+
       Toast.show({
         type: "success",
         text1: "Thành công",
-        text2: `Mã xác thực đã được gửi đến ${phoneNumber}`,
+        text2: `Mã xác thực đã được gửi đến ${phoneNumber} qua SMS`,
       });
     } catch (error) {
       Toast.show({
@@ -83,10 +87,11 @@ const PhoneVerification = ({ navigation, route }) => {
         phoneNumber: formattedPhone,
         purpose: "REGISTER",
       });
+
       Toast.show({
         type: "success",
         text1: "Thành công",
-        text2: `Mã xác thực đã được gửi đến ${phoneNumber}`,
+        text2: `Mã xác thực đã được gửi đến ${phoneNumber} qua SMS`,
       });
     } catch (error) {
       Toast.show({
@@ -342,7 +347,25 @@ const PhoneVerification = ({ navigation, route }) => {
       setTimeLeft(60);
       setCanResend(false);
       setCode(["", "", "", "", "", ""]);
-      await initiateRegistration();
+      try {
+        await initiateRegister({
+          phoneNumber: formattedPhone,
+          purpose: "REGISTER",
+        });
+
+        Toast.show({
+          type: "success",
+          text1: "Thành công",
+          text2: `Mã xác thực mới đã được gửi đến ${phoneNumber} qua SMS`,
+        });
+      } catch (error) {
+        Toast.show({
+          type: "error",
+          text1: "Lỗi",
+          text2:
+            error?.response?.data?.message || "Không thể gửi lại mã xác thực",
+        });
+      }
     }
   };
 

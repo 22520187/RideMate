@@ -13,10 +13,12 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import COLORS from "../../../constant/colors";
 import routeBookingService from "../../../services/routeBookingService";
 import Toast from "react-native-toast-message";
 import GradientHeader from "../../../components/GradientHeader";
+import SnowEffect from "../../../components/SnowEffect";
 
 /**
  * Screen for drivers to view and manage bookings for a specific route
@@ -140,7 +142,7 @@ const RouteBookingsScreen = ({ navigation, route }) => {
       case "IN_PROGRESS":
         return COLORS.INFO;
       case "COMPLETED":
-        return COLORS.PRIMARY;
+        return "#FF5370";
       case "REJECTED":
       case "CANCELLED":
         return COLORS.ERROR;
@@ -177,7 +179,7 @@ const RouteBookingsScreen = ({ navigation, route }) => {
     <View style={styles.bookingCard}>
       <View style={styles.bookingHeader}>
         <View style={styles.passengerInfo}>
-          <MaterialIcons name="person" size={24} color={COLORS.PRIMARY} />
+          <MaterialIcons name="person" size={24} color="#FF5370" />
           <View style={styles.passengerDetails}>
             <Text style={styles.passengerName}>{item.passengerName}</Text>
             <Text style={styles.passengerPhone}>{item.passengerPhone}</Text>
@@ -191,20 +193,21 @@ const RouteBookingsScreen = ({ navigation, route }) => {
                 Alert.alert("Lỗi", "Không tìm thấy thông tin hành khách");
                 return;
               }
-              
+
               try {
-                const { getProfile } = require('../../../services/userService');
+                const { getProfile } = require("../../../services/userService");
                 const profileResp = await getProfile();
-                const currentUserId = profileResp?.data?.data?.id || profileResp?.data?.id;
-                
+                const currentUserId =
+                  profileResp?.data?.data?.id || profileResp?.data?.id;
+
                 if (!currentUserId) {
                   Alert.alert("Lỗi", "Không thể lấy thông tin người dùng");
                   return;
                 }
-                
+
                 const userIds = [currentUserId, item.passengerId].sort();
                 const channelId = `dm-${userIds[0]}-${userIds[1]}`;
-                
+
                 navigation.navigate("ChatScreen", {
                   channelId,
                   otherUserId: item.passengerId,
@@ -223,7 +226,7 @@ const RouteBookingsScreen = ({ navigation, route }) => {
           <TouchableOpacity
             style={styles.contactButtonCall}
             onPress={() => {
-              const phoneNumber = item.passengerPhone?.replace(/\s/g, '');
+              const phoneNumber = item.passengerPhone?.replace(/\s/g, "");
               if (phoneNumber) {
                 Linking.openURL(`tel:${phoneNumber}`);
               }
@@ -288,15 +291,13 @@ const RouteBookingsScreen = ({ navigation, route }) => {
           </TouchableOpacity>
         </View>
       )}
-
-
     </View>
   );
 
   if (loading && !refreshing) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color={COLORS.PRIMARY} />
+        <ActivityIndicator size="large" color="#FF5370" />
         <Text style={styles.loadingText}>Đang tải...</Text>
       </View>
     );
@@ -304,14 +305,18 @@ const RouteBookingsScreen = ({ navigation, route }) => {
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      <GradientHeader title="Đặt chỗ" onBackPress={() => navigation.goBack()} />
+      <SnowEffect />
+      <GradientHeader
+        title="🎫 Đặt chỗ"
+        onBackPress={() => navigation.goBack()}
+        showBackButton={true}
+      />
 
-      <View>
-        <ScrollView 
-          horizontal 
+      <View style={styles.tabWrapper}>
+        <ScrollView
+          horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filterScrollContent}
-          style={styles.filterScroll}
         >
           {["ALL", "PENDING", "ACCEPTED", "IN_PROGRESS"].map((filterOption) => (
             <TouchableOpacity
@@ -322,14 +327,26 @@ const RouteBookingsScreen = ({ navigation, route }) => {
               ]}
               onPress={() => setFilter(filterOption)}
             >
-              <Text
-                style={[
-                  styles.filterButtonText,
-                  filter === filterOption && styles.filterButtonTextActive,
-                ]}
-              >
-                {filterOption === "ALL" ? "Tất cả" : getStatusText(filterOption)}
-              </Text>
+              {filter === filterOption ? (
+                <LinearGradient
+                  colors={["#FF5370", "#FF6B9D", "#FF8FAB"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.filterButtonGradient}
+                >
+                  <Text style={styles.filterButtonTextActive}>
+                    {filterOption === "ALL"
+                      ? "Tất cả"
+                      : getStatusText(filterOption)}
+                  </Text>
+                </LinearGradient>
+              ) : (
+                <Text style={styles.filterButtonText}>
+                  {filterOption === "ALL"
+                    ? "Tất cả"
+                    : getStatusText(filterOption)}
+                </Text>
+              )}
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -362,60 +379,77 @@ const RouteBookingsScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: "#FFF5F7",
   },
   centerContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: "#FFF5F7",
   },
   loadingText: {
     marginTop: 12,
     fontSize: 16,
     color: COLORS.GRAY,
   },
-  filterScroll: {
-    backgroundColor: COLORS.WHITE,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E0E0E0",
+  tabWrapper: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 12,
+    backgroundColor: "#FFF5F7",
   },
   filterScrollContent: {
-    padding: 16,
     flexDirection: "row",
     alignItems: "center",
+    gap: 8,
   },
   filterButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: "#E0E0E0",
+    borderRadius: 16,
+    overflow: "hidden",
     marginRight: 8,
   },
+  filterButtonGradient: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+  },
   filterButtonActive: {
-    backgroundColor: COLORS.PRIMARY,
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
   },
   filterButtonText: {
     fontSize: 14,
-    color: COLORS.GRAY,
+    fontWeight: "600",
+    color: "#8E8E93",
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: COLORS.WHITE,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: "#FFE5EC",
   },
   filterButtonTextActive: {
     color: COLORS.WHITE,
-    fontWeight: "600",
+    fontWeight: "700",
+    fontSize: 14,
   },
   listContainer: {
     padding: 16,
   },
   bookingCard: {
-    backgroundColor: "#F5F5F5",
-    borderRadius: 12,
+    backgroundColor: COLORS.WHITE,
+    borderRadius: 16,
     padding: 16,
     marginBottom: 16,
-    elevation: 1,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
+    borderWidth: 2,
+    borderColor: "#FFE5EC",
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   bookingHeader: {
     flexDirection: "row",
@@ -451,11 +485,11 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: "#FF5370",
     justifyContent: "center",
     alignItems: "center",
     elevation: 2,
-    shadowColor: COLORS.PRIMARY,
+    shadowColor: "#FF5370",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 3,
@@ -534,7 +568,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.ERROR,
   },
   startButton: {
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: "#FF5370",
   },
   actionButtonText: {
     fontSize: 14,

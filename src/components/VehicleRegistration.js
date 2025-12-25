@@ -235,7 +235,7 @@ const VehicleRegistration = ({
             </Text>
             <TouchableOpacity onPress={handleSubmit} disabled={submitting}>
               {submitting ? (
-                <ActivityIndicator size="small" color={COLORS.PRIMARY} />
+                <ActivityIndicator size="small" color="#FF5370" />
               ) : (
                 <Text style={styles.saveText}>Gửi</Text>
               )}

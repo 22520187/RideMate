@@ -16,9 +16,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LineChart } from "react-native-chart-kit";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { LinearGradient } from "expo-linear-gradient";
+import { Sparkles } from "lucide-react-native";
 import COLORS from "../../constant/colors";
 import { getMatchHistory } from "../../services/matchService";
 import GradientHeader from "../../components/GradientHeader";
+import SnowEffect from "../../components/SnowEffect";
 
 const { width } = Dimensions.get("window");
 
@@ -402,18 +405,14 @@ const RideHistory = ({ navigation }) => {
             <Ionicons
               name="filter"
               size={20}
-              color={fromDate || toDate ? COLORS.WHITE : COLORS.PRIMARY}
+              color={fromDate || toDate ? "#FFF" : "#FF5370"}
             />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.notificationButton}
             onPress={() => navigation.navigate("Notification")}
           >
-            <Ionicons
-              name="notifications-outline"
-              size={24}
-              color={COLORS.PRIMARY}
-            />
+            <Ionicons name="notifications-outline" size={22} color="#FF5370" />
             <View style={styles.notificationBadge} />
           </TouchableOpacity>
         </View>
@@ -422,7 +421,7 @@ const RideHistory = ({ navigation }) => {
       {/* Active Filter Display */}
       {(fromDate || toDate) && (
         <View style={styles.activeFilterContainer}>
-          <Ionicons name="calendar" size={16} color={COLORS.PRIMARY} />
+          <Ionicons name="calendar" size={18} color="#FF5370" />
           <Text style={styles.activeFilterText}>
             {fromDate && toDate
               ? `${fromDate.toLocaleDateString(
@@ -444,52 +443,56 @@ const RideHistory = ({ navigation }) => {
       {/* Chart Section */}
       <View style={styles.chartSection}>
         <Text style={styles.chartTitle}>Thống kê 7 ngày qua</Text>
-        <LineChart
-          data={{
-            labels: chartData.map((d) => d.day),
-            datasets: [
-              {
-                data: chartData.map((d) => d.count),
+        <View style={styles.chartWrapper}>
+          <LineChart
+            data={{
+              labels: chartData.map((d) => d.day),
+              datasets: [
+                {
+                  data: chartData.map((d) => d.count),
+                },
+              ],
+            }}
+            width={width - 80}
+            height={180}
+            chartConfig={{
+              backgroundColor: "#ffffff",
+              backgroundGradientFrom: "#ffffff",
+              backgroundGradientTo: "#ffffff",
+              decimalPlaces: 0,
+              color: (opacity = 1) => `rgba(255, 83, 112, ${opacity})`,
+              labelColor: (opacity = 1) => `rgba(255, 107, 157, ${opacity})`,
+              style: {
+                borderRadius: 16,
               },
-            ],
-          }}
-          width={width - 40}
-          height={180}
-          chartConfig={{
-            backgroundColor: "#ffffff",
-            backgroundGradientFrom: "#ffffff",
-            backgroundGradientTo: "#ffffff",
-            decimalPlaces: 0,
-            color: (opacity = 1) => `rgba(0, 69, 83, ${opacity})`,
-            labelColor: (opacity = 1) => `rgba(142, 142, 147, ${opacity})`,
-            style: {
+              propsForDots: {
+                r: "5",
+                strokeWidth: "2",
+                stroke: "#FF5370",
+              },
+              propsForBackgroundLines: {
+                strokeDasharray: "", // solid lines
+                stroke: "#F0F0F0",
+                strokeWidth: 1,
+              },
+            }}
+            bezier
+            style={{
+              marginVertical: 8,
               borderRadius: 16,
-            },
-            propsForDots: {
-              r: "4",
-              strokeWidth: "2",
-              stroke: COLORS.PRIMARY,
-            },
-            propsForBackgroundLines: {
-              strokeDasharray: "", // solid lines
-              stroke: "#F0F0F0",
-              strokeWidth: 1,
-            },
-          }}
-          bezier
-          style={{
-            marginVertical: 8,
-            borderRadius: 16,
-          }}
-        />
+            }}
+          />
+        </View>
 
         {/* Stats Summary */}
         <View style={styles.statsContainer}>
           <View style={styles.statItem}>
             <Text style={styles.statValue}>
-              {pastRides.filter(
-                (r) => r.status === "COMPLETED" || r.status === "FINISHED"
-              ).length}
+              {
+                pastRides.filter(
+                  (r) => r.status === "COMPLETED" || r.status === "FINISHED"
+                ).length
+              }
             </Text>
             <Text style={styles.statLabel}>Hoàn thành</Text>
           </View>
@@ -518,7 +521,7 @@ const RideHistory = ({ navigation }) => {
     return (
       <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.PRIMARY} />
+          <ActivityIndicator size="large" color="#FF5370" />
         </View>
       </SafeAreaView>
     );
@@ -526,7 +529,8 @@ const RideHistory = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      <GradientHeader title="Lịch sử" showBackButton={false} />
+      <SnowEffect />
+      <GradientHeader title="📜 Lịch sử" showBackButton={false} />
       <FlatList
         data={pastRides}
         keyExtractor={(item) => (item._key ?? item.id)?.toString()}
@@ -582,11 +586,7 @@ const RideHistory = ({ navigation }) => {
                   style={styles.dateInput}
                   onPress={openFromDatePicker}
                 >
-                  <Ionicons
-                    name="calendar-outline"
-                    size={20}
-                    color={COLORS.PRIMARY}
-                  />
+                  <Ionicons name="calendar-outline" size={20} color="#FF5370" />
                   <Text
                     style={[
                       styles.dateText,
@@ -607,11 +607,7 @@ const RideHistory = ({ navigation }) => {
                   style={styles.dateInput}
                   onPress={openToDatePicker}
                 >
-                  <Ionicons
-                    name="calendar-outline"
-                    size={20}
-                    color={COLORS.PRIMARY}
-                  />
+                  <Ionicons name="calendar-outline" size={20} color="#FF5370" />
                   <Text
                     style={[
                       styles.dateText,
@@ -636,8 +632,17 @@ const RideHistory = ({ navigation }) => {
                 <TouchableOpacity
                   style={styles.applyButton}
                   onPress={applyFilters}
+                  activeOpacity={0.9}
                 >
-                  <Text style={styles.applyButtonText}>Áp dụng</Text>
+                  <LinearGradient
+                    colors={["#FF5370", "#FF6B9D"]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.applyButtonGradient}
+                  >
+                    <Sparkles size={16} color="#FFF" />
+                    <Text style={styles.applyButtonText}>Áp dụng ✨</Text>
+                  </LinearGradient>
                 </TouchableOpacity>
               </View>
             </View>
@@ -754,7 +759,7 @@ const RideHistory = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#FFF5F7",
   },
   loadingContainer: {
     flex: 1,
@@ -767,7 +772,6 @@ const styles = StyleSheet.create({
 
   // Header
   headerWrapper: {
-    backgroundColor: "#fff",
     paddingTop: 10,
     paddingBottom: 16,
   },
@@ -782,65 +786,61 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "#F5F5F5",
+    backgroundColor: "#FFE5EC",
     justifyContent: "center",
     alignItems: "center",
     marginRight: 8,
     position: "relative",
+    borderWidth: 2,
+    borderColor: "#FF6B9D",
   },
   filterButtonActive: {
-    backgroundColor: COLORS.PRIMARY,
-  },
-  filterButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#F5F5F5",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 8,
-    position: "relative",
-  },
-  filterButtonActive: {
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: "#FF5370",
+    borderColor: "#FF5370",
   },
   notificationButton: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "#F5F5F5",
+    backgroundColor: "#FFE5EC",
     justifyContent: "center",
     alignItems: "center",
     position: "relative",
+    borderWidth: 2,
+    borderColor: "#FF6B9D",
   },
   notificationBadge: {
     position: "absolute",
-    top: 10,
-    right: 10,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: COLORS.PRIMARY,
+    top: 8,
+    right: 8,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#FF5370",
+    borderWidth: 2,
+    borderColor: "#FFF",
   },
 
   // Active Filter Display
   activeFilterContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: COLORS.PRIMARY + "15",
+    backgroundColor: "#FFE5EC",
     marginHorizontal: 20,
     marginTop: 12,
     marginBottom: 8,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 8,
+    borderRadius: 12,
     gap: 8,
+    borderWidth: 2,
+    borderColor: "#FF6B9D",
   },
   activeFilterText: {
     flex: 1,
     fontSize: 13,
-    color: COLORS.PRIMARY,
-    fontWeight: "600",
+    color: "#FF5370",
+    fontWeight: "700",
   },
   clearFilterButton: {
     padding: 4,
@@ -848,16 +848,29 @@ const styles = StyleSheet.create({
 
   // Chart Section
   chartSection: {
-    backgroundColor: "#fff",
+    backgroundColor: "#FFF",
     paddingHorizontal: 20,
     paddingVertical: 20,
     marginTop: 8,
+    borderRadius: 24,
+    marginHorizontal: 20,
+    borderWidth: 2,
+    borderColor: "#FFE5EC",
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 6,
   },
   chartTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#1C1C1E",
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#FF5370",
     marginBottom: 16,
+  },
+  chartWrapper: {
+    overflow: "hidden",
+    borderRadius: 16,
   },
   chartContainer: {
     flexDirection: "row",
@@ -901,8 +914,8 @@ const styles = StyleSheet.create({
   },
   statValue: {
     fontSize: 20,
-    fontWeight: "700",
-    color: COLORS.PRIMARY,
+    fontWeight: "800",
+    color: "#FF5370",
   },
   statLabel: {
     fontSize: 12,
@@ -920,22 +933,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 24,
     paddingBottom: 12,
-    backgroundColor: "#fff",
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#1C1C1E",
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#FF5370",
   },
 
   // Card
   card: {
-    backgroundColor: "#F5F5F5",
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: "#FFF",
+    borderRadius: 20,
+    padding: 18,
     marginHorizontal: 20,
-    marginBottom: 12,
+    marginBottom: 14,
     position: "relative",
+    borderWidth: 2,
+    borderColor: "#FFE5EC",
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
   statusBadge: {
     position: "absolute",
@@ -955,6 +974,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     marginBottom: 16,
+    paddingRight: 90, // Space for status badge to prevent overlap
   },
   locationDot: {
     width: 10,
@@ -1029,14 +1049,16 @@ const styles = StyleSheet.create({
   // Filter Modal
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
     justifyContent: "flex-end",
   },
   filterModal: {
     backgroundColor: "#fff",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
     paddingBottom: 32,
+    borderWidth: 3,
+    borderColor: "#FFE5EC",
   },
   filterModalHeader: {
     flexDirection: "row",
@@ -1048,9 +1070,9 @@ const styles = StyleSheet.create({
     borderBottomColor: "#F0F0F0",
   },
   filterModalTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#1C1C1E",
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#FF5370",
   },
   filterModalContent: {
     padding: 20,
@@ -1067,11 +1089,13 @@ const styles = StyleSheet.create({
   dateInput: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F5F5F5",
-    borderRadius: 12,
+    backgroundColor: "#FFE5EC",
+    borderRadius: 16,
     paddingHorizontal: 16,
     paddingVertical: 14,
     gap: 12,
+    borderWidth: 2,
+    borderColor: "#FF6B9D",
   },
   dateText: {
     fontSize: 15,
@@ -1088,10 +1112,12 @@ const styles = StyleSheet.create({
   },
   clearButton: {
     flex: 1,
-    backgroundColor: "#F5F5F5",
+    backgroundColor: "#FFE5EC",
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#FF6B9D",
   },
   clearButtonText: {
     fontSize: 15,
@@ -1100,27 +1126,39 @@ const styles = StyleSheet.create({
   },
   applyButton: {
     flex: 1,
-    backgroundColor: COLORS.PRIMARY,
     borderRadius: 12,
+    overflow: "hidden",
+    elevation: 4,
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
+  applyButtonGradient: {
     paddingVertical: 14,
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
   },
   applyButtonText: {
     fontSize: 15,
-    fontWeight: "700",
+    fontWeight: "800",
     color: "#fff",
   },
 
   // Picker Modal (iOS)
   pickerModalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
     justifyContent: "flex-end",
   },
   pickerModal: {
     backgroundColor: "#fff",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    borderWidth: 3,
+    borderColor: "#FFE5EC",
   },
   pickerHeader: {
     flexDirection: "row",
@@ -1132,9 +1170,9 @@ const styles = StyleSheet.create({
     borderBottomColor: "#F0F0F0",
   },
   pickerTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#1C1C1E",
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#FF5370",
   },
   pickerCancelText: {
     fontSize: 16,
@@ -1143,8 +1181,8 @@ const styles = StyleSheet.create({
   },
   pickerDoneText: {
     fontSize: 16,
-    color: COLORS.PRIMARY,
-    fontWeight: "700",
+    color: "#FF5370",
+    fontWeight: "800",
   },
 });
 

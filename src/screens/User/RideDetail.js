@@ -26,6 +26,8 @@ import { getProfile } from "../../services/userService";
 import { createReport } from "../../services/reportService";
 import ImagePickerModal from "../../components/ImagePickerModal";
 import { uploadImage, normalizeMimeType } from "../../services/uploadService";
+import GradientHeader from "../../components/GradientHeader";
+import SnowEffect from "../../components/SnowEffect";
 
 const REPORT_CATEGORIES = [
   { key: "SAFETY", label: "An toàn" },
@@ -38,7 +40,7 @@ const REPORT_CATEGORIES = [
 
 const RideDetail = ({ route, navigation }) => {
   const { rideId } = route.params;
-  
+
   // -- Core State --
   const [loading, setLoading] = useState(true);
   const [ride, setRide] = useState(null);
@@ -60,44 +62,70 @@ const RideDetail = ({ route, navigation }) => {
     let isMounted = true;
 
     const normalizeRideDetail = (raw) => {
-      const status = raw?.status ?? raw?.matchStatus ?? raw?.rideStatus ?? raw?.state ?? "UNKNOWN";
-      const pickupAddress = raw?.pickupAddress ?? raw?.pickup_address ?? raw?.startLocation ?? "Điểm đón";
-      const destinationAddress = raw?.destinationAddress ?? raw?.destination_address ?? raw?.endLocation ?? "Điểm đến";
-      
+      const status =
+        raw?.status ??
+        raw?.matchStatus ??
+        raw?.rideStatus ??
+        raw?.state ??
+        "UNKNOWN";
+      const pickupAddress =
+        raw?.pickupAddress ??
+        raw?.pickup_address ??
+        raw?.startLocation ??
+        "Điểm đón";
+      const destinationAddress =
+        raw?.destinationAddress ??
+        raw?.destination_address ??
+        raw?.endLocation ??
+        "Điểm đến";
+
       const coinRaw = raw?.coin ?? raw?.coins ?? raw?.price ?? 0;
       const coin = typeof coinRaw === "number" ? coinRaw : Number(coinRaw) || 0;
 
       const distanceRaw = raw?.distance ?? raw?.distanceMeters ?? 0;
-      const distance = typeof distanceRaw === "number" ? distanceRaw : Number(distanceRaw) || 0;
+      const distance =
+        typeof distanceRaw === "number"
+          ? distanceRaw
+          : Number(distanceRaw) || 0;
 
       const durationRaw = raw?.duration ?? raw?.durationMinutes ?? 0;
-      const duration = typeof durationRaw === "number" ? durationRaw : Number(durationRaw) || 0;
+      const duration =
+        typeof durationRaw === "number"
+          ? durationRaw
+          : Number(durationRaw) || 0;
 
       const createdAt = raw?.createdAt ?? new Date().toISOString();
 
       const driverId = raw?.driverId ?? raw?.driver?.id;
-      const driver = driverId ? {
-        id: driverId,
-        name: raw?.driverName ?? raw?.driver?.fullName ?? "Tài xế",
-        phone: raw?.driverPhone ?? raw?.driver?.phoneNumber ?? "",
-        avatar: raw?.driverAvatar ?? raw?.driver?.profilePictureUrl,
-        rating: raw?.driverRating ?? raw?.driver?.rating ?? 0,
-        vehicle: raw?.vehicle ? {
-          brand: raw?.vehicle?.make ?? "",
-          model: raw?.vehicle?.model ?? "",
-          color: raw?.vehicle?.color ?? "",
-          licensePlate: raw?.vehicle?.licensePlate ?? "",
-          info: raw?.vehicleInfo,
-        } : null,
-      } : null;
+      const driver = driverId
+        ? {
+            id: driverId,
+            name: raw?.driverName ?? raw?.driver?.fullName ?? "Tài xế",
+            phone: raw?.driverPhone ?? raw?.driver?.phoneNumber ?? "",
+            avatar: raw?.driverAvatar ?? raw?.driver?.profilePictureUrl,
+            rating: raw?.driverRating ?? raw?.driver?.rating ?? 0,
+            vehicle: raw?.vehicle
+              ? {
+                  brand: raw?.vehicle?.make ?? "",
+                  model: raw?.vehicle?.model ?? "",
+                  color: raw?.vehicle?.color ?? "",
+                  licensePlate: raw?.vehicle?.licensePlate ?? "",
+                  info: raw?.vehicleInfo,
+                }
+              : null,
+          }
+        : null;
 
       const passengerId = raw?.passengerId ?? raw?.passenger?.id;
-      const passenger = passengerId ? {
-        id: passengerId,
-        name: raw?.passengerName ?? raw?.passenger?.fullName ?? "Khách hàng",
-        phone: raw?.passengerPhone ?? raw?.passenger?.phoneNumber ?? "",
-        avatar: raw?.passengerAvatar ?? raw?.passenger?.profilePictureUrl,
-      } : null;
+      const passenger = passengerId
+        ? {
+            id: passengerId,
+            name:
+              raw?.passengerName ?? raw?.passenger?.fullName ?? "Khách hàng",
+            phone: raw?.passengerPhone ?? raw?.passenger?.phoneNumber ?? "",
+            avatar: raw?.passengerAvatar ?? raw?.passenger?.profilePictureUrl,
+          }
+        : null;
 
       return {
         id: raw?.id ?? rideId,
@@ -135,25 +163,35 @@ const RideDetail = ({ route, navigation }) => {
     };
 
     fetchDetail();
-    return () => { isMounted = false; };
+    return () => {
+      isMounted = false;
+    };
   }, [rideId]);
 
   // -- Helpers --
   const getStatusColor = (status) => {
     switch (status) {
-      case "COMPLETED": return COLORS.GREEN;
-      case "CANCELLED": return COLORS.RED;
-      case "IN_PROGRESS": return "#2196F3";
-      default: return COLORS.GRAY;
+      case "COMPLETED":
+        return COLORS.GREEN;
+      case "CANCELLED":
+        return COLORS.RED;
+      case "IN_PROGRESS":
+        return "#2196F3";
+      default:
+        return COLORS.GRAY;
     }
   };
 
   const getStatusText = (status) => {
     switch (status) {
-      case "COMPLETED": return "Hoàn thành";
-      case "CANCELLED": return "Đã hủy";
-      case "IN_PROGRESS": return "Đang diễn ra";
-      default: return status;
+      case "COMPLETED":
+        return "Hoàn thành";
+      case "CANCELLED":
+        return "Đã hủy";
+      case "IN_PROGRESS":
+        return "Đang diễn ra";
+      default:
+        return status;
     }
   };
 
@@ -198,8 +236,10 @@ const RideDetail = ({ route, navigation }) => {
       await FileSystem.copyAsync({ from: uri, to: dest });
       uri = dest;
     }
-    return (Platform.OS === "android" && !uri.startsWith("file://") && !uri.startsWith("http")) 
-      ? `file://${uri}` 
+    return Platform.OS === "android" &&
+      !uri.startsWith("file://") &&
+      !uri.startsWith("http")
+      ? `file://${uri}`
       : uri;
   };
 
@@ -213,7 +253,11 @@ const RideDetail = ({ route, navigation }) => {
       const fileName = asset?.fileName || `evidence_${Date.now()}.jpg`;
       const mimeType = normalizeMimeType(asset?.type, fileName);
 
-      const uploadResp = await uploadImage({ uri, name: fileName, type: mimeType });
+      const uploadResp = await uploadImage({
+        uri,
+        name: fileName,
+        type: mimeType,
+      });
       const url = uploadResp?.data?.url;
       if (!url) throw new Error("Upload thất bại");
 
@@ -231,18 +275,27 @@ const RideDetail = ({ route, navigation }) => {
     setTimeout(async () => {
       try {
         const isCamera = sourceType === "camera";
-        const permission = isCamera 
-          ? await ImagePicker.requestCameraPermissionsAsync() 
+        const permission = isCamera
+          ? await ImagePicker.requestCameraPermissionsAsync()
           : await ImagePicker.requestMediaLibraryPermissionsAsync();
 
         if (!permission.granted) {
-          Alert.alert("Cần quyền truy cập", "Vui lòng cấp quyền để thực hiện chức năng này.");
+          Alert.alert(
+            "Cần quyền truy cập",
+            "Vui lòng cấp quyền để thực hiện chức năng này."
+          );
           return;
         }
 
-        const result = isCamera 
-          ? await ImagePicker.launchCameraAsync({ allowsEditing: true, quality: 0.8 })
-          : await ImagePicker.launchImageLibraryAsync({ allowsEditing: true, quality: 0.8 });
+        const result = isCamera
+          ? await ImagePicker.launchCameraAsync({
+              allowsEditing: true,
+              quality: 0.8,
+            })
+          : await ImagePicker.launchImageLibraryAsync({
+              allowsEditing: true,
+              quality: 0.8,
+            });
 
         if (!result.canceled && result.assets?.length > 0) {
           await uploadEvidenceImage(result.assets[0]);
@@ -254,8 +307,13 @@ const RideDetail = ({ route, navigation }) => {
   };
 
   const submitReport = async () => {
-    if (!ride?.driver?.id) return Alert.alert("Lỗi", "Thông tin đối tượng báo cáo không hợp lệ.");
-    if (!reportTitle.trim() || !reportDescription.trim()) return Alert.alert("Thiếu thông tin", "Vui lòng nhập đầy đủ tiêu đề và mô tả.");
+    if (!ride?.driver?.id)
+      return Alert.alert("Lỗi", "Thông tin đối tượng báo cáo không hợp lệ.");
+    if (!reportTitle.trim() || !reportDescription.trim())
+      return Alert.alert(
+        "Thiếu thông tin",
+        "Vui lòng nhập đầy đủ tiêu đề và mô tả."
+      );
 
     try {
       setReportSubmitting(true);
@@ -267,9 +325,14 @@ const RideDetail = ({ route, navigation }) => {
         category: reportCategory,
         evidenceUrl: evidenceUrl?.trim() || null,
       });
-      Alert.alert("Thành công", "Báo cáo của bạn đã được gửi.", [{ text: "OK", onPress: () => setReportModalVisible(false) }]);
+      Alert.alert("Thành công", "Báo cáo của bạn đã được gửi.", [
+        { text: "OK", onPress: () => setReportModalVisible(false) },
+      ]);
     } catch (err) {
-      Alert.alert("Lỗi", err?.response?.data?.message || "Không thể gửi báo cáo.");
+      Alert.alert(
+        "Lỗi",
+        err?.response?.data?.message || "Không thể gửi báo cáo."
+      );
     } finally {
       setReportSubmitting(false);
     }
@@ -279,7 +342,15 @@ const RideDetail = ({ route, navigation }) => {
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={["top"]}>
-        <View style={styles.loadingContainer}><ActivityIndicator size="large" color={COLORS.PRIMARY} /></View>
+        <SnowEffect />
+        <GradientHeader
+          title="🚗 Chi tiết chuyến đi"
+          onBackPress={() => navigation.goBack()}
+          showBackButton={true}
+        />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#FF5370" />
+        </View>
       </SafeAreaView>
     );
   }
@@ -287,14 +358,15 @@ const RideDetail = ({ route, navigation }) => {
   if (!ride) {
     return (
       <SafeAreaView style={styles.container} edges={["top"]}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#1C1C1E" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Chi tiết chuyến đi</Text>
-          <View style={{ width: 40 }} />
+        <SnowEffect />
+        <GradientHeader
+          title="🚗 Chi tiết chuyến đi"
+          onBackPress={() => navigation.goBack()}
+          showBackButton={true}
+        />
+        <View style={styles.loadingContainer}>
+          <Text style={styles.emptyText}>Không tìm thấy chuyến đi</Text>
         </View>
-        <View style={styles.loadingContainer}><Text color="#8E8E93">Không tìm thấy chuyến đi</Text></View>
       </SafeAreaView>
     );
   }
@@ -305,33 +377,56 @@ const RideDetail = ({ route, navigation }) => {
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color="#1C1C1E" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Chi tiết chuyến đi</Text>
-        <View style={{ width: 40 }} />
-      </View>
+      <SnowEffect />
+      <GradientHeader
+        title="🚗 Chi tiết chuyến đi"
+        onBackPress={() => navigation.goBack()}
+        showBackButton={true}
+      />
 
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Status Card */}
         <View style={styles.statusCard}>
-          <LinearGradient colors={[statusColor, statusColor + "CC"]} style={styles.statusGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-            <Ionicons name={ride.status === "COMPLETED" ? "checkmark-circle" : "alert-circle"} size={32} color="#fff" />
+          <LinearGradient
+            colors={["#FF5370", "#FF6B9D", "#FF8FAB"]}
+            style={styles.statusGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <Ionicons
+              name={
+                ride.status === "COMPLETED"
+                  ? "checkmark-circle"
+                  : "alert-circle"
+              }
+              size={32}
+              color="#fff"
+            />
             <Text style={styles.statusText}>{getStatusText(ride.status)}</Text>
-            <Text style={styles.statusSubtext}>{new Date(ride.createdAt).toLocaleString("vi-VN")}</Text>
+            <Text style={styles.statusSubtext}>
+              {new Date(ride.createdAt).toLocaleString("vi-VN")}
+            </Text>
           </LinearGradient>
         </View>
 
         {/* Info Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{isDriver ? "Thông tin khách hàng" : "Thông tin tài xế"}</Text>
+          <Text style={styles.sectionTitle}>
+            {isDriver ? "👤 Thông tin khách hàng" : "👤 Thông tin tài xế"}
+          </Text>
           {otherPerson ? (
             <View style={styles.driverCard}>
-              <Image source={{ uri: otherPerson.avatar || "https://i.pravatar.cc/150?img=14" }} style={styles.driverAvatar} />
+              <Image
+                source={{
+                  uri: otherPerson.avatar || "https://i.pravatar.cc/150?img=14",
+                }}
+                style={styles.driverAvatar}
+              />
               <View style={styles.driverInfo}>
                 <Text style={styles.driverName}>{otherPerson.name}</Text>
-                {otherPerson.phone && <Text style={styles.phoneText}>{otherPerson.phone}</Text>}
+                {otherPerson.phone && (
+                  <Text style={styles.phoneText}>{otherPerson.phone}</Text>
+                )}
                 {!isDriver && (
                   <View style={styles.ratingRow}>
                     <Ionicons name="star" size={16} color="#FFB800" />
@@ -340,67 +435,78 @@ const RideDetail = ({ route, navigation }) => {
                 )}
                 {!isDriver && ride.driver?.vehicle && (
                   <Text style={styles.vehicleText}>
-                    {ride.driver.vehicle.brand} {ride.driver.vehicle.model} - {ride.driver.vehicle.licensePlate}
+                    {ride.driver.vehicle.brand} {ride.driver.vehicle.model} -{" "}
+                    {ride.driver.vehicle.licensePlate}
                   </Text>
                 )}
               </View>
             </View>
           ) : (
-             <View style={styles.driverCard}><Text>Đang cập nhật...</Text></View>
+            <View style={styles.driverCard}>
+              <Text>Đang cập nhật...</Text>
+            </View>
           )}
         </View>
 
         {/* Route Card */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Lộ trình</Text>
+          <Text style={styles.sectionTitle}>🗺️ Lộ trình</Text>
           <View style={styles.routeCard}>
-             <View style={styles.routeRow}>
-                <View style={styles.routeIconContainer}>
-                   <View style={[styles.routeDot, { backgroundColor: COLORS.PRIMARY }]} />
-                   <View style={styles.routeLine} />
-                </View>
-                <View style={styles.routeContent}>
-                   <Text style={styles.routeLabel}>Điểm đón</Text>
-                   <Text style={styles.routeAddress}>{ride.pickupAddress}</Text>
-                </View>
-             </View>
-             <View style={styles.routeRow}>
-                <View style={styles.routeIconContainer}>
-                   <View style={[styles.routeDot, { backgroundColor: COLORS.RED }]} />
-                </View>
-                <View style={styles.routeContent}>
-                   <Text style={styles.routeLabel}>Điểm đến</Text>
-                   <Text style={styles.routeAddress}>{ride.destinationAddress}</Text>
-                </View>
-             </View>
+            <View style={styles.routeRow}>
+              <View style={styles.routeIconContainer}>
+                <View
+                  style={[styles.routeDot, { backgroundColor: "#FF5370" }]}
+                />
+                <View style={styles.routeLine} />
+              </View>
+              <View style={styles.routeContent}>
+                <Text style={styles.routeLabel}>Điểm đón</Text>
+                <Text style={styles.routeAddress}>{ride.pickupAddress}</Text>
+              </View>
+            </View>
+            <View style={styles.routeRow}>
+              <View style={styles.routeIconContainer}>
+                <View
+                  style={[styles.routeDot, { backgroundColor: "#FF5370" }]}
+                />
+              </View>
+              <View style={styles.routeContent}>
+                <Text style={styles.routeLabel}>Điểm đến</Text>
+                <Text style={styles.routeAddress}>
+                  {ride.destinationAddress}
+                </Text>
+              </View>
+            </View>
           </View>
         </View>
 
         {/* Ride Details */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Thông tin chuyến đi</Text>
+          <Text style={styles.sectionTitle}>💰 Thông tin chuyến đi</Text>
           <View style={styles.detailsCard}>
             <View style={styles.detailRow}>
               <View style={styles.detailItem}>
-                <Ionicons name="cash-outline" size={20} color={COLORS.PRIMARY} />
+                <Ionicons name="cash-outline" size={20} color="#FF5370" />
                 <Text style={styles.detailLabel}>Giá cước</Text>
                 <Text style={styles.detailValue}>{ride.coin} coin</Text>
               </View>
               <View style={styles.detailDivider} />
               <View style={styles.detailItem}>
-                <Ionicons name="navigate-outline" size={20} color={COLORS.PRIMARY} />
+                <Ionicons name="navigate-outline" size={20} color="#FF5370" />
                 <Text style={styles.detailLabel}>Khoảng cách</Text>
                 <Text style={styles.detailValue}>
-                  {ride.distance >= 1000 
-                    ? `${(ride.distance / 1000).toFixed(1)} km` 
+                  {ride.distance >= 1000
+                    ? `${(ride.distance / 1000).toFixed(1)} km`
                     : `${Math.round(ride.distance)} m`}
                 </Text>
               </View>
               <View style={styles.detailDivider} />
               <View style={styles.detailItem}>
-                <Ionicons name="time-outline" size={20} color={COLORS.PRIMARY} />
+                <Ionicons name="time-outline" size={20} color="#FF5370" />
                 <Text style={styles.detailLabel}>Thời gian</Text>
-                <Text style={styles.detailValue}>{ride.duration || 0} phút</Text>
+                <Text style={styles.detailValue}>
+                  {ride.duration || 0} phút
+                </Text>
               </View>
             </View>
           </View>
@@ -408,58 +514,141 @@ const RideDetail = ({ route, navigation }) => {
 
         {/* Action Buttons */}
         <View style={styles.actionSection}>
-          <TouchableOpacity style={styles.primaryButton} onPress={handleMessage}>
-            <Ionicons name="chatbubble-outline" size={20} color="#fff" style={{ marginRight: 8 }} />
-            <Text style={styles.primaryButtonText}>Nhắn tin</Text>
+          <TouchableOpacity
+            style={styles.primaryButton}
+            onPress={handleMessage}
+          >
+            <LinearGradient
+              colors={["#FF5370", "#FF6B9D", "#FF8FAB"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.primaryButtonGradient}
+            >
+              <Ionicons
+                name="chatbubble-outline"
+                size={20}
+                color="#fff"
+                style={{ marginRight: 8 }}
+              />
+              <Text style={styles.primaryButtonText}>Nhắn tin</Text>
+            </LinearGradient>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.secondaryButton} onPress={openReportModal}>
+          <TouchableOpacity
+            style={styles.secondaryButton}
+            onPress={openReportModal}
+          >
             <Text style={styles.secondaryButtonText}>Báo cáo vấn đề</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
 
       {/* Report Modal */}
-      <Modal visible={reportModalVisible} transparent animationType="slide" onRequestClose={closeReportModal}>
+      <Modal
+        visible={reportModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={closeReportModal}
+      >
         <Pressable style={styles.modalBackdrop} onPress={closeReportModal}>
-          <Pressable onPress={(e) => e.stopPropagation()} style={{ width: "100%" }}>
-            <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.modalContainer}>
+          <Pressable
+            onPress={(e) => e.stopPropagation()}
+            style={{ width: "100%" }}
+          >
+            <KeyboardAvoidingView
+              behavior={Platform.OS === "ios" ? "padding" : undefined}
+              style={styles.modalContainer}
+            >
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Báo cáo vấn đề</Text>
-                <TouchableOpacity onPress={closeReportModal}><Ionicons name="close" size={22} color="#1C1C1E" /></TouchableOpacity>
+                <TouchableOpacity onPress={closeReportModal}>
+                  <Ionicons name="close" size={22} color="#1C1C1E" />
+                </TouchableOpacity>
               </View>
 
               <ScrollView style={styles.modalBody}>
                 <Text style={styles.inputLabel}>Loại vấn đề *</Text>
                 <View style={styles.categoryGrid}>
                   {REPORT_CATEGORIES.map((c) => (
-                    <TouchableOpacity 
-                      key={c.key} 
-                      style={[styles.categoryChip, reportCategory === c.key && styles.categoryChipActive]}
+                    <TouchableOpacity
+                      key={c.key}
+                      style={[
+                        styles.categoryChip,
+                        reportCategory === c.key && styles.categoryChipActive,
+                      ]}
                       onPress={() => setReportCategory(c.key)}
                     >
-                      <Text style={[styles.categoryChipText, reportCategory === c.key && styles.categoryChipTextActive]}>{c.label}</Text>
+                      <Text
+                        style={[
+                          styles.categoryChipText,
+                          reportCategory === c.key &&
+                            styles.categoryChipTextActive,
+                        ]}
+                      >
+                        {c.label}
+                      </Text>
                     </TouchableOpacity>
                   ))}
                 </View>
 
                 <Text style={styles.inputLabel}>Tiêu đề *</Text>
-                <TextInput style={styles.textInput} value={reportTitle} onChangeText={setReportTitle} placeholder="Nhập tiêu đề..." />
+                <TextInput
+                  style={styles.textInput}
+                  value={reportTitle}
+                  onChangeText={setReportTitle}
+                  placeholder="Nhập tiêu đề..."
+                />
 
                 <Text style={styles.inputLabel}>Mô tả chi tiết *</Text>
-                <TextInput style={styles.textArea} value={reportDescription} onChangeText={setReportDescription} multiline placeholder="Mô tả cụ thể..." />
+                <TextInput
+                  style={styles.textArea}
+                  value={reportDescription}
+                  onChangeText={setReportDescription}
+                  multiline
+                  placeholder="Mô tả cụ thể..."
+                />
 
                 <Text style={styles.inputLabel}>Bằng chứng</Text>
                 <View style={styles.evidenceRow}>
-                  <TextInput style={[styles.textInput, { flex: 1, marginBottom: 0 }]} value={evidenceUrl} onChangeText={setEvidenceUrl} placeholder="URL ảnh..." />
-                  <TouchableOpacity style={styles.uploadBtn} onPress={() => setImagePickerVisible(true)} disabled={evidenceUploading}>
-                    {evidenceUploading ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="cloud-upload-outline" size={18} color="#fff" />}
+                  <TextInput
+                    style={[styles.textInput, { flex: 1, marginBottom: 0 }]}
+                    value={evidenceUrl}
+                    onChangeText={setEvidenceUrl}
+                    placeholder="URL ảnh..."
+                  />
+                  <TouchableOpacity
+                    style={styles.uploadBtn}
+                    onPress={() => setImagePickerVisible(true)}
+                    disabled={evidenceUploading}
+                  >
+                    {evidenceUploading ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Ionicons
+                        name="cloud-upload-outline"
+                        size={18}
+                        color="#fff"
+                      />
+                    )}
                   </TouchableOpacity>
                 </View>
 
                 <View style={styles.modalActions}>
-                  <TouchableOpacity style={[styles.modalBtn, styles.modalCancel]} onPress={closeReportModal}><Text>Hủy</Text></TouchableOpacity>
-                  <TouchableOpacity style={[styles.modalBtn, styles.modalSubmit]} onPress={submitReport} disabled={reportSubmitting}>
-                    {reportSubmitting ? <ActivityIndicator color="#fff" /> : <Text style={{ color: "#fff" }}>Gửi</Text>}
+                  <TouchableOpacity
+                    style={[styles.modalBtn, styles.modalCancel]}
+                    onPress={closeReportModal}
+                  >
+                    <Text>Hủy</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.modalBtn, styles.modalSubmit]}
+                    onPress={submitReport}
+                    disabled={reportSubmitting}
+                  >
+                    {reportSubmitting ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <Text style={{ color: "#fff" }}>Gửi</Text>
+                    )}
                   </TouchableOpacity>
                 </View>
               </ScrollView>
@@ -468,75 +657,192 @@ const RideDetail = ({ route, navigation }) => {
         </Pressable>
       </Modal>
 
-      <ImagePickerModal 
-        visible={imagePickerVisible} 
-        onClose={() => setImagePickerVisible(false)} 
-        onCameraPress={() => handlePickEvidence("camera")} 
-        onLibraryPress={() => handlePickEvidence("library")} 
+      <ImagePickerModal
+        visible={imagePickerVisible}
+        onClose={() => setImagePickerVisible(false)}
+        onCameraPress={() => handlePickEvidence("camera")}
+        onLibraryPress={() => handlePickEvidence("library")}
       />
     </SafeAreaView>
   );
 };
 
-// ... Styles (giữ nguyên styles của bạn)
 const styles = StyleSheet.create({
-    // (Dán lại phần styles của bạn ở đây)
-    container: { flex: 1, backgroundColor: "#FFFFFF" },
-    loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
-    header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: "#F0F0F0" },
-    backButton: { width: 40, height: 40, borderRadius: 20, backgroundColor: "#F5F5F5", justifyContent: "center", alignItems: "center" },
-    headerTitle: { fontSize: 18, fontWeight: "700", color: "#1C1C1E" },
-    statusCard: { margin: 20, borderRadius: 20, overflow: "hidden", elevation: 6 },
-    statusGradient: { padding: 24, alignItems: "center" },
-    statusText: { fontSize: 18, fontWeight: "700", color: "#fff", marginTop: 8 },
-    statusSubtext: { fontSize: 14, color: "rgba(255,255,255,0.9)", marginTop: 4 },
-    section: { marginBottom: 20, paddingHorizontal: 20 },
-    sectionTitle: { fontSize: 18, fontWeight: "700", color: "#1C1C1E", marginBottom: 12 },
-    driverCard: { flexDirection: "row", backgroundColor: "#F8F9FA", borderRadius: 16, padding: 16 },
-    driverAvatar: { width: 64, height: 64, borderRadius: 32 },
-    driverInfo: { flex: 1, marginLeft: 12 },
-    driverName: { fontSize: 16, fontWeight: "700" },
-    ratingRow: { flexDirection: "row", alignItems: "center", marginTop: 4 },
-    ratingText: { marginLeft: 4, fontWeight: "600" },
-    routeCard: { backgroundColor: "#F8F9FA", borderRadius: 16, padding: 20 },
-    routeRow: { flexDirection: "row", marginBottom: 20 },
-    routeIconContainer: { alignItems: "center", marginRight: 16 },
-    routeDot: { width: 12, height: 12, borderRadius: 6 },
-    routeLine: { width: 2, height: 40, backgroundColor: "#E0E0E0" },
-    routeContent: { flex: 1 },
-    routeLabel: { fontSize: 12, color: "#8E8E93" },
-    routeAddress: { fontSize: 15, fontWeight: "600" },
-    detailsCard: { backgroundColor: "#F8F9FA", borderRadius: 16, padding: 16 },
-    detailRow: { flexDirection: "row", justifyContent: "space-between" },
-    detailItem: { flex: 1, alignItems: "center", gap: 4 },
-    detailDivider: { width: 1, backgroundColor: "#E0E0E0", marginHorizontal: 8 },
-    detailLabel: { fontSize: 12, color: "#8E8E93", marginTop: 4 },
-    detailValue: { fontSize: 16, fontWeight: "700", color: "#1C1C1E" },
-    phoneText: { fontSize: 14, color: "#8E8E93", marginTop: 2 },
-    vehicleText: { fontSize: 13, color: "#8E8E93", marginTop: 4 },
-    actionSection: { paddingHorizontal: 20, gap: 12, marginBottom: 20 },
-    primaryButton: { backgroundColor: COLORS.PRIMARY, padding: 16, borderRadius: 12, flexDirection: "row", justifyContent: "center" },
-    primaryButtonText: { color: "#fff", fontWeight: "700" },
-    secondaryButton: { backgroundColor: "#F8F9FA", padding: 16, borderRadius: 12, alignItems: "center", borderWidth: 1, borderColor: "#E5E5EA" },
-    secondaryButtonText: { fontWeight: "600" },
-    modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
-    modalContainer: { backgroundColor: "#fff", borderTopLeftRadius: 18, borderTopRightRadius: 18, maxHeight: "90%" },
-    modalHeader: { flexDirection: "row", justifyContent: "space-between", padding: 20, borderBottomWidth: 1, borderBottomColor: "#F0F0F0" },
-    modalTitle: { fontSize: 18, fontWeight: "700" },
-    modalBody: { padding: 20 },
-    inputLabel: { fontWeight: "700", marginBottom: 8, marginTop: 10 },
-    textInput: { backgroundColor: "#F5F5F5", borderRadius: 12, padding: 12, marginBottom: 10 },
-    textArea: { backgroundColor: "#F5F5F5", borderRadius: 12, padding: 12, minHeight: 100 },
-    categoryGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-    categoryChip: { padding: 10, borderRadius: 20, borderWidth: 1, borderColor: "#E5E5EA" },
-    categoryChipActive: { backgroundColor: COLORS.PRIMARY, borderColor: COLORS.PRIMARY },
-    categoryChipTextActive: { color: "#fff" },
-    uploadBtn: { backgroundColor: COLORS.PRIMARY, width: 44, height: 44, borderRadius: 12, justifyContent: "center", alignItems: "center" },
-    evidenceRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-    modalActions: { flexDirection: "row", gap: 12, marginTop: 20, marginBottom: 40 },
-    modalBtn: { flex: 1, padding: 14, borderRadius: 12, alignItems: "center" },
-    modalCancel: { backgroundColor: "#F5F5F5" },
-    modalSubmit: { backgroundColor: COLORS.PRIMARY },
+  container: { flex: 1, backgroundColor: "#FFF5F7" },
+  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
+  statusCard: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 8,
+    borderRadius: 20,
+    overflow: "hidden",
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  statusGradient: { padding: 24, alignItems: "center" },
+  statusText: { fontSize: 18, fontWeight: "700", color: "#fff", marginTop: 8 },
+  statusSubtext: { fontSize: 14, color: "rgba(255,255,255,0.9)", marginTop: 4 },
+  section: { marginBottom: 20, paddingHorizontal: 16 },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#FF5370",
+    marginBottom: 12,
+  },
+  driverCard: {
+    flexDirection: "row",
+    backgroundColor: COLORS.WHITE,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 2,
+    borderColor: "#FFE5EC",
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  driverAvatar: { width: 64, height: 64, borderRadius: 32 },
+  driverInfo: { flex: 1, marginLeft: 12 },
+  driverName: { fontSize: 16, fontWeight: "700" },
+  ratingRow: { flexDirection: "row", alignItems: "center", marginTop: 4 },
+  ratingText: { marginLeft: 4, fontWeight: "600" },
+  routeCard: {
+    backgroundColor: COLORS.WHITE,
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 2,
+    borderColor: "#FFE5EC",
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  routeRow: { flexDirection: "row", marginBottom: 20 },
+  routeIconContainer: { alignItems: "center", marginRight: 16 },
+  routeDot: { width: 12, height: 12, borderRadius: 6 },
+  routeLine: { width: 2, height: 40, backgroundColor: "#E0E0E0" },
+  routeContent: { flex: 1 },
+  routeLabel: { fontSize: 12, color: "#8E8E93" },
+  routeAddress: { fontSize: 15, fontWeight: "600" },
+  detailsCard: {
+    backgroundColor: COLORS.WHITE,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 2,
+    borderColor: "#FFE5EC",
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  detailRow: { flexDirection: "row", justifyContent: "space-between" },
+  detailItem: { flex: 1, alignItems: "center", gap: 4 },
+  detailDivider: { width: 1, backgroundColor: "#E0E0E0", marginHorizontal: 8 },
+  detailLabel: { fontSize: 12, color: "#8E8E93", marginTop: 4 },
+  detailValue: { fontSize: 16, fontWeight: "700", color: "#1C1C1E" },
+  phoneText: { fontSize: 14, color: "#8E8E93", marginTop: 2 },
+  vehicleText: { fontSize: 13, color: "#8E8E93", marginTop: 4 },
+  actionSection: { paddingHorizontal: 16, gap: 12, marginBottom: 20 },
+  primaryButton: {
+    borderRadius: 16,
+    overflow: "hidden",
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  primaryButtonGradient: {
+    padding: 16,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  primaryButtonText: { color: "#fff", fontWeight: "700" },
+  secondaryButton: {
+    backgroundColor: COLORS.WHITE,
+    padding: 16,
+    borderRadius: 16,
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#FFE5EC",
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  secondaryButtonText: { fontWeight: "600", color: "#FF5370" },
+  emptyText: { fontSize: 16, color: "#8E8E93", marginTop: 20 },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContainer: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    maxHeight: "90%",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F0F0F0",
+  },
+  modalTitle: { fontSize: 18, fontWeight: "700" },
+  modalBody: { padding: 20 },
+  inputLabel: { fontWeight: "700", marginBottom: 8, marginTop: 10 },
+  textInput: {
+    backgroundColor: "#F5F5F5",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10,
+  },
+  textArea: {
+    backgroundColor: "#F5F5F5",
+    borderRadius: 12,
+    padding: 12,
+    minHeight: 100,
+  },
+  categoryGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  categoryChip: {
+    padding: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#E5E5EA",
+  },
+  categoryChipActive: {
+    backgroundColor: "#FF5370",
+    borderColor: "#FF5370",
+  },
+  categoryChipTextActive: { color: "#fff" },
+  uploadBtn: {
+    backgroundColor: "#FF5370",
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  evidenceRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  modalActions: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 20,
+    marginBottom: 40,
+  },
+  modalBtn: { flex: 1, padding: 14, borderRadius: 12, alignItems: "center" },
+  modalCancel: { backgroundColor: "#F5F5F5" },
+  modalSubmit: { backgroundColor: "#FF5370" },
 });
 
 export default RideDetail;

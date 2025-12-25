@@ -20,6 +20,8 @@ import { getMatchDetail } from "../../../services/matchService";
 import Toast from "react-native-toast-message";
 import axiosClient from "../../../api/axiosClient";
 import endpoints from "../../../api/endpoints";
+import GradientHeader from "../../../components/GradientHeader";
+import SnowEffect from "../../../components/SnowEffect";
 
 /**
  * Screen for drivers to view and manage their fixed routes
@@ -151,7 +153,9 @@ const MyFixedRoutesScreen = ({ navigation }) => {
         {/* Card Header with Gradient */}
         <LinearGradient
           colors={
-            isActive ? [COLORS.PRIMARY, "#006B7D"] : ["#9E9E9E", "#757575"]
+            isActive
+              ? ["#FF5370", "#FF6B9D", "#FF8FAB"]
+              : ["#9E9E9E", "#757575"]
           }
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
@@ -226,7 +230,7 @@ const MyFixedRoutesScreen = ({ navigation }) => {
           <View style={styles.infoGrid}>
             <View style={styles.infoCard}>
               <View style={styles.infoIconContainer}>
-                <MaterialIcons name="event" size={18} color={COLORS.PRIMARY} />
+                <MaterialIcons name="event" size={18} color="#FF5370" />
               </View>
               <View style={styles.infoContent}>
                 <Text style={styles.infoLabel}>Ngày</Text>
@@ -238,11 +242,7 @@ const MyFixedRoutesScreen = ({ navigation }) => {
 
             <View style={styles.infoCard}>
               <View style={styles.infoIconContainer}>
-                <MaterialIcons
-                  name="schedule"
-                  size={18}
-                  color={COLORS.PRIMARY}
-                />
+                <MaterialIcons name="schedule" size={18} color="#FF5370" />
               </View>
               <View style={styles.infoContent}>
                 <Text style={styles.infoLabel}>Giờ khởi hành</Text>
@@ -257,11 +257,7 @@ const MyFixedRoutesScreen = ({ navigation }) => {
           <View style={styles.seatSection}>
             <View style={styles.seatHeader}>
               <View style={styles.seatIconTextContainer}>
-                <MaterialIcons
-                  name="event-seat"
-                  size={18}
-                  color={COLORS.PRIMARY}
-                />
+                <MaterialIcons name="event-seat" size={18} color="#FF5370" />
                 <Text style={styles.seatLabel}>Tình trạng chỗ ngồi</Text>
               </View>
               <Text style={styles.seatCount}>
@@ -295,7 +291,7 @@ const MyFixedRoutesScreen = ({ navigation }) => {
               }
             >
               <LinearGradient
-                colors={[COLORS.PRIMARY, "#006B7D"]}
+                colors={["#FF5370", "#FF6B9D", "#FF8FAB"]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={styles.gradientButton}
@@ -591,7 +587,7 @@ const MyFixedRoutesScreen = ({ navigation }) => {
   if (loading && !refreshing) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color={COLORS.PRIMARY} />
+        <ActivityIndicator size="large" color="#FF5370" />
         <Text style={styles.loadingText}>Đang tải...</Text>
       </View>
     );
@@ -599,29 +595,14 @@ const MyFixedRoutesScreen = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      {/* Enhanced Header with Gradient */}
-      <LinearGradient
-        colors={[COLORS.PRIMARY, "#006B7D"]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.header}
-      >
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backButton}
-        >
-          <MaterialIcons name="arrow-back" size={24} color="#FFF" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Chuyến đi của tôi</Text>
-        <TouchableOpacity
-          onPress={() => navigation.navigate("CreateFixedRouteScreen")}
-          style={styles.addButton}
-        >
-          <View style={styles.addButtonCircle}>
-            <MaterialIcons name="add" size={24} color={COLORS.PRIMARY} />
-          </View>
-        </TouchableOpacity>
-      </LinearGradient>
+      <SnowEffect />
+      <GradientHeader
+        title="🚗 Chuyến đi của tôi"
+        onBackPress={() => navigation.goBack()}
+        showBackButton={true}
+        onRightPress={() => navigation.navigate("CreateFixedRouteScreen")}
+        rightIcon="add"
+      />
 
       {routes.length === 0 ? (
         <View style={styles.emptyContainer}>
@@ -657,8 +638,8 @@ const MyFixedRoutesScreen = ({ navigation }) => {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              colors={[COLORS.PRIMARY]}
-              tintColor={COLORS.PRIMARY}
+              colors={["#FF5370"]}
+              tintColor="#FF5370"
             />
           }
           showsVerticalScrollIndicator={false}
@@ -671,7 +652,7 @@ const MyFixedRoutesScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8F9FA",
+    backgroundColor: "#FFF5F7",
   },
   centerContainer: {
     flex: 1,
@@ -686,7 +667,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 16,
     elevation: 8,
-    shadowColor: COLORS.PRIMARY,
+    shadowColor: "#FF5370",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -729,14 +710,16 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
   routeCard: {
-    backgroundColor: "#FFF",
+    backgroundColor: COLORS.WHITE,
     borderRadius: 20,
     marginBottom: 16,
     overflow: "hidden",
+    borderWidth: 2,
+    borderColor: "#FFE5EC",
     elevation: 4,
-    shadowColor: "#000",
+    shadowColor: "#FF5370",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.15,
     shadowRadius: 8,
   },
   cardHeader: {
@@ -813,11 +796,11 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: "#FF5370",
     justifyContent: "center",
     alignItems: "center",
     elevation: 2,
-    shadowColor: COLORS.PRIMARY,
+    shadowColor: "#FF5370",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
@@ -833,7 +816,7 @@ const styles = StyleSheet.create({
   timelineDash: {
     width: "100%",
     height: "50%",
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: "#FF5370",
   },
   dropoffDotContainer: {
     padding: 4,
@@ -975,7 +958,7 @@ const styles = StyleSheet.create({
   },
   dateBadgeText: {
     fontSize: 13,
-    color: COLORS.PRIMARY,
+    color: "#FF5370",
     fontWeight: "700",
     marginLeft: 6,
   },
@@ -988,7 +971,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: "hidden",
     elevation: 2,
-    shadowColor: COLORS.PRIMARY,
+    shadowColor: "#FF5370",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
@@ -1061,7 +1044,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: "hidden",
     elevation: 4,
-    shadowColor: COLORS.PRIMARY,
+    shadowColor: "#FF5370",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,

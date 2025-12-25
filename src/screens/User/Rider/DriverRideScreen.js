@@ -19,9 +19,12 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
+import { Sparkles } from "lucide-react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import COLORS from "../../../constant/colors";
 import LocationSearch from "../../../components/LocationSearch";
 import RouteMap from "../../../components/RouteMap";
+import SnowEffect from "../../../components/SnowEffect";
 import { getCurrentLocation, reverseGeocode } from "../../../config/maps";
 import {
   searchPlaces as osmSearchPlaces,
@@ -715,39 +718,55 @@ const DriverRideScreen = ({ navigation, route }) => {
 
   return (
     <View style={styles.container}>
+      <SnowEffect />
       <SafeAreaView key={refreshKey} style={styles.safeArea} edges={["top"]}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backBtn}
-            onPress={() => navigation.goBack()}
-          >
-            <MaterialIcons name="arrow-back" size={24} color={COLORS.BLACK} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Tạo chuyến đi</Text>
-          <View style={styles.headerRight}>
-            {scheduledRide ? (
-              <TouchableOpacity
-                style={[styles.headerScheduleBtn, styles.headerCancelBtn]}
-                onPress={handleCancelSchedule}
-              >
-                <MaterialIcons
-                  name="event-busy"
-                  size={18}
-                  color={COLORS.WHITE}
-                />
-                <Text style={styles.headerScheduleText}>Xóa lịch</Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                style={styles.headerScheduleBtn}
-                onPress={() => setIsScheduleModalVisible(true)}
-              >
-                <MaterialIcons name="event" size={18} color={COLORS.WHITE} />
-                <Text style={styles.headerScheduleText}>Đặt lịch</Text>
-              </TouchableOpacity>
-            )}
+        <LinearGradient
+          colors={["#FF5370", "#FF6B9D", "#FF8FAB"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.headerGradient}
+        >
+          <View style={styles.headerDecor}>
+            <Text style={styles.decorBulb}>💡</Text>
+            <Text style={styles.decorStar}>⭐</Text>
+            <Text style={styles.decorSnow}>❄️</Text>
+            <Text style={styles.decorTree}>🎄</Text>
           </View>
-        </View>
+          <View style={styles.header}>
+            <TouchableOpacity
+              style={styles.backBtn}
+              onPress={() => navigation.goBack()}
+            >
+              <View style={styles.backButtonCircle}>
+                <MaterialIcons name="arrow-back" size={20} color="#FF5370" />
+              </View>
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>🚗 Tạo chuyến đi</Text>
+            <View style={styles.headerRight}>
+              {scheduledRide ? (
+                <TouchableOpacity
+                  style={[styles.headerScheduleBtn, styles.headerCancelBtn]}
+                  onPress={handleCancelSchedule}
+                >
+                  <MaterialIcons
+                    name="event-busy"
+                    size={16}
+                    color={COLORS.WHITE}
+                  />
+                  <Text style={styles.headerScheduleText}>Xóa lịch</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={styles.headerScheduleBtn}
+                  onPress={() => setIsScheduleModalVisible(true)}
+                >
+                  <MaterialIcons name="event" size={16} color={COLORS.WHITE} />
+                  <Text style={styles.headerScheduleText}>Đặt lịch</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        </LinearGradient>
       </SafeAreaView>
 
       <View style={styles.contentArea}>
@@ -860,15 +879,21 @@ const DriverRideScreen = ({ navigation, route }) => {
               onPress={handleSearchAsDriver}
               disabled={isLoadingDirections}
               pointerEvents="auto"
+              activeOpacity={0.9}
             >
-              <MaterialIcons
-                name={isLoadingDirections ? "hourglass-empty" : "search"}
-                size={20}
-                color={COLORS.WHITE}
-              />
-              <Text style={styles.searchBtnText}>
-                {isLoadingDirections ? "Đang tìm kiếm..." : "Tìm người đi cùng"}
-              </Text>
+              <LinearGradient
+                colors={["#FF5370", "#FF6B9D"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.searchBtnGradient}
+              >
+                <Sparkles size={18} color="#FFF" />
+                <Text style={styles.searchBtnText}>
+                  {isLoadingDirections
+                    ? "Đang tìm kiếm... ⏳"
+                    : "Tìm người đi cùng 🎄"}
+                </Text>
+              </LinearGradient>
             </TouchableOpacity>
           </View>
         </View>
@@ -1131,28 +1156,54 @@ const DriverRideScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BG,
+    backgroundColor: "#FFF5F7",
   },
   safeArea: {
-    backgroundColor: COLORS.WHITE,
     zIndex: 1000,
   },
+  headerGradient: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 20,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+    position: "relative",
+  },
+  headerDecor: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    paddingVertical: 6,
+    marginBottom: 8,
+  },
+  decorBulb: { fontSize: 18, opacity: 0.8 },
+  decorStar: { fontSize: 18, opacity: 0.8 },
+  decorSnow: { fontSize: 18, opacity: 0.8 },
+  decorTree: { fontSize: 18, opacity: 0.8 },
   header: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    backgroundColor: COLORS.WHITE,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.GRAY_LIGHT,
+    paddingTop: 8,
   },
   backBtn: {
     marginRight: 15,
   },
+  backButtonCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#FFF",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
+  },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: COLORS.BLACK,
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#FFF",
     flex: 1,
   },
   headerRight: {
@@ -1160,20 +1211,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   headerScheduleBtn: {
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: "rgba(255,255,255,0.3)",
     borderRadius: 16,
     paddingHorizontal: 12,
     paddingVertical: 8,
     flexDirection: "row",
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.5)",
   },
   headerCancelBtn: {
-    backgroundColor: COLORS.RED,
+    backgroundColor: "rgba(255,255,255,0.3)",
   },
   headerScheduleText: {
     color: COLORS.WHITE,
     fontSize: 12,
-    fontWeight: "700",
+    fontWeight: "800",
     marginLeft: 6,
   },
   contentArea: {
@@ -1204,13 +1257,15 @@ const styles = StyleSheet.create({
   },
   inputContainer: {
     backgroundColor: COLORS.WHITE,
-    borderRadius: 12,
-    padding: 15,
-    elevation: 5,
-    shadowColor: COLORS.BLACK,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
+    borderRadius: 24,
+    padding: 20,
+    elevation: 12,
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    borderWidth: 2,
+    borderColor: "#FFE5EC",
   },
   suggestionsContainer: {
     backgroundColor: COLORS.WHITE,
@@ -1257,33 +1312,40 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   currentLocationBtn: {
-    backgroundColor: COLORS.PRIMARY,
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    backgroundColor: "#FF5370",
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     flexDirection: "row",
     alignItems: "center",
     marginLeft: 8,
-    width: 72,
+    width: 80,
     justifyContent: "center",
     marginTop: 5,
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
   },
   currentLocationText: {
     color: COLORS.WHITE,
     fontSize: 11,
-    fontWeight: "600",
+    fontWeight: "700",
     marginLeft: 4,
   },
   routeInfoContainer: {
     backgroundColor: COLORS.WHITE,
-    borderRadius: 12,
-    padding: 15,
-    marginBottom: 10,
-    elevation: 5,
-    shadowColor: COLORS.BLACK,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
+    borderRadius: 20,
+    padding: 18,
+    marginBottom: 12,
+    elevation: 8,
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    borderWidth: 2,
+    borderColor: "#FFE5EC",
   },
   routeInfoRow: {
     flexDirection: "row",
@@ -1293,35 +1355,37 @@ const styles = StyleSheet.create({
   routeInfoItem: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: COLORS.BLUE_LIGHT,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    backgroundColor: "#FFE5EC",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     borderRadius: 20,
   },
   routeInfoText: {
-    fontSize: 12,
-    color: COLORS.BLACK,
-    marginLeft: 5,
-    fontWeight: "600",
+    fontSize: 13,
+    color: "#FF5370",
+    marginLeft: 6,
+    fontWeight: "700",
   },
   searchBtn: {
-    backgroundColor: COLORS.PRIMARY,
-    borderRadius: 12,
-    padding: 15,
+    borderRadius: 20,
+    overflow: "hidden",
+    elevation: 8,
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+  },
+  searchBtnGradient: {
+    padding: 16,
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    elevation: 5,
-    shadowColor: COLORS.BLACK,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
+    gap: 8,
   },
   searchBtnText: {
     color: COLORS.WHITE,
     fontSize: 16,
-    fontWeight: "bold",
-    marginLeft: 10,
+    fontWeight: "800",
   },
   searchBtnDisabled: {
     backgroundColor: COLORS.GRAY,
@@ -1329,21 +1393,23 @@ const styles = StyleSheet.create({
   },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
+    backgroundColor: "rgba(255, 83, 112, 0.6)",
     justifyContent: "flex-end",
   },
   modalContainer: {
     backgroundColor: COLORS.WHITE,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    padding: 20,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    padding: 24,
     maxHeight: Dimensions.get("window").height * 0.85,
+    borderWidth: 3,
+    borderColor: "#FFE5EC",
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: COLORS.BLACK,
-    marginBottom: 10,
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#FF5370",
+    marginBottom: 12,
     textAlign: "center",
   },
   modalField: {
@@ -1381,7 +1447,7 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   modalConfirm: {
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: "#FF5370",
     marginLeft: 10,
   },
   modalBtnText: {
@@ -1391,6 +1457,7 @@ const styles = StyleSheet.create({
   },
   modalConfirmText: {
     color: COLORS.WHITE,
+    fontWeight: "800",
   },
   modalHeader: {
     flexDirection: "row",
@@ -1410,16 +1477,16 @@ const styles = StyleSheet.create({
   passengerCard: {
     flexDirection: "row",
     backgroundColor: COLORS.WHITE,
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: COLORS.GRAY_LIGHT,
-    shadowColor: COLORS.BLACK,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 2,
+    borderColor: "#FFE5EC",
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 4,
   },
   passengerAvatar: {
     width: 50,
@@ -1478,13 +1545,14 @@ const styles = StyleSheet.create({
   confirmationModal: {
     backgroundColor: COLORS.WHITE,
     margin: 20,
-    borderRadius: 16,
-    // maxHeight: "80%",
-    shadowColor: COLORS.BLACK,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 10,
+    borderRadius: 24,
+    borderWidth: 3,
+    borderColor: "#FFE5EC",
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 12,
   },
   confirmationHeader: {
     flexDirection: "row",
@@ -1495,9 +1563,9 @@ const styles = StyleSheet.create({
     borderBottomColor: COLORS.GRAY_LIGHT,
   },
   confirmationTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: COLORS.BLACK,
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#FF5370",
   },
   closeBtn: {
     padding: 4,
@@ -1507,10 +1575,12 @@ const styles = StyleSheet.create({
   },
   confirmationPassengerCard: {
     flexDirection: "row",
-    backgroundColor: COLORS.GRAY_LIGHT + "30",
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: "#FFE5EC",
+    borderRadius: 16,
+    padding: 18,
     marginBottom: 20,
+    borderWidth: 2,
+    borderColor: "#FF6B9D",
   },
   confirmationAvatar: {
     width: 60,
@@ -1582,7 +1652,7 @@ const styles = StyleSheet.create({
     color: COLORS.GRAY,
   },
   confirmBtn: {
-    backgroundColor: COLORS.GREEN,
+    backgroundColor: "#FF5370",
   },
   confirmBtnText: {
     fontSize: 16,

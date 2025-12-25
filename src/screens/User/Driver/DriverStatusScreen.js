@@ -7,27 +7,39 @@ import {
   Switch,
   Alert,
   ActivityIndicator,
+  Dimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import COLORS from "../../../constant/colors";
-// import DriverLocationService from "../../../services/driverLocationService"; // DEPRECATED
 import useDriverLocation from "../../../hooks/useDriverLocation";
-import axiosClient from "../../../api/axiosClient";
 import { getProfile } from "../../../services/userService";
 import useDriverOnlineStatus from "../../../hooks/useDriverOnlineStatus";
 import SCREENS from "../../index";
-import GradientHeader from "../../../components/GradientHeader";
+
+const { width } = Dimensions.get("window");
 
 const DriverStatusScreen = ({ navigation }) => {
   const { isOnline, setOnlineStatus, loading } = useDriverOnlineStatus();
-  // Use new hook to manage location broadcasting based on online status
   const { currentLocation, isTracking } = useDriverLocation(isOnline);
-  // const [currentLocation, setCurrentLocation] = useState(null); // Managed by hook now
+  const [userProfile, setUserProfile] = useState(null);
+
+  useEffect(() => {
+    loadUserProfile();
+  }, []);
+
+  const loadUserProfile = async () => {
+    try {
+      const response = await getProfile();
+      setUserProfile(response?.data?.data);
+    } catch (error) {
+      console.error("Error loading profile:", error);
+    }
+  };
 
   const handleToggleStatus = async (value) => {
     if (value) {
-      // Going ONLINE
       Alert.alert(
         "Bật chế độ Online",
         "Bạn có muốn bật chế độ online và chuyển đến màn hình bản đồ để nhận chuyến không?",
@@ -43,31 +55,75 @@ const DriverStatusScreen = ({ navigation }) => {
         ]
       );
     } else {
-      // Going OFFLINE
       setOnlineStatus(false);
       Alert.alert("Đã Offline", "Bạn đã tắt chế độ nhận chuyến.");
     }
   };
 
+  const quickStats = [
+    {
+      icon: "🏍️",
+      label: "Chuyến đi",
+      value: userProfile?.totalRides?.toString() || "0",
+      color: "#FFB6C1",
+    },
+    {
+      icon: "⭐",
+      label: "Đánh giá",
+      value: userProfile?.rating ? userProfile.rating.toFixed(1) : "0.0",
+      color: "#FFD700",
+    },
+    {
+      icon: "🎁",
+      label: "Xu",
+      value: userProfile?.coins?.toString() || "0",
+      color: "#FF69B4",
+    },
+  ];
+
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      <GradientHeader
-        title="Trạng thái tài xế"
-        onBackPress={() => navigation.goBack()}
-      />
+      {/* Gradient Header */}
+      <LinearGradient
+        colors={["#004553", "#006D84", "#008FA5"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.header}
+      >
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backButton}
+        >
+          <MaterialIcons name="arrow-back" size={24} color="#fff" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Trạng thái tài xế</Text>
+        <View style={{ width: 40 }} />
+      </LinearGradient>
 
       <View style={styles.content}>
-        <View style={styles.statusCard}>
+        {/* Status Card with Gradient */}
+        <LinearGradient
+          colors={
+            isOnline
+              ? ["#10B981", "#059669", "#047857"]
+              : ["#6B7280", "#4B5563", "#374151"]
+          }
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.statusCard}
+        >
           <View style={styles.statusHeader}>
             <View style={styles.statusIconContainer}>
-              <MaterialIcons
-                name={isOnline ? "check-circle" : "cancel"}
-                size={60}
-                color={isOnline ? COLORS.GREEN : COLORS.GRAY}
-              />
+              <View style={styles.iconGlow}>
+                <MaterialIcons
+                  name={isOnline ? "check-circle" : "cancel"}
+                  size={70}
+                  color="#fff"
+                />
+              </View>
             </View>
             <Text style={styles.statusTitle}>
-              {isOnline ? "Đang Online" : "Offline"}
+              {isOnline ? "🟢 Đang Online" : "⚫ Offline"}
             </Text>
             <Text style={styles.statusSubtitle}>
               {isOnline
@@ -84,77 +140,97 @@ const DriverStatusScreen = ({ navigation }) => {
               value={isOnline}
               onValueChange={handleToggleStatus}
               disabled={loading}
-              trackColor={{ false: "#D1D5DB", true: COLORS.PRIMARY }}
+              trackColor={{ false: "#D1D5DB", true: "#34D399" }}
               thumbColor={isOnline ? "#fff" : "#f4f3f4"}
+              ios_backgroundColor="#D1D5DB"
             />
           </View>
 
           {loading && (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color={COLORS.PRIMARY} />
+              <ActivityIndicator size="small" color="#fff" />
               <Text style={styles.loadingText}>Đang cập nhật...</Text>
             </View>
           )}
 
           {currentLocation && isOnline && (
             <View style={styles.locationInfo}>
-              <MaterialIcons
-                name="location-on"
-                size={20}
-                color={COLORS.PRIMARY}
-              />
+              <MaterialIcons name="location-on" size={20} color="#fff" />
               <Text style={styles.locationText}>
-                Vị trí: {currentLocation.latitude.toFixed(4)},{" "}
+                📍 Vị trí: {currentLocation.latitude.toFixed(4)},{" "}
                 {currentLocation.longitude.toFixed(4)}
               </Text>
             </View>
           )}
+        </LinearGradient>
+
+        {/* Stats Cards */}
+        <View style={styles.statsContainer}>
+          {quickStats.map((stat, index) => (
+            <View key={index} style={styles.statCard}>
+              <Text style={styles.statIcon}>{stat.icon}</Text>
+              <Text style={styles.statValue}>{stat.value}</Text>
+              <Text style={styles.statLabel}>{stat.label}</Text>
+            </View>
+          ))}
         </View>
 
-        {/* View Map Button - Only show when online */}
+        {/* Map Button */}
         {isOnline && (
           <TouchableOpacity
-            style={styles.viewRequestsButton}
+            style={styles.mapButton}
             onPress={() => navigation.navigate(SCREENS.DRIVER_MAP)}
             activeOpacity={0.8}
           >
-            <View style={styles.viewRequestsContent}>
-              <MaterialIcons name="map" size={24} color="#fff" />
-              <View style={styles.viewRequestsTextContainer}>
-                <Text style={styles.viewRequestsTitle}>
+            <LinearGradient
+              colors={["#004553", "#006D84", "#008FA5"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.mapButtonGradient}
+            >
+              <MaterialIcons name="map" size={28} color="#fff" />
+              <View style={styles.mapButtonTextContainer}>
+                <Text style={styles.mapButtonTitle}>
                   Mở Bản Đồ & Nhận Chuyến
                 </Text>
-                <Text style={styles.viewRequestsSubtitle}>
-                  Xem vị trí và nhận yêu cầu trực tiếp trên bản đồ
+                <Text style={styles.mapButtonSubtitle}>
+                  Xem vị trí và nhận yêu cầu trực tiếp
                 </Text>
               </View>
-              <MaterialIcons name="chevron-right" size={24} color="#fff" />
-            </View>
+              <MaterialIcons name="chevron-right" size={28} color="#fff" />
+            </LinearGradient>
           </TouchableOpacity>
         )}
 
+        {/* Info Card */}
         <View style={styles.infoCard}>
-          <Text style={styles.infoTitle}>Lưu ý khi Online:</Text>
+          <Text style={styles.infoTitle}>💡 Lưu ý khi Online</Text>
           <View style={styles.infoItem}>
-            <MaterialIcons name="info" size={20} color={COLORS.PRIMARY} />
+            <View style={styles.infoIconContainer}>
+              <MaterialIcons name="update" size={20} color="#004553" />
+            </View>
             <Text style={styles.infoText}>
-              Vị trí của bạn sẽ được cập nhật mỗi 5 giây
+              Vị trí cập nhật mỗi 5 giây
             </Text>
           </View>
           <View style={styles.infoItem}>
-            <MaterialIcons
-              name="battery-charging-full"
-              size={20}
-              color={COLORS.PRIMARY}
-            />
+            <View style={styles.infoIconContainer}>
+              <MaterialIcons
+                name="battery-charging-full"
+                size={20}
+                color="#004553"
+              />
+            </View>
             <Text style={styles.infoText}>
-              Tối ưu hóa pin, không ảnh hưởng nhiều đến thiết bị
+              Tối ưu pin, không ảnh hưởng thiết bị
             </Text>
           </View>
           <View style={styles.infoItem}>
-            <MaterialIcons name="visibility" size={20} color={COLORS.PRIMARY} />
+            <View style={styles.infoIconContainer}>
+              <MaterialIcons name="visibility" size={20} color="#004553" />
+            </View>
             <Text style={styles.infoText}>
-              Hành khách có thể thấy vị trí của bạn trên bản đồ
+              Hành khách thấy vị trí của bạn
             </Text>
           </View>
         </View>
@@ -166,22 +242,46 @@ const DriverStatusScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F9FAFB",
+    backgroundColor: "#F0F4F8",
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#fff",
   },
   content: {
     flex: 1,
-    padding: 20,
+    padding: 16,
   },
   statusCard: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
+    borderRadius: 24,
     padding: 24,
     marginBottom: 20,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 10,
   },
   statusHeader: {
     alignItems: "center",
@@ -190,29 +290,42 @@ const styles = StyleSheet.create({
   statusIconContainer: {
     marginBottom: 16,
   },
+  iconGlow: {
+    shadowColor: "#fff",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    elevation: 10,
+  },
   statusTitle: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#004553",
+    fontSize: 28,
+    fontWeight: "800",
+    color: "#fff",
     marginBottom: 8,
+    textShadowColor: "rgba(0, 0, 0, 0.3)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   statusSubtitle: {
-    fontSize: 14,
-    color: "#6B7280",
+    fontSize: 15,
+    color: "rgba(255, 255, 255, 0.9)",
     textAlign: "center",
+    fontWeight: "500",
   },
   toggleContainer: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingVertical: 16,
-    borderTopWidth: 1,
-    borderTopColor: "#E5E7EB",
+    paddingHorizontal: 16,
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    borderRadius: 16,
+    marginBottom: 12,
   },
   toggleLabel: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#374151",
+    color: "#fff",
     flex: 1,
   },
   loadingContainer: {
@@ -224,63 +337,99 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 14,
-    color: "#6B7280",
+    color: "rgba(255, 255, 255, 0.9)",
+    fontWeight: "500",
   },
   locationInfo: {
     flexDirection: "row",
     alignItems: "center",
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: "#E5E7EB",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    borderRadius: 16,
     gap: 8,
   },
   locationText: {
+    fontSize: 13,
+    color: "#fff",
+    flex: 1,
+    fontWeight: "500",
+  },
+  statsContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 20,
+    gap: 12,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 16,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  statIcon: {
+    fontSize: 32,
+    marginBottom: 8,
+  },
+  statValue: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#004553",
+    marginBottom: 4,
+  },
+  statLabel: {
     fontSize: 12,
     color: "#6B7280",
-    flex: 1,
+    fontWeight: "500",
   },
-  viewRequestsButton: {
-    backgroundColor: "#004553",
-    borderRadius: 16,
+  mapButton: {
+    borderRadius: 20,
     marginBottom: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
+    overflow: "hidden",
+    shadowColor: "#004553",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
     shadowRadius: 12,
-    elevation: 5,
+    elevation: 8,
   },
-  viewRequestsContent: {
+  mapButtonGradient: {
     flexDirection: "row",
     alignItems: "center",
     padding: 20,
     gap: 16,
   },
-  viewRequestsTextContainer: {
+  mapButtonTextContainer: {
     flex: 1,
   },
-  viewRequestsTitle: {
-    fontSize: 16,
+  mapButtonTitle: {
+    fontSize: 17,
     fontWeight: "700",
     color: "#fff",
     marginBottom: 4,
   },
-  viewRequestsSubtitle: {
-    fontSize: 12,
-    color: "rgba(255, 255, 255, 0.8)",
-    lineHeight: 16,
+  mapButtonSubtitle: {
+    fontSize: 13,
+    color: "rgba(255, 255, 255, 0.85)",
+    fontWeight: "500",
   },
   infoCard: {
     backgroundColor: "#fff",
-    borderRadius: 16,
+    borderRadius: 20,
     padding: 20,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 3,
   },
   infoTitle: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: "700",
     color: "#004553",
     marginBottom: 16,
@@ -288,14 +437,23 @@ const styles = StyleSheet.create({
   infoItem: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 14,
     gap: 12,
+  },
+  infoIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#E0F2F7",
+    alignItems: "center",
+    justifyContent: "center",
   },
   infoText: {
     fontSize: 14,
-    color: "#6B7280",
+    color: "#4B5563",
     flex: 1,
     lineHeight: 20,
+    fontWeight: "500",
   },
 });
 

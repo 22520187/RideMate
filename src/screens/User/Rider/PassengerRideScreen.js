@@ -17,13 +17,15 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
-import { Bell } from "lucide-react-native";
+import { Bell, Sparkles } from "lucide-react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import COLORS from "../../../constant/colors";
 import LocationSearch from "../../../components/LocationSearch";
 import RouteMap from "../../../components/RouteMap";
 import RadarScanning from "../../../components/RadarScanning";
 import DriverMapMarker from "../../../components/DriverMapMarker";
 import CustomAlert from "../../../components/CustomAlert";
+import SnowEffect from "../../../components/SnowEffect";
 import { getCurrentLocation, reverseGeocode } from "../../../config/maps";
 import { searchPlaces as osmSearchPlaces, getRoute } from "../../../utils/api";
 import { getProfile } from "../../../services/userService";
@@ -662,23 +664,43 @@ const PassengerRideScreen = ({ navigation, route }) => {
 
   return (
     <View style={styles.container}>
+      <SnowEffect />
       <SafeAreaView key={refreshKey} style={styles.safeArea} edges={["top"]}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <MaterialIcons name="arrow-back" size={24} color="#004553" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Tìm chuyến đi</Text>
-          <TouchableOpacity
-            style={styles.notificationButton}
-            onPress={() => navigation.navigate("Notification")}
-          >
-            <Bell size={22} color="#004553" />
-            <View style={styles.notificationDot} />
-          </TouchableOpacity>
-        </View>
+        <LinearGradient
+          colors={["#FF5370", "#FF6B9D", "#FF8FAB"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.headerGradient}
+        >
+          <View style={styles.headerDecor}>
+            <Text style={styles.decorBulb}>💡</Text>
+            <Text style={styles.decorStar}>⭐</Text>
+            <Text style={styles.decorSnow}>❄️</Text>
+            <Text style={styles.decorTree}>🎄</Text>
+          </View>
+          <View style={styles.header}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => navigation.goBack()}
+            >
+              <View style={styles.backButtonCircle}>
+                <MaterialIcons name="arrow-back" size={20} color="#FF5370" />
+              </View>
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>🎅 Tìm chuyến đi</Text>
+            <TouchableOpacity
+              style={styles.notificationButton}
+              onPress={() => navigation.navigate("Notification")}
+            >
+              <View style={styles.notificationButtonCircle}>
+                <Bell size={18} color="#FF5370" />
+                <View style={styles.notificationBadge}>
+                  <Text style={styles.notificationCount}>3</Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+          </View>
+        </LinearGradient>
       </SafeAreaView>
 
       <View style={styles.contentArea}>
@@ -699,8 +721,11 @@ const PassengerRideScreen = ({ navigation, route }) => {
         {isSearching && (
           <View style={styles.searchingOverlay}>
             <View style={styles.searchingContent}>
+              <View style={styles.searchingIconWrapper}>
+                <Text style={styles.searchingEmoji}>🎅</Text>
+              </View>
               <RadarScanning size={250} />
-              <Text style={styles.searchingText}>Đang tìm tài xế...</Text>
+              <Text style={styles.searchingText}>Đang tìm tài xế... 🎄</Text>
               <Text style={styles.searchingSubtext}>
                 Vui lòng chờ trong giây lát
                 {searchTimeLeft ? ` (${searchTimeLeft}s)` : ""}
@@ -709,7 +734,14 @@ const PassengerRideScreen = ({ navigation, route }) => {
                 style={styles.cancelSearchBtn}
                 onPress={handleCancelSearch}
               >
-                <Text style={styles.cancelSearchBtnText}>Hủy tìm</Text>
+                <LinearGradient
+                  colors={["#FF5370", "#FF6B9D"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.cancelSearchBtnGradient}
+                >
+                  <Text style={styles.cancelSearchBtnText}>Hủy tìm</Text>
+                </LinearGradient>
               </TouchableOpacity>
             </View>
           </View>
@@ -847,8 +879,17 @@ const PassengerRideScreen = ({ navigation, route }) => {
                 <TouchableOpacity
                   style={styles.nextBtn}
                   onPress={handleSearchAsPassenger}
+                  activeOpacity={0.9}
                 >
-                  <Text style={styles.nextBtnText}>Next</Text>
+                  <LinearGradient
+                    colors={["#FF5370", "#FF6B9D"]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.nextBtnGradient}
+                  >
+                    <Sparkles size={18} color="#FFF" />
+                    <Text style={styles.nextBtnText}>Tìm tài xế 🎄</Text>
+                  </LinearGradient>
                 </TouchableOpacity>
               </View>
             </View>
@@ -871,39 +912,58 @@ const PassengerRideScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#E8F5F3",
+    backgroundColor: "#FFF5F7",
   },
   safeArea: {
-    backgroundColor: "#FFFFFF",
     zIndex: 1000,
   },
+  headerGradient: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 20,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+    position: "relative",
+  },
+  headerDecor: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    paddingVertical: 6,
+    marginBottom: 8,
+  },
+  decorBulb: { fontSize: 18, opacity: 0.8 },
+  decorStar: { fontSize: 18, opacity: 0.8 },
+  decorSnow: { fontSize: 18, opacity: 0.8 },
+  decorTree: { fontSize: 18, opacity: 0.8 },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: "#FFFFFF",
-    borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
+    paddingTop: 8,
   },
   backButton: {
     width: 44,
     height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  backButtonCircle: {
+    width: 44,
+    height: 44,
     borderRadius: 22,
-    backgroundColor: "#F8F9FA",
+    backgroundColor: "#FFF",
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#004553",
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#FFF",
     flex: 1,
     textAlign: "center",
     marginHorizontal: 12,
@@ -911,22 +971,40 @@ const styles = StyleSheet.create({
   notificationButton: {
     width: 44,
     height: 44,
-    borderRadius: 22,
-    backgroundColor: "#F8F9FA",
     alignItems: "center",
     justifyContent: "center",
     position: "relative",
   },
-  notificationDot: {
+  notificationButtonCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#FFF",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  notificationBadge: {
     position: "absolute",
-    top: 10,
-    right: 10,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#FF3B30",
-    borderWidth: 1.5,
-    borderColor: "#FFFFFF",
+    top: 6,
+    right: 6,
+    backgroundColor: "#FF5370",
+    borderRadius: 10,
+    width: 20,
+    height: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#FFF",
+  },
+  notificationCount: {
+    color: "#FFF",
+    fontSize: 10,
+    fontWeight: "700",
   },
   contentArea: {
     flex: 1,
@@ -958,12 +1036,12 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 22,
     elevation: 12,
-    shadowColor: "#000",
+    shadowColor: "#FF5370",
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.12,
+    shadowOpacity: 0.15,
     shadowRadius: 16,
-    borderWidth: 1,
-    borderColor: "rgba(0, 69, 83, 0.06)",
+    borderWidth: 2,
+    borderColor: "#FFE5EC",
   },
   locationInputRow: {
     flexDirection: "row",
@@ -1005,12 +1083,12 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     padding: 28,
     elevation: 12,
-    shadowColor: "#000",
+    shadowColor: "#FF5370",
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.2,
     shadowRadius: 16,
-    borderWidth: 1,
-    borderColor: "rgba(0, 69, 83, 0.08)",
+    borderWidth: 2,
+    borderColor: "#FFE5EC",
   },
   infoRow: {
     flexDirection: "row",
@@ -1025,40 +1103,44 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: 12,
-    color: "#8E8E93",
+    color: "#FF6B9D",
     marginBottom: 10,
-    fontWeight: "600",
+    fontWeight: "700",
     letterSpacing: 0.3,
     textTransform: "uppercase",
   },
   infoValue: {
     fontSize: 32,
     fontWeight: "800",
-    color: "#004553",
+    color: "#FF5370",
     letterSpacing: -0.5,
   },
   infoUnit: {
     fontSize: 15,
     fontWeight: "600",
-    color: "#8E8E93",
+    color: "#FF6B9D",
     marginLeft: 2,
   },
   nextBtn: {
-    backgroundColor: "#004553",
     borderRadius: 20,
-    paddingVertical: 20,
-    alignItems: "center",
+    overflow: "hidden",
     elevation: 8,
-    shadowColor: "#004553",
+    shadowColor: "#FF5370",
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.4,
     shadowRadius: 12,
-    overflow: "hidden",
+  },
+  nextBtnGradient: {
+    paddingVertical: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
   },
   nextBtnText: {
     color: COLORS.WHITE,
     fontSize: 17,
-    fontWeight: "700",
+    fontWeight: "800",
     letterSpacing: 0.5,
   },
   searchingOverlay: {
@@ -1067,7 +1149,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    backgroundColor: "rgba(255, 83, 112, 0.85)",
     justifyContent: "center",
     alignItems: "center",
     zIndex: 9999,
@@ -1078,37 +1160,52 @@ const styles = StyleSheet.create({
     borderRadius: 32,
     padding: 48,
     elevation: 16,
-    shadowColor: "#000",
+    shadowColor: "#FF5370",
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25,
+    shadowOpacity: 0.3,
     shadowRadius: 20,
-    borderWidth: 1,
-    borderColor: "rgba(0, 69, 83, 0.08)",
+    borderWidth: 3,
+    borderColor: "#FFE5EC",
+  },
+  searchingIconWrapper: {
+    marginBottom: 16,
+  },
+  searchingEmoji: {
+    fontSize: 48,
   },
   searchingText: {
     fontSize: 22,
     fontWeight: "800",
-    color: "#004553",
+    color: "#FF5370",
     marginTop: 28,
     letterSpacing: 0.3,
   },
   searchingSubtext: {
     fontSize: 15,
-    color: "#8E8E93",
+    color: "#FF6B9D",
     marginTop: 10,
-    fontWeight: "500",
+    fontWeight: "600",
   },
   cancelSearchBtn: {
     marginTop: 18,
+    borderRadius: 14,
+    overflow: "hidden",
+    elevation: 6,
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  cancelSearchBtnGradient: {
     paddingVertical: 12,
     paddingHorizontal: 18,
-    borderRadius: 14,
-    backgroundColor: "#FF3B30",
+    alignItems: "center",
+    justifyContent: "center",
   },
   cancelSearchBtnText: {
     color: "#FFFFFF",
     fontSize: 15,
-    fontWeight: "700",
+    fontWeight: "800",
   },
 });
 

@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 import {
   View,
   Text,
@@ -10,10 +10,10 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { MaterialIcons } from '@expo/vector-icons';
-import COLORS from '../constant/colors';
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { MaterialIcons } from "@expo/vector-icons";
+import COLORS from "../constant/colors";
 
 const ChatModal = ({
   visible,
@@ -31,18 +31,14 @@ const ChatModal = ({
   const insets = useSafeAreaInsets();
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      onRequestClose={onClose}
-    >
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <View style={[styles.container, { paddingTop: insets.top }]}>
         {/* Header - Messenger Style */}
         <View style={styles.header}>
           <TouchableOpacity onPress={onClose} style={styles.backButton}>
             <MaterialIcons name="arrow-back" size={24} color={COLORS.BLACK} />
           </TouchableOpacity>
-          
+
           {/* Center: Avatar + Name */}
           <View style={styles.headerCenter}>
             <View style={styles.avatarContainer}>
@@ -52,7 +48,7 @@ const ChatModal = ({
             </View>
             <View style={styles.headerTextContainer}>
               <Text style={styles.headerTitle} numberOfLines={1}>
-                {otherPersonName || 'Đối tác'}
+                {otherPersonName || "Đối tác"}
               </Text>
               <Text style={styles.headerSubtitle}>Active now</Text>
             </View>
@@ -60,15 +56,15 @@ const ChatModal = ({
 
           {/* Right: Call Icons */}
           <View style={styles.headerActions}>
-            <TouchableOpacity 
-              onPress={onAudioCall} 
+            <TouchableOpacity
+              onPress={onAudioCall}
               style={styles.headerIconButton}
               disabled={loading}
             >
               <MaterialIcons name="phone" size={22} color={COLORS.PRIMARY} />
             </TouchableOpacity>
-            <TouchableOpacity 
-              onPress={onVideoCall} 
+            <TouchableOpacity
+              onPress={onVideoCall}
               style={styles.headerIconButton}
               disabled={loading}
             >
@@ -80,15 +76,15 @@ const ChatModal = ({
         {/* Messages */}
         <KeyboardAvoidingView
           style={styles.content}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
         >
           {loading ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={COLORS.PRIMARY} />
+              <ActivityIndicator size="large" color="#FF5370" />
               <Text style={styles.loadingText}>Đang tải chat...</Text>
             </View>
-          ) : (messages?.length > 0) ? (
+          ) : messages?.length > 0 ? (
             <ScrollView
               style={styles.messagesContainer}
               contentContainerStyle={styles.messagesContent}
@@ -128,11 +124,11 @@ const ChatModal = ({
                           ? new Date(message.created_at).toLocaleTimeString(
                               [],
                               {
-                                hour: '2-digit',
-                                minute: '2-digit',
+                                hour: "2-digit",
+                                minute: "2-digit",
                               }
                             )
-                          : ''}
+                          : ""}
                       </Text>
                     </View>
                   </View>
@@ -184,8 +180,8 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.WHITE,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderBottomWidth: 1,
@@ -198,8 +194,8 @@ const styles = StyleSheet.create({
   },
   headerCenter: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   avatarContainer: {
     marginRight: 10,
@@ -209,15 +205,15 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: 18,
     backgroundColor: COLORS.PRIMARY,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   headerTextContainer: {
     flex: 1,
   },
   headerTitle: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.BLACK,
   },
   headerSubtitle: {
@@ -226,25 +222,25 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
   },
   headerIconButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#f0f0f0',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#f0f0f0",
+    justifyContent: "center",
+    alignItems: "center",
   },
   content: {
     flex: 1,
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     paddingHorizontal: 16,
   },
   loadingText: {
@@ -260,8 +256,8 @@ const styles = StyleSheet.create({
   },
   emptyMessagesContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     paddingHorizontal: 16,
   },
   emptyMessagesText: {
@@ -271,17 +267,17 @@ const styles = StyleSheet.create({
   },
   messageRow: {
     marginBottom: 12,
-    flexDirection: 'row',
-    justifyContent: 'flex-start',
+    flexDirection: "row",
+    justifyContent: "flex-start",
   },
   messageRowMyMessage: {
-    justifyContent: 'flex-end',
+    justifyContent: "flex-end",
   },
   messageBubble: {
-    backgroundColor: '#e8f0fe',
+    backgroundColor: "#e8f0fe",
     padding: 12,
     borderRadius: 14,
-    maxWidth: '80%',
+    maxWidth: "80%",
     borderBottomLeftRadius: 4,
   },
   messageBubbleOwn: {
@@ -303,11 +299,11 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   messageTimeOwn: {
-    color: 'rgba(255,255,255,0.7)',
+    color: "rgba(255,255,255,0.7)",
   },
   inputBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderTopWidth: 1,
@@ -318,7 +314,7 @@ const styles = StyleSheet.create({
   },
   inputField: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: "#f5f5f5",
     borderRadius: 24,
     paddingHorizontal: 16,
     paddingVertical: 10,
@@ -333,8 +329,8 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     backgroundColor: COLORS.PRIMARY,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     shadowColor: COLORS.BLACK,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,

@@ -2,11 +2,10 @@ import React from "react";
 import {
   View,
   Text,
-  FlatList,
+  ScrollView,
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  ScrollView,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import COLORS from "../constant/colors";
@@ -17,7 +16,7 @@ const SuggestionsList = ({
   isLoading = false,
   visible = false,
   maxHeight = 200,
-  containerWidth = "100%", // Thêm prop để điều chỉnh chiều rộng
+  containerWidth = "100%",
 }) => {
   if (!visible || (!isLoading && suggestions.length === 0)) {
     return null;
@@ -55,7 +54,7 @@ const SuggestionsList = ({
 
   const renderLoading = () => (
     <View style={styles.loadingContainer}>
-      <ActivityIndicator size="small" color={COLORS.PRIMARY} />
+      <ActivityIndicator size="small" color="#FF5370" />
       <Text style={styles.loadingText}>Đang tìm kiếm...</Text>
     </View>
   );
@@ -81,11 +80,13 @@ const SuggestionsList = ({
             style={styles.list}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
+            nestedScrollEnabled={true}
+            scrollEnabled={suggestions.length > 3}
           >
             {suggestions.map((item, index) => (
-              <React.Fragment key={item.place_id || index}>
+              <View key={item.place_id?.toString() || index.toString()}>
                 {renderSuggestion({ item, index })}
-              </React.Fragment>
+              </View>
             ))}
           </ScrollView>
         )}

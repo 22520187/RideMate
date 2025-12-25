@@ -200,7 +200,7 @@ export default function ChatScreenCustom({ route, navigation }) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.PRIMARY} />
+          <ActivityIndicator size="large" color="#FF5370" />
           <Text style={styles.loadingText}>Đang tải chat...</Text>
         </View>
       </SafeAreaView>

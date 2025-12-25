@@ -190,4 +190,24 @@ export default {
   feedback: {
     submit: "/feedback",
   },
+
+  payments: {
+    create: "/payments/create",
+    stripeConfirm: "/payments/stripe/confirm",
+    stripeConfig: "/payments/stripe/config",
+    query: (orderId) => `/payments/query/${orderId}`,
+    myPayments: "/payments/my-payments",
+    myMembership: "/payments/my-membership",
+  },
+
+  memberships: {
+    list: "/memberships",
+    active: "/memberships/active",
+    byId: (id) => `/memberships/${id}`,
+  },
+
+  dailySpin: {
+    check: "/api/daily-spin/check",
+    spin: "/api/daily-spin/spin",
+  },
 };

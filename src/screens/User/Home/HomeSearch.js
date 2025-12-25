@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { MaterialIcons } from "@expo/vector-icons";
+import { Navigation } from "lucide-react-native";
 import * as Location from "expo-location";
 import COLORS from "../../../constant/colors";
 import { searchPlaces } from "../../../utils/api";
@@ -23,6 +24,8 @@ import {
 } from "../../../utils/searchHistory";
 import RoleSelectionModal from "../../../components/RoleSelectionModal";
 import { useDebounce } from "../../../hooks/useDebounce";
+import GradientHeader from "../../../components/GradientHeader";
+import SnowEffect from "../../../components/SnowEffect";
 
 export const HomeSearch = () => {
   const navigation = useNavigation();
@@ -38,13 +41,12 @@ export const HomeSearch = () => {
 
   useFocusEffect(
     React.useCallback(() => {
-      setSearchQuery('');
+      setSearchQuery("");
       setSuggestions([]);
       setIsLoading(false);
       loadSearchHistory();
-      
-      return () => {
-      };
+
+      return () => {};
     }, [])
   );
 
@@ -219,7 +221,7 @@ export const HomeSearch = () => {
       <MaterialIcons
         name="place"
         size={20}
-        color={COLORS.PRIMARY}
+        color="#FF5370"
         style={styles.placeIcon}
       />
       <View style={styles.suggestionContent}>
@@ -236,51 +238,48 @@ export const HomeSearch = () => {
 
   const renderLoadingItem = () => (
     <View style={styles.loadingContainer}>
-      <ActivityIndicator size="small" color={COLORS.PRIMARY} />
+      <ActivityIndicator size="small" color="#FF5370" />
       <Text style={styles.loadingText}>Đang tìm kiếm...</Text>
     </View>
   );
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.searchContainer}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <MaterialIcons name="arrow-back" size={24} color={COLORS.WHITE} />
-          </TouchableOpacity>
+    <SafeAreaView style={styles.container} edges={["top"]}>
+      <SnowEffect />
+      <GradientHeader
+        title="🔍 Tìm kiếm chuyến xe"
+        onBackPress={() => navigation.goBack()}
+        showBackButton={true}
+      />
 
-          <View style={styles.searchInputContainer}>
-            <MaterialIcons name="search" size={20} color={COLORS.GRAY} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Tìm địa điểm"
-              placeholderTextColor={COLORS.PLACEHOLDER_COLOR}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              autoFocus={true}
-            />
-            {searchQuery.length > 0 ? (
-              <TouchableOpacity onPress={clearSearch}>
-                <MaterialIcons name="clear" size={20} color={COLORS.GRAY} />
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                onPress={getCurrentLocation}
-                disabled={isGettingLocation}
-              >
-                {isGettingLocation ? (
-                  <ActivityIndicator size="small" color={COLORS.PRIMARY} />
-                ) : (
-                  <MaterialIcons
-                    name="my-location"
-                    size={20}
-                    color={COLORS.PRIMARY}
-                  />
-                )}
-              </TouchableOpacity>
-            )}
-          </View>
+      {/* Search Input */}
+      <View style={styles.searchSection}>
+        <View style={styles.searchInputContainer}>
+          <MaterialIcons name="search" size={20} color="#FF5370" />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Tìm địa điểm..."
+            placeholderTextColor={COLORS.PLACEHOLDER_COLOR}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            autoFocus={true}
+          />
+          {searchQuery.length > 0 ? (
+            <TouchableOpacity onPress={clearSearch}>
+              <MaterialIcons name="clear" size={20} color="#FF5370" />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              onPress={getCurrentLocation}
+              disabled={isGettingLocation}
+            >
+              {isGettingLocation ? (
+                <ActivityIndicator size="small" color="#FF5370" />
+              ) : (
+                <MaterialIcons name="my-location" size={20} color="#FF5370" />
+              )}
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -297,7 +296,9 @@ export const HomeSearch = () => {
                 <FlatList
                   data={searchHistory}
                   renderItem={renderHistoryItem}
-                  keyExtractor={(item, index) => item.placeId || `history-${index}`}
+                  keyExtractor={(item, index) =>
+                    item.placeId || `history-${index}`
+                  }
                   showsVerticalScrollIndicator={false}
                   style={styles.historyList}
                 />
@@ -394,34 +395,28 @@ export const HomeSearch = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: "#FFF5F7",
   },
-  header: {
-    backgroundColor: COLORS.PRIMARY,
+  searchSection: {
     paddingHorizontal: 16,
-    paddingTop: 20,
-    paddingBottom: 20,
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
-  },
-  searchContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
+    paddingTop: 16,
+    paddingBottom: 12,
+    backgroundColor: "#FFF5F7",
   },
   searchInputContainer: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: COLORS.WHITE,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    flex: 1,
-    shadowColor: "#000",
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderWidth: 2,
+    borderColor: "#FFE5EC",
+    shadowColor: "#FF5370",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   searchInput: {
     flex: 1,
@@ -452,16 +447,18 @@ const styles = StyleSheet.create({
   historyItem: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 12,
+    paddingVertical: 14,
     paddingHorizontal: 16,
     backgroundColor: COLORS.WHITE,
-    borderRadius: 12,
-    marginBottom: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
+    borderRadius: 16,
+    marginBottom: 10,
+    borderWidth: 2,
+    borderColor: "#FFE5EC",
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    shadowRadius: 6,
+    elevation: 3,
   },
   historyIcon: {
     marginRight: 12,
@@ -496,15 +493,17 @@ const styles = StyleSheet.create({
   suggestionItem: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 12,
+    paddingVertical: 14,
     paddingHorizontal: 16,
     backgroundColor: COLORS.WHITE,
-    borderRadius: 12,
-    marginBottom: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
+    borderRadius: 16,
+    marginBottom: 10,
+    borderWidth: 2,
+    borderColor: "#FFE5EC",
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
+    shadowRadius: 6,
     elevation: 3,
     zIndex: 1002,
   },

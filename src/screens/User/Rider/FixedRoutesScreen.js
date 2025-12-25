@@ -11,11 +11,17 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import COLORS from "../../../constant/colors";
 import fixedRouteService from "../../../services/fixedRouteService";
 import routeBookingService from "../../../services/routeBookingService";
 import Toast from "react-native-toast-message";
 import LocationSearch from "../../../components/LocationSearch";
+import GradientHeader from "../../../components/GradientHeader";
+import SnowEffect from "../../../components/SnowEffect";
+import { supabase } from "../../../config/supabaseClient";
+import AsyncStorageService from "../../../services/AsyncStorageService";
+import SCREENS from "../../../screens";
 
 /**
  * Screen for passengers to search and view fixed routes
@@ -56,10 +62,74 @@ const FixedRoutesScreen = ({ navigation, route }) => {
     // Don't load all routes by default - wait for user to search
   }, []);
 
+  // 🔔 Realtime listener for match updates (when driver starts trip)
+  useEffect(() => {
+    let channel;
+
+    const setupRealtimeListener = async () => {
+      const user = await AsyncStorageService.getUser();
+      if (!user?.id || !supabase) return;
+
+      console.log(
+        "🔔 FixedRoutesScreen: Setting up MATCH listener for passenger:",
+        user.id
+      );
+
+      channel = supabase
+        .channel(`public:matches:passenger_id=eq.${user.id}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "matches",
+            filter: `passenger_id=eq.${user.id}`,
+          },
+          (payload) => {
+            const newMatch = payload.new;
+            console.log(
+              "🔔 FixedRoutesScreen: Received MATCH update:",
+              newMatch?.status
+            );
+
+            if (
+              newMatch &&
+              (newMatch.status === "IN_PROGRESS" ||
+                newMatch.status === "ACCEPTED" ||
+                newMatch.status === "DRIVER_ARRIVED")
+            ) {
+              console.log(
+                `🚀 Match ${newMatch.id} is ${newMatch.status}. Navigating from FixedRoutesScreen...`
+              );
+
+              if (newMatch.status === "IN_PROGRESS") {
+                Alert.alert(
+                  "Chuyến đi bắt đầu",
+                  "Tài xế đã bắt đầu chuyến đi!"
+                );
+              }
+
+              navigation.navigate(SCREENS.MATCHED_RIDE, {
+                rideId: newMatch.id,
+              });
+            }
+          }
+        )
+        .subscribe();
+    };
+
+    setupRealtimeListener();
+
+    return () => {
+      if (channel) supabase.removeChannel(channel);
+    };
+  }, [navigation]);
+
   const searchRoutes = async () => {
     try {
       setLoading(true);
-      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+      const today = getLocalDateString(); // YYYY-MM-DD (local timezone)
+      const searchDate = today; // Use today for now, can be extended to support date picker
       const response = await fixedRouteService.searchRoutes({
         pickupLatitude: pickupLocation.latitude,
         pickupLongitude: pickupLocation.longitude,
@@ -68,22 +138,107 @@ const FixedRoutesScreen = ({ navigation, route }) => {
         pickupAddress: pickupAddress,
         dropoffAddress: destinationAddress,
         numberOfSeats: 1,
-        travelDate: today,
+        travelDate: searchDate,
       });
 
-      const routesData = response.data || [];
+      // Handle ApiResponse wrapper
+      const routesData = response?.data?.data ?? response?.data ?? [];
+      const routesList = Array.isArray(routesData) ? routesData : [];
+
+      // Filter only routes for the search date (not today, but the date being searched)
+      // This ensures that if user searches for tomorrow, they won't see today's routes (even 22h, 23h)
+      const searchDateStr = searchDate; // YYYY-MM-DD format
+      console.log(
+        `🔍 Filtering routes for date: ${searchDateStr}, Total routes: ${routesList.length}`
+      );
+      const filteredRoutes = routesList.filter((route) => {
+        // Must have specificDates to be shown
+        if (!route.specificDates) {
+          console.log(`Route ${route.id} filtered out: No specificDates`);
+          return false;
+        }
+
+        try {
+          // Handle both string and Date object formats
+          let routeDateStr;
+          if (typeof route.specificDates === "string") {
+            // Extract YYYY-MM-DD from ISO string (e.g., "2025-12-25T00:00:00" -> "2025-12-25")
+            // Also handle simple date strings like "2025-12-25"
+            routeDateStr = route.specificDates.split("T")[0].split(" ")[0];
+          } else {
+            // Date object - convert to YYYY-MM-DD using local timezone (not UTC)
+            const date = new Date(route.specificDates);
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, "0");
+            const day = String(date.getDate()).padStart(2, "0");
+            routeDateStr = `${year}-${month}-${day}`;
+          }
+
+          // Strict comparison: only show routes that match the exact search date
+          // This prevents showing today's routes (22h, 23h) when searching for tomorrow
+          const matches = routeDateStr === searchDateStr;
+
+          if (!matches) {
+            console.log(
+              `❌ Route ${
+                route.id
+              } filtered out: routeDate=${routeDateStr}, searchDate=${searchDateStr}, specificDates=${JSON.stringify(
+                route.specificDates
+              )}`
+            );
+          } else {
+            console.log(
+              `✅ Route ${route.id} matches: routeDate=${routeDateStr}, searchDate=${searchDateStr}`
+            );
+          }
+
+          return matches;
+        } catch (error) {
+          console.warn(
+            `⚠️ Error parsing route date for route ${route.id}:`,
+            route.specificDates,
+            error
+          );
+          return false;
+        }
+      });
+
       console.log(
         "🔍 Fixed Routes Response:",
-        JSON.stringify(routesData.slice(0, 1), null, 2)
+        `Total: ${routesList.length}, Filtered: ${filteredRoutes.length} for date ${searchDateStr}`
       );
-      setRoutes(routesData);
+
+      // Debug: Log all routes to see what we're working with
+      if (routesList.length > 0) {
+        console.log(
+          "📋 All routes received:",
+          routesList.map((r) => ({
+            id: r.id,
+            routeName: r.routeName,
+            specificDates: r.specificDates,
+            type: typeof r.specificDates,
+          }))
+        );
+      }
+
+      if (filteredRoutes.length > 0) {
+        console.log(
+          "✅ Matching routes:",
+          filteredRoutes.map((r) => ({ id: r.id, date: r.specificDates }))
+        );
+      } else if (routesList.length > 0) {
+        console.log("⚠️ No routes matched the filter - all were filtered out");
+      }
+
+      setRoutes(filteredRoutes);
     } catch (error) {
       console.error("Error searching routes:", error);
       Toast.show({
         type: "error",
         text1: "Lỗi",
-        text2: "Không thể tìm kiếm chuyến đi",
+        text2: error.response?.data?.message || "Không thể tìm kiếm chuyến đi",
       });
+      setRoutes([]);
     } finally {
       setLoading(false);
     }
@@ -93,14 +248,54 @@ const FixedRoutesScreen = ({ navigation, route }) => {
     try {
       setLoading(true);
       const response = await fixedRouteService.getAllActiveRoutes();
-      setRoutes(response.data || []);
+      // Handle ApiResponse wrapper
+      const routesData = response?.data?.data ?? response?.data ?? [];
+      const routesList = Array.isArray(routesData) ? routesData : [];
+
+      // Filter only routes for today (using local date)
+      const todayStr = getLocalDateString(); // YYYY-MM-DD format (local timezone)
+      const todayRoutes = routesList.filter((route) => {
+        // Check if route has specificDates matching today
+        if (route.specificDates) {
+          try {
+            // Handle both string and Date object formats
+            let routeDateStr;
+            if (typeof route.specificDates === "string") {
+              // Extract YYYY-MM-DD from ISO string
+              routeDateStr = route.specificDates.split("T")[0];
+            } else {
+              // Date object - convert to YYYY-MM-DD using local timezone (not UTC)
+              const date = new Date(route.specificDates);
+              const year = date.getFullYear();
+              const month = String(date.getMonth() + 1).padStart(2, "0");
+              const day = String(date.getDate()).padStart(2, "0");
+              routeDateStr = `${year}-${month}-${day}`;
+            }
+            // Only show routes that match today's date exactly
+            return routeDateStr === todayStr;
+          } catch (error) {
+            console.warn(
+              "Error parsing route date:",
+              route.specificDates,
+              error
+            );
+            return false;
+          }
+        }
+        // If no specificDates, don't show the route
+        return false;
+      });
+
+      setRoutes(todayRoutes);
     } catch (error) {
       console.error("Error loading routes:", error);
       Toast.show({
         type: "error",
         text1: "Lỗi",
-        text2: "Không thể tải danh sách chuyến đi",
+        text2:
+          error.response?.data?.message || "Không thể tải danh sách chuyến đi",
       });
+      setRoutes([]);
     } finally {
       setLoading(false);
     }
@@ -132,6 +327,16 @@ const FixedRoutesScreen = ({ navigation, route }) => {
     });
   };
 
+  // Helper function to get local date in YYYY-MM-DD format (not UTC)
+  // This avoids timezone issues where UTC date might be previous day
+  const getLocalDateString = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
   const handleSearch = () => {
     if (!pickupLocation || !destinationLocation) {
       Alert.alert("Lỗi", "Vui lòng chọn điểm đón và điểm đến");
@@ -156,24 +361,33 @@ const FixedRoutesScreen = ({ navigation, route }) => {
   };
 
   const formatTime = (timeString) => {
-    if (!timeString) return "";
-    const [hours, minutes] = timeString.split(":");
-    return `${hours}:${minutes}`;
+    if (!timeString) return "--:--";
+    try {
+      const timeStr = String(timeString);
+      const [hours, minutes] = timeStr.split(":");
+      if (hours && minutes) {
+        return `${hours}:${minutes}`;
+      }
+      return "--:--";
+    } catch (error) {
+      return "--:--";
+    }
   };
 
   const formatDistance = (distance) => {
-    if (!distance || distance === 0) return "";
+    if (!distance || distance === 0 || isNaN(Number(distance))) return "0km";
 
+    const dist = Number(distance);
     // Check if distance is already in km (> 100 likely means it's in meters)
-    if (distance > 100) {
+    if (dist > 100) {
       // Assume it's in meters
-      if (distance < 1000) {
-        return `${Math.round(distance)}m`;
+      if (dist < 1000) {
+        return `${Math.round(dist)}m`;
       }
-      return `${(distance / 1000).toFixed(1)}km`;
+      return `${(dist / 1000).toFixed(1)}km`;
     } else {
       // Assume it's already in km
-      return `${distance.toFixed(1)}km`;
+      return `${dist.toFixed(1)}km`;
     }
   };
 
@@ -185,7 +399,10 @@ const FixedRoutesScreen = ({ navigation, route }) => {
 
     try {
       setBookingLoading(item.id); // Set loading state for this specific route
-      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+      // Use local date instead of UTC to avoid timezone issues
+      // If user is in UTC+7 and it's 6:39 AM, UTC would be 11:39 PM previous day
+      const today = getLocalDateString(); // YYYY-MM-DD format (local timezone)
+      console.log("📅 Booking date (local):", today);
       const response = await routeBookingService.createBooking({
         routeId: item.id,
         pickupLatitude: pickupLocation?.latitude,
@@ -223,9 +440,16 @@ const FixedRoutesScreen = ({ navigation, route }) => {
   };
 
   const renderRouteCard = ({ item }) => {
-    const bookedSeats = item.totalSeats - item.availableSeats;
-    const seatPercentage = (bookedSeats / item.totalSeats) * 100;
-    const isAvailable = item.availableSeats > 0;
+    if (!item) {
+      return null;
+    }
+
+    const totalSeats = Number(item.totalSeats) || 0;
+    const availableSeats = Number(item.availableSeats) || 0;
+    const bookedSeats = totalSeats - availableSeats;
+    const seatPercentage =
+      totalSeats > 0 ? (bookedSeats / totalSeats) * 100 : 0;
+    const isAvailable = availableSeats > 0;
 
     // Get rating from multiple possible fields - prioritize driverRating field
     const driverRating =
@@ -242,30 +466,25 @@ const FixedRoutesScreen = ({ navigation, route }) => {
 
     // Format rating text
     const ratingText =
-      hasRating && typeof driverRating === "number"
+      hasRating && typeof driverRating === "number" && !isNaN(driverRating)
         ? driverRating.toFixed(1)
         : hasRating
         ? String(driverRating)
         : "";
 
-
-    if (!item) {
-      return null;
-    }
-
     return (
       <View style={styles.routeCard}>
         <View style={styles.cardHeader}>
           <View style={styles.routeNameRow}>
-            <MaterialIcons name="directions-bus" size={20} color="#004553" />
+            <MaterialIcons name="directions-bus" size={20} color="#FF5370" />
             <Text style={styles.routeName} numberOfLines={1}>
-              {item?.routeName ? String(item.routeName) : "Chuyến đi"}
+              {item?.routeName ? String(item.routeName || "") : "Chuyến đi"}
             </Text>
           </View>
-          {item?.pricePerSeat && item.pricePerSeat > 0 && (
+          {item?.pricePerSeat != null && Number(item.pricePerSeat) > 0 && (
             <View style={styles.priceTag}>
               <Text style={styles.priceValue}>
-                {`${Number(item.pricePerSeat).toLocaleString()}đ`}
+                {`${Number(item.pricePerSeat).toLocaleString("vi-VN")}đ`}
               </Text>
             </View>
           )}
@@ -273,10 +492,12 @@ const FixedRoutesScreen = ({ navigation, route }) => {
 
         {/* Pickup Location */}
         <View style={styles.locationRow}>
-          <View style={[styles.locationDot, { backgroundColor: "#004553" }]} />
+          <View style={[styles.locationDot, { backgroundColor: "#FF5370" }]} />
           <View style={styles.locationContent}>
             <Text style={styles.locationText} numberOfLines={1}>
-              {item.pickupAddress ? String(item.pickupAddress) : "Chưa có thông tin"}
+              {item.pickupAddress
+                ? String(item.pickupAddress)
+                : "Chưa có thông tin"}
             </Text>
             <Text style={styles.locationLabel}>Pickup point</Text>
           </View>
@@ -287,7 +508,9 @@ const FixedRoutesScreen = ({ navigation, route }) => {
           <View style={[styles.locationDot, { backgroundColor: "#FF6B6B" }]} />
           <View style={styles.locationContent}>
             <Text style={styles.locationText} numberOfLines={1}>
-              {item.dropoffAddress ? String(item.dropoffAddress) : "Chưa có thông tin"}
+              {item.dropoffAddress
+                ? String(item.dropoffAddress)
+                : "Chưa có thông tin"}
             </Text>
             <Text style={styles.locationLabel}>Destination</Text>
           </View>
@@ -298,22 +521,20 @@ const FixedRoutesScreen = ({ navigation, route }) => {
           <View style={styles.infoItem}>
             <MaterialIcons name="schedule" size={16} color="#6B7280" />
             <Text style={styles.infoText}>
-              {formatTime(item.departureTime) || "--:--"}
+              {formatTime(item.departureTime)}
             </Text>
           </View>
           <View style={styles.infoItem}>
             <MaterialIcons name="event-seat" size={16} color="#6B7280" />
             <Text style={styles.infoText}>
-              {String(item.availableSeats || 0) +
-                "/" +
-                String(item.totalSeats || 0)}
+              {`${availableSeats}/${totalSeats}`}
             </Text>
           </View>
-          {item.distance && (
+          {item.distance != null && item.distance !== undefined && (
             <View style={styles.infoItem}>
               <MaterialIcons name="straighten" size={16} color="#6B7280" />
               <Text style={styles.infoText}>
-                {formatDistance(item.distance) || "0km"}
+                {formatDistance(item.distance)}
               </Text>
             </View>
           )}
@@ -321,18 +542,18 @@ const FixedRoutesScreen = ({ navigation, route }) => {
 
         {/* Driver Info with Rating */}
         <View style={styles.driverInfoContainer}>
-          {(item.driverName || item.driver?.name) && (
+          {!!(item.driverName || item.driver?.name) && (
             <View style={styles.driverRow}>
               <MaterialIcons name="person" size={16} color="#6B7280" />
               <Text style={styles.driverName}>
-                {String(item.driverName || item.driver?.name || "")}
+                {String(item.driverName || item.driver?.name || "Tài xế")}
               </Text>
             </View>
           )}
-          {hasRating && ratingText && (
+          {hasRating && ratingText && ratingText.trim() !== "" && (
             <View style={styles.ratingBadge}>
               <MaterialIcons name="star" size={16} color="#FFA726" />
-              <Text style={styles.ratingBadgeText}>{ratingText}</Text>
+              <Text style={styles.ratingBadgeText}>{String(ratingText)}</Text>
             </View>
           )}
         </View>
@@ -341,27 +562,30 @@ const FixedRoutesScreen = ({ navigation, route }) => {
         <TouchableOpacity
           style={[
             styles.joinButton,
-            (!isAvailable || bookingLoading === item.id) && styles.joinButtonDisabled
+            (!isAvailable || bookingLoading === item.id) &&
+              styles.joinButtonDisabled,
           ]}
           onPress={() => handleBooking(item)}
           disabled={!isAvailable || bookingLoading === item.id}
         >
           {bookingLoading === item.id ? (
             <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : !isAvailable ? (
+            <View style={styles.joinButtonDisabled}>
+              <MaterialIcons name="block" size={20} color="#FFFFFF" />
+              <Text style={styles.joinButtonText}>Hết chỗ</Text>
+            </View>
           ) : (
-            <MaterialIcons
-              name={isAvailable ? "check-circle" : "block"}
-              size={20}
-              color="#FFFFFF"
-            />
+            <LinearGradient
+              colors={["#FF5370", "#FF6B9D", "#FF8FAB"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.joinButtonGradient}
+            >
+              <MaterialIcons name="check-circle" size={20} color="#FFFFFF" />
+              <Text style={styles.joinButtonText}>Yêu cầu tham gia</Text>
+            </LinearGradient>
           )}
-          <Text style={styles.joinButtonText}>
-            {bookingLoading === item.id
-              ? "Đang xử lý..."
-              : isAvailable
-              ? "Yêu cầu tham gia"
-              : "Hết chỗ"}
-          </Text>
         </TouchableOpacity>
       </View>
     );
@@ -370,7 +594,7 @@ const FixedRoutesScreen = ({ navigation, route }) => {
   if (loading && !refreshing) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
+        <ActivityIndicator size="large" color="#FF5370" />
         <Text style={styles.loadingText}>Đang tìm kiếm chuyến đi...</Text>
       </View>
     );
@@ -378,16 +602,12 @@ const FixedRoutesScreen = ({ navigation, route }) => {
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backButton}
-        >
-          <MaterialIcons name="arrow-back" size={24} color="#FFFFFF" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Chuyến đi cố định</Text>
-        <View style={{ width: 40 }} />
-      </View>
+      <SnowEffect />
+      <GradientHeader
+        title="📍 Tìm chuyến đi cố định"
+        onBackPress={() => navigation.goBack()}
+        showBackButton={true}
+      />
 
       {/* Search form - always visible */}
       {true && (
@@ -421,8 +641,15 @@ const FixedRoutesScreen = ({ navigation, route }) => {
               style={styles.searchButton}
               onPress={handleSearch}
             >
-              <MaterialIcons name="search" size={20} color="#FFFFFF" />
-              <Text style={styles.searchButtonText}>Tìm kiếm</Text>
+              <LinearGradient
+                colors={["#FF5370", "#FF6B9D", "#FF8FAB"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.searchButtonGradient}
+              >
+                <MaterialIcons name="search" size={20} color="#FFFFFF" />
+                <Text style={styles.searchButtonText}>Tìm kiếm</Text>
+              </LinearGradient>
             </TouchableOpacity>
           </View>
         </View>
@@ -431,7 +658,7 @@ const FixedRoutesScreen = ({ navigation, route }) => {
       <FlatList
         data={routes}
         renderItem={renderRouteCard}
-        keyExtractor={(item) => item.id.toString()}
+        keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
         contentContainerStyle={
           routes.length === 0 ? styles.emptyListContainer : styles.listContainer
         }
@@ -439,16 +666,20 @@ const FixedRoutesScreen = ({ navigation, route }) => {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
         ListEmptyComponent={
-          !loading && (
+          !loading ? (
             <View style={styles.emptyContainer}>
-              <MaterialIcons 
-                name={pickupLocation && destinationLocation ? "search-off" : "search"} 
-                size={80} 
-                color="#E5E7EB" 
+              <MaterialIcons
+                name={
+                  pickupLocation && destinationLocation
+                    ? "search-off"
+                    : "search"
+                }
+                size={80}
+                color="#E5E7EB"
               />
               <Text style={styles.emptyText}>
-                {pickupLocation && destinationLocation 
-                  ? "Không tìm thấy chuyến đi" 
+                {pickupLocation && destinationLocation
+                  ? "Không tìm thấy chuyến đi"
                   : "Tìm kiếm chuyến đi cố định"}
               </Text>
               <Text style={styles.emptySubtext}>
@@ -457,8 +688,10 @@ const FixedRoutesScreen = ({ navigation, route }) => {
                   : "Nhập điểm đón và điểm đến để tìm chuyến đi phù hợp"}
               </Text>
             </View>
-          )
+          ) : null
         }
+        nestedScrollEnabled={true}
+        removeClippedSubviews={false}
       />
     </SafeAreaView>
   );
@@ -467,49 +700,20 @@ const FixedRoutesScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#FFF5F7",
   },
   centerContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "#004553",
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    elevation: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  backButton: {
-    padding: 8,
-    borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.2)",
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#FFFFFF",
-    letterSpacing: 0.5,
-  },
-  searchIconButton: {
-    padding: 8,
-    borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.2)",
+    backgroundColor: "#FFF5F7",
   },
   searchFormContainer: {
-    backgroundColor: COLORS.white,
-    borderBottomWidth: 1,
-    borderBottomColor: "#D1D5DB",
+    backgroundColor: COLORS.WHITE,
+    borderBottomWidth: 2,
+    borderBottomColor: "#FFE5EC",
     elevation: 2,
-    shadowColor: "#000",
+    shadowColor: "#FF5370",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -519,8 +723,8 @@ const styles = StyleSheet.create({
   },
   searchFormTitle: {
     fontSize: 18,
-    fontWeight: "600",
-    color: COLORS.dark,
+    fontWeight: "800",
+    color: "#FF5370",
     marginBottom: 16,
   },
   searchInputSection: {
@@ -534,13 +738,20 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   searchButton: {
-    backgroundColor: "#004553",
-    borderRadius: 12,
+    borderRadius: 16,
+    marginTop: 8,
+    overflow: "hidden",
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  searchButtonGradient: {
     paddingVertical: 14,
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 8,
   },
   searchButtonText: {
     fontSize: 16,
@@ -561,12 +772,17 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   routeCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.WHITE,
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "#D1D5DB",
+    borderWidth: 2,
+    borderColor: "#FFE5EC",
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   cardHeader: {
     flexDirection: "row",
@@ -588,7 +804,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   priceTag: {
-    backgroundColor: "#004553",
+    backgroundColor: "#FF5370",
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
@@ -688,16 +904,27 @@ const styles = StyleSheet.create({
     marginLeft: 2,
   },
   joinButton: {
-    backgroundColor: "#004553",
-    borderRadius: 12,
+    borderRadius: 16,
+    marginTop: 4,
+    overflow: "hidden",
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  joinButtonGradient: {
     paddingVertical: 14,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 4,
   },
   joinButtonDisabled: {
     backgroundColor: "#9CA3AF",
+    paddingVertical: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
   },
   joinButtonText: {
     fontSize: 15,

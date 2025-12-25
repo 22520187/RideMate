@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import COLORS from "../../../constant/colors";
 import fixedRouteService from "../../../services/fixedRouteService";
@@ -19,6 +20,8 @@ import { getMyVehicle } from "../../../services/vehicleService";
 import Toast from "react-native-toast-message";
 import LocationSearch from "../../../components/LocationSearch";
 import { searchPlaces } from "../../../utils/api";
+import GradientHeader from "../../../components/GradientHeader";
+import SnowEffect from "../../../components/SnowEffect";
 
 /**
  * Screen for drivers to create a new fixed route
@@ -171,6 +174,14 @@ const CreateFixedRouteScreen = ({ navigation }) => {
     return true;
   };
 
+  // Helper function to get local date string (YYYY-MM-DD) in local timezone
+  const getLocalDateString = (date = selectedDate) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
   const handleCreateRoute = async () => {
     if (!validateForm()) {
       return;
@@ -178,6 +189,15 @@ const CreateFixedRouteScreen = ({ navigation }) => {
 
     try {
       setLoading(true);
+
+      // Use local date string instead of ISO string to avoid timezone issues
+      const localDateStr = getLocalDateString(selectedDate);
+      console.log("📅 Selected date (local):", selectedDate);
+      console.log("📅 Local date string:", localDateStr);
+      console.log(
+        "📅 ISO string (for comparison):",
+        selectedDate.toISOString().split("T")[0]
+      );
 
       const routeData = {
         vehicleId: vehicle?.id || vehicle?.vehicleId,
@@ -190,7 +210,7 @@ const CreateFixedRouteScreen = ({ navigation }) => {
         dropoffLatitude: dropoffLocation.latitude,
         dropoffLongitude: dropoffLocation.longitude,
         departureTime: departureTime.toTimeString().split(" ")[0], // HH:MM:SS
-        specificDates: selectedDate.toISOString().split("T")[0], // yyyy-MM-dd
+        specificDates: localDateStr, // yyyy-MM-dd (local timezone)
         pricePerSeat: 0,
         totalSeats: parseInt(totalSeats) || 1,
         pickupRadius: 500,
@@ -226,16 +246,12 @@ const CreateFixedRouteScreen = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backButton}
-        >
-          <MaterialIcons name="arrow-back" size={24} color={COLORS.white} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Tạo chuyến đi cố định</Text>
-        <View style={styles.placeholder} />
-      </View>
+      <SnowEffect />
+      <GradientHeader
+        title="🏍️ Tạo chuyến đi cố định"
+        onBackPress={() => navigation.goBack()}
+        showBackButton={true}
+      />
 
       <ScrollView
         style={styles.content}
@@ -305,11 +321,7 @@ const CreateFixedRouteScreen = ({ navigation }) => {
             style={styles.timeButton}
             onPress={() => setShowTimePicker(true)}
           >
-            <MaterialIcons
-              name="schedule"
-              size={24}
-              color={COLORS.PRIMARY || COLORS.primary}
-            />
+            <MaterialIcons name="schedule" size={24} color="#FF5370" />
             <Text style={styles.timeText}>
               {departureTime.toLocaleTimeString("vi-VN", {
                 hour: "2-digit",
@@ -357,7 +369,7 @@ const CreateFixedRouteScreen = ({ navigation }) => {
             onPress={() => setShowDatePicker(true)}
           >
             <View style={styles.datePickerInput}>
-              <MaterialIcons name="event" size={20} color={COLORS.PRIMARY} />
+              <MaterialIcons name="event" size={20} color="#FF5370" />
               <Text style={styles.datePickerInputText}>
                 {formatDisplayDate(selectedDate)}
               </Text>
@@ -405,16 +417,12 @@ const CreateFixedRouteScreen = ({ navigation }) => {
           <Text style={styles.label}>Phương tiện</Text>
           {loadingVehicle ? (
             <View style={styles.vehicleCard}>
-              <ActivityIndicator size="small" color={COLORS.PRIMARY} />
+              <ActivityIndicator size="small" color="#FF5370" />
               <Text style={styles.vehicleText}>Đang tải phương tiện...</Text>
             </View>
           ) : vehicle ? (
             <View style={styles.vehicleCard}>
-              <MaterialIcons
-                name="directions-bike"
-                size={24}
-                color={COLORS.PRIMARY}
-              />
+              <MaterialIcons name="directions-bike" size={24} color="#FF5370" />
               <Text style={styles.vehicleText}>
                 {vehicle.model} - {vehicle.licensePlate}
               </Text>
@@ -447,10 +455,15 @@ const CreateFixedRouteScreen = ({ navigation }) => {
           {loading ? (
             <ActivityIndicator color={COLORS.WHITE} />
           ) : (
-            <>
+            <LinearGradient
+              colors={["#FF5370", "#FF6B9D", "#FF8FAB"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.createButtonGradient}
+            >
               <MaterialIcons name="add" size={24} color={COLORS.WHITE} />
               <Text style={styles.createButtonText}>Tạo chuyến đi</Text>
-            </>
+            </LinearGradient>
           )}
         </TouchableOpacity>
       </View>
@@ -461,31 +474,7 @@ const CreateFixedRouteScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    elevation: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  backButton: {
-    padding: 8,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: COLORS.white,
-  },
-  placeholder: {
-    width: 40,
+    backgroundColor: "#FFF5F7",
   },
   content: {
     flex: 1,
@@ -496,8 +485,8 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 15,
-    fontWeight: "600",
-    color: "#1C1C1E",
+    fontWeight: "700",
+    color: "#FF5370",
     marginBottom: 8,
   },
   required: {
@@ -520,10 +509,17 @@ const styles = StyleSheet.create({
   timeButton: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F8F9FA",
-    borderRadius: 12,
+    backgroundColor: COLORS.WHITE,
+    borderRadius: 16,
     paddingHorizontal: 16,
     paddingVertical: 14,
+    borderWidth: 2,
+    borderColor: "#FFE5EC",
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   timeText: {
     fontSize: 16,
@@ -546,7 +542,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   iosPickerButton: {
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: "#FF5370",
     paddingVertical: 8,
     paddingHorizontal: 20,
     borderRadius: 8,
@@ -566,10 +562,16 @@ const styles = StyleSheet.create({
   vehicleCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F8F9FA",
-    borderRadius: 12,
+    backgroundColor: COLORS.WHITE,
+    borderRadius: 16,
     padding: 16,
-    borderWidth: 0,
+    borderWidth: 2,
+    borderColor: "#FFE5EC",
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
   },
   vehicleText: {
     fontSize: 16,
@@ -579,27 +581,29 @@ const styles = StyleSheet.create({
   },
   footer: {
     padding: 16,
-    backgroundColor: "#FFFFFF",
-    borderTopWidth: 1,
-    borderTopColor: "#F0F0F0",
+    backgroundColor: "#FFF5F7",
+    borderTopWidth: 2,
+    borderTopColor: "#FFE5EC",
     elevation: 8,
-    shadowColor: "#000",
+    shadowColor: "#FF5370",
     shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.1,
     shadowRadius: 8,
   },
   createButton: {
-    backgroundColor: COLORS.PRIMARY || COLORS.primary || "#007AFF",
-    borderRadius: 12,
+    borderRadius: 16,
+    overflow: "hidden",
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  createButtonGradient: {
     paddingVertical: 16,
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
   },
   createButtonDisabled: {
     backgroundColor: "#C7C7CC",

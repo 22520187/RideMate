@@ -5,8 +5,8 @@ import { MaterialIcons } from "@expo/vector-icons";
 import COLORS from "../constant/colors";
 
 /**
- * Reusable gradient header component
- * @param {string} title - Header title
+ * Reusable gradient header component with Christmas theme
+ * @param {string} title - Header title (can include emoji/icon)
  * @param {function} onBackPress - Back button press handler
  * @param {function} onRightPress - Right button press handler (optional)
  * @param {string} rightIcon - Right button icon name (optional)
@@ -21,12 +21,19 @@ const GradientHeader = ({
 }) => {
   return (
     <LinearGradient
-      colors={[COLORS.PRIMARY, "#006B7D"]}
+      colors={["#FF5370", "#FF6B9D", "#FF8FAB"]}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={styles.header}
     >
-      {showBackButton ? (
+      <View style={styles.headerDecor}>
+        <Text style={styles.decorBulb}>💡</Text>
+        <Text style={styles.decorStar}>⭐</Text>
+        <Text style={styles.decorSnow}>❄️</Text>
+        <Text style={styles.decorTree}>🎄</Text>
+      </View>
+
+      {showBackButton && onBackPress ? (
         <TouchableOpacity onPress={onBackPress} style={styles.backButton}>
           <MaterialIcons name="arrow-back" size={24} color="#FFF" />
         </TouchableOpacity>
@@ -39,7 +46,7 @@ const GradientHeader = ({
       {onRightPress && rightIcon ? (
         <TouchableOpacity onPress={onRightPress} style={styles.rightButton}>
           <View style={styles.rightButtonCircle}>
-            <MaterialIcons name={rightIcon} size={24} color={COLORS.PRIMARY} />
+            <MaterialIcons name={rightIcon} size={24} color="#FF5370" />
           </View>
         </TouchableOpacity>
       ) : (
@@ -56,11 +63,38 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 16,
+    paddingTop: 20,
     elevation: 8,
-    shadowColor: COLORS.PRIMARY,
+    shadowColor: "#FF5370",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
+    position: "relative",
+    overflow: "hidden",
+  },
+  headerDecor: {
+    position: "absolute",
+    top: 10,
+    right: 16,
+    flexDirection: "row",
+    gap: 8,
+    opacity: 0.6,
+  },
+  decorBulb: {
+    fontSize: 18,
+    opacity: 0.8,
+  },
+  decorStar: {
+    fontSize: 18,
+    opacity: 0.8,
+  },
+  decorSnow: {
+    fontSize: 18,
+    opacity: 0.8,
+  },
+  decorTree: {
+    fontSize: 18,
+    opacity: 0.8,
   },
   backButton: {
     padding: 8,
@@ -69,9 +103,12 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 20,
-    fontWeight: "700",
+    fontWeight: "800",
     color: "#FFF",
     letterSpacing: 0.5,
+    textShadowColor: "rgba(0, 0, 0, 0.1)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   rightButton: {
     padding: 4,

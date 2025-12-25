@@ -24,6 +24,7 @@ import COLORS from "../../../constant/colors";
 import { getProfile } from "../../../services/userService";
 import { getMatchHistory } from "../../../services/matchService";
 import GradientHeader from "../../../components/GradientHeader";
+import SnowEffect from "../../../components/SnowEffect";
 
 const { width } = Dimensions.get("window");
 const CHART_WIDTH = width - 40;
@@ -510,7 +511,7 @@ const DriverStatistics = ({ navigation }) => {
     return (
       <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.PRIMARY} />
+          <ActivityIndicator size="large" color="#FF5370" />
         </View>
       </SafeAreaView>
     );
@@ -518,9 +519,9 @@ const DriverStatistics = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      {/* Header */}
+      <SnowEffect />
       <GradientHeader
-        title="Thống kê"
+        title="📊 Thống kê"
         onBackPress={() => navigation.goBack()}
         onRightPress={() => setCustomizeModalVisible(true)}
         rightIcon="settings"
@@ -532,14 +533,14 @@ const DriverStatistics = ({ navigation }) => {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={[COLORS.PRIMARY]}
+            colors={["#FF5370"]}
           />
         }
       >
         {/* Stats Cards */}
         <View style={styles.statsGrid}>
           <LinearGradient
-            colors={[COLORS.PRIMARY, "#00A8A8"]}
+            colors={["#FF5370", "#FF6B9D"]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.statCard}
@@ -653,10 +654,7 @@ const DriverStatistics = ({ navigation }) => {
               <View style={styles.chartLegend}>
                 <View style={styles.legendItem}>
                   <View
-                    style={[
-                      styles.legendDot,
-                      { backgroundColor: COLORS.PRIMARY },
-                    ]}
+                    style={[styles.legendDot, { backgroundColor: "#FF5370" }]}
                   />
                   <Text style={styles.legendText}>Coin</Text>
                 </View>
@@ -672,7 +670,7 @@ const DriverStatistics = ({ navigation }) => {
                         earningsChartData.data.length > 0
                           ? earningsChartData.data
                           : [0],
-                      color: (opacity = 1) => COLORS.PRIMARY,
+                      color: (opacity = 1) => "#FF5370",
                       strokeWidth: 3,
                     },
                   ],
@@ -684,7 +682,7 @@ const DriverStatistics = ({ navigation }) => {
                   backgroundGradientFrom: "#fff",
                   backgroundGradientTo: "#fff",
                   decimalPlaces: 0,
-                  color: (opacity = 1) => `rgba(0, 69, 83, ${opacity})`,
+                  color: (opacity = 1) => `rgba(255, 83, 112, ${opacity})`,
                   labelColor: (opacity = 1) =>
                     `rgba(142, 142, 147, ${opacity})`,
                   style: {
@@ -693,7 +691,7 @@ const DriverStatistics = ({ navigation }) => {
                   propsForDots: {
                     r: "5",
                     strokeWidth: "2",
-                    stroke: COLORS.PRIMARY,
+                    stroke: "#FF5370",
                     fill: "#fff",
                   },
                   propsForBackgroundLines: {
@@ -782,8 +780,8 @@ const DriverStatistics = ({ navigation }) => {
                   backgroundGradientTo: "#fff",
                   decimalPlaces: 2,
                   color: (opacity = 1, index) => {
-                    const colors = [COLORS.PRIMARY, "#4CAF50", "#FF9800"];
-                    return colors[index] || COLORS.PRIMARY;
+                    const colors = ["#FF5370", "#4ECDC4", "#FFD700"];
+                    return colors[index] || "#FF5370";
                   },
                   labelColor: (opacity = 1) => `rgba(28, 28, 30, ${opacity})`,
                   style: {
@@ -999,7 +997,7 @@ const DriverStatistics = ({ navigation }) => {
           <View style={styles.insightsGrid}>
             <View style={styles.insightCard}>
               <View style={styles.insightHeader}>
-                <Ionicons name="trending-up" size={20} color={COLORS.PRIMARY} />
+                <Ionicons name="trending-up" size={20} color="#FF5370" />
                 <Text style={styles.insightTitle}>Trong kỳ</Text>
               </View>
               <Text style={styles.insightValue}>{stats.periodRides}</Text>
@@ -1054,7 +1052,7 @@ const DriverStatistics = ({ navigation }) => {
           {/* Performance Summary Card */}
           <View style={styles.summaryCard}>
             <View style={styles.summaryHeader}>
-              <Ionicons name="analytics" size={24} color={COLORS.PRIMARY} />
+              <Ionicons name="analytics" size={24} color="#FF5370" />
               <Text style={styles.summaryTitle}>Tóm tắt hiệu suất</Text>
             </View>
 
@@ -1087,7 +1085,7 @@ const DriverStatistics = ({ navigation }) => {
               <View style={styles.summaryDivider} />
               <View style={styles.summaryItem}>
                 <Text style={styles.summaryLabel}>Hoàn thành</Text>
-                <Text style={[styles.summaryValue, { color: COLORS.PRIMARY }]}>
+                <Text style={[styles.summaryValue, { color: "#FF5370" }]}>
                   {stats.completionRate}%
                 </Text>
               </View>
@@ -1120,11 +1118,7 @@ const DriverStatistics = ({ navigation }) => {
               {AVAILABLE_CHARTS.map((chart) => (
                 <View key={chart.id} style={styles.chartOption}>
                   <View style={styles.chartOptionLeft}>
-                    <Ionicons
-                      name={chart.icon}
-                      size={24}
-                      color={COLORS.PRIMARY}
-                    />
+                    <Ionicons name={chart.icon} size={24} color="#FF5370" />
                     <Text style={styles.chartOptionText}>{chart.name}</Text>
                   </View>
                   <Switch
@@ -1132,11 +1126,9 @@ const DriverStatistics = ({ navigation }) => {
                     onValueChange={() => toggleChart(chart.id)}
                     trackColor={{
                       false: "#E5E5EA",
-                      true: COLORS.PRIMARY + "40",
+                      true: "#FF537040",
                     }}
-                    thumbColor={
-                      visibleCharts[chart.id] ? COLORS.PRIMARY : "#f4f3f4"
-                    }
+                    thumbColor={visibleCharts[chart.id] ? "#FF5370" : "#f4f3f4"}
                   />
                 </View>
               ))}
@@ -1160,7 +1152,7 @@ const DriverStatistics = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#FFF5F7",
   },
   loadingContainer: {
     flex: 1,
@@ -1247,7 +1239,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   periodButtonActive: {
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: "#FF5370",
   },
   periodButtonText: {
     fontSize: 14,
@@ -1294,19 +1286,19 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   chartCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.WHITE,
     borderRadius: 16,
     padding: 16,
-    shadowColor: "#000",
+    shadowColor: "#FF5370",
     shadowOffset: {
       width: 0,
       height: 2,
     },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 3,
-    borderWidth: 1,
-    borderColor: "#F0F0F0",
+    borderWidth: 2,
+    borderColor: "#FFE5EC",
   },
 
   // Summary Section
@@ -1479,7 +1471,7 @@ const styles = StyleSheet.create({
     borderTopColor: "#F0F0F0",
   },
   modalButton: {
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: "#FF5370",
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: "center",

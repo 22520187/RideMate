@@ -10,10 +10,12 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import COLORS from "../../../constant/colors";
 import routeBookingService from "../../../services/routeBookingService";
 import Toast from "react-native-toast-message";
 import GradientHeader from "../../../components/GradientHeader";
+import SnowEffect from "../../../components/SnowEffect";
 
 /**
  * Screen for passengers to book a seat on a fixed route
@@ -104,7 +106,12 @@ const RouteBookingScreen = ({ navigation, route }) => {
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      <GradientHeader title="Đặt chỗ" onBackPress={() => navigation.goBack()} />
+      <SnowEffect />
+      <GradientHeader
+        title="🎫 Đặt chỗ"
+        onBackPress={() => navigation.goBack()}
+        showBackButton={true}
+      />
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Route Info */}
@@ -159,7 +166,7 @@ const RouteBookingScreen = ({ navigation, route }) => {
           <Text style={styles.sectionTitle}>Tài xế</Text>
           <View style={styles.card}>
             <View style={styles.driverRow}>
-              <MaterialIcons name="person" size={24} color={COLORS.primary} />
+              <MaterialIcons name="person" size={24} color="#FF5370" />
               <View style={styles.driverInfo}>
                 <Text style={styles.driverName}>{routeData.driverName}</Text>
                 <Text style={styles.driverPhone}>{routeData.driverPhone}</Text>
@@ -206,7 +213,7 @@ const RouteBookingScreen = ({ navigation, route }) => {
                 <MaterialIcons
                   name="remove"
                   size={24}
-                  color={numberOfSeats <= 1 ? COLORS.lightGray : COLORS.primary}
+                  color={numberOfSeats <= 1 ? COLORS.lightGray : "#FF5370"}
                 />
               </TouchableOpacity>
               <Text style={styles.seatsNumber}>{numberOfSeats}</Text>
@@ -229,7 +236,7 @@ const RouteBookingScreen = ({ navigation, route }) => {
                   color={
                     numberOfSeats >= routeData.availableSeats
                       ? COLORS.lightGray
-                      : COLORS.primary
+                      : "#FF5370"
                   }
                 />
               </TouchableOpacity>
@@ -269,16 +276,21 @@ const RouteBookingScreen = ({ navigation, route }) => {
           disabled={loading}
         >
           {loading ? (
-            <ActivityIndicator color={COLORS.white} />
+            <ActivityIndicator color={COLORS.WHITE} />
           ) : (
-            <>
+            <LinearGradient
+              colors={["#FF5370", "#FF6B9D", "#FF8FAB"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.bookButtonGradient}
+            >
               <Text style={styles.bookButtonText}>Gửi yêu cầu tham gia</Text>
               <MaterialIcons
                 name="arrow-forward"
                 size={24}
-                color={COLORS.white}
+                color={COLORS.WHITE}
               />
-            </>
+            </LinearGradient>
           )}
         </TouchableOpacity>
       </View>
@@ -289,7 +301,7 @@ const RouteBookingScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: "#FFF5F7",
   },
   content: {
     flex: 1,
@@ -298,20 +310,22 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.dark,
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#FF5370",
     marginBottom: 12,
   },
   card: {
-    backgroundColor: COLORS.white,
-    borderRadius: 12,
+    backgroundColor: COLORS.WHITE,
+    borderRadius: 16,
     padding: 16,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
+    borderWidth: 2,
+    borderColor: "#FFE5EC",
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
+    shadowRadius: 8,
+    elevation: 3,
   },
   routeName: {
     fontSize: 18,
@@ -399,9 +413,11 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: COLORS.lightPrimary,
+    backgroundColor: "#FFE5EC",
     justifyContent: "center",
     alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#FF5370",
   },
   seatButtonDisabled: {
     backgroundColor: COLORS.lightGray,
@@ -439,17 +455,24 @@ const styles = StyleSheet.create({
   totalValue: {
     fontSize: 18,
     fontWeight: "bold",
-    color: COLORS.primary,
+    color: "#FF5370",
   },
   footer: {
     padding: 16,
-    backgroundColor: COLORS.white,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.lightGray,
+    backgroundColor: "#FFF5F7",
+    borderTopWidth: 2,
+    borderTopColor: "#FFE5EC",
   },
   bookButton: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 12,
+    borderRadius: 16,
+    overflow: "hidden",
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  bookButtonGradient: {
     paddingVertical: 16,
     flexDirection: "row",
     justifyContent: "center",

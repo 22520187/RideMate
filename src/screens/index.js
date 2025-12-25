@@ -22,6 +22,7 @@ const SCREENS = {
   MEMBER: "Member",
   MEMBER_DETAIL: "MemberDetail",
   VOUCHER: "Voucher",
+  MY_VOUCHERS: "MyVouchers",
   MISSION: "Mission",
   RIDE_HISTORY: "RideHistory",
   ADMIN_STACK: "AdminStack",
@@ -33,6 +34,8 @@ const SCREENS = {
   ADMIN_REWARD_MANAGEMENT: "AdminRewardManagement",
   ADMIN_PROFILE: "AdminProfile",
   ADMIN_MEMBERSHIP_MANAGEMENT: "MembershipManagement",
+  PAYMENT: "Payment",
+  PAYMENT_HISTORY: "PaymentHistory",
 };
 
 export default SCREENS;

@@ -30,7 +30,10 @@ import {
   Edit,
   Camera,
   FileText,
+  Sparkles,
+  TicketPercent,
 } from "lucide-react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
 import * as FileSystem from "expo-file-system";
@@ -46,6 +49,7 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import VehicleRegistration from "../../components/VehicleRegistration";
 import ImagePickerModal from "../../components/ImagePickerModal";
 import GradientHeader from "../../components/GradientHeader";
+import SnowEffect from "../../components/SnowEffect";
 
 const Profile = () => {
   const navigation = useNavigation();
@@ -400,7 +404,7 @@ const Profile = () => {
       activeOpacity={0.7}
     >
       <View style={styles.menuIconContainer}>
-        <Icon size={22} color={COLORS.PRIMARY} />
+        <Icon size={22} color="#FF5370" />
       </View>
       <View style={styles.menuContent}>
         <Text style={styles.menuTitle}>{title}</Text>
@@ -419,7 +423,7 @@ const Profile = () => {
     return (
       <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.PRIMARY} />
+          <ActivityIndicator size="large" color="#FF5370" />
         </View>
       </SafeAreaView>
     );
@@ -427,18 +431,19 @@ const Profile = () => {
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
+      <SnowEffect />
       <ScrollView
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={[COLORS.PRIMARY]}
+            colors={["#FF5370"]}
           />
         }
       >
         {/* Header */}
-        <GradientHeader title="Tài khoản" showBackButton={false} />
+        <GradientHeader title="👤 Tài khoản" showBackButton={false} />
 
         {/* Profile Card */}
         <View style={styles.profileCard}>
@@ -483,7 +488,7 @@ const Profile = () => {
             onPress={() => setEditModalVisible(true)}
             style={styles.editIconButton}
           >
-            <Edit size={20} color={COLORS.PRIMARY} />
+            <Edit size={20} color="#FF5370" />
           </TouchableOpacity>
         </View>
 
@@ -510,7 +515,7 @@ const Profile = () => {
             activeOpacity={0.7}
           >
             <View style={styles.menuIconContainer}>
-              <Car size={22} color={COLORS.PRIMARY} />
+              <Car size={22} color="#FF5370" />
             </View>
             <View style={styles.menuContent}>
               <Text style={styles.menuTitle}>
@@ -582,7 +587,7 @@ const Profile = () => {
                   <MaterialIcons
                     name="online-prediction"
                     size={22}
-                    color={COLORS.PRIMARY}
+                    color="#FF5370"
                   />
                 </View>
                 <View style={styles.menuContent}>
@@ -600,11 +605,7 @@ const Profile = () => {
                 activeOpacity={0.7}
               >
                 <View style={styles.menuIconContainer}>
-                  <MaterialIcons
-                    name="bar-chart"
-                    size={22}
-                    color={COLORS.PRIMARY}
-                  />
+                  <MaterialIcons name="bar-chart" size={22} color="#FF5370" />
                 </View>
                 <View style={styles.menuContent}>
                   <Text style={styles.menuTitle}>Thống kê & Báo cáo</Text>
@@ -621,11 +622,7 @@ const Profile = () => {
                 activeOpacity={0.7}
               >
                 <View style={styles.menuIconContainer}>
-                  <MaterialIcons
-                    name="route"
-                    size={22}
-                    color={COLORS.PRIMARY}
-                  />
+                  <MaterialIcons name="route" size={22} color="#FF5370" />
                 </View>
                 <View style={styles.menuContent}>
                   <Text style={styles.menuTitle}>Chuyến đi của tôi</Text>
@@ -661,11 +658,15 @@ const Profile = () => {
           />
           <MenuItem
             icon={CreditCard}
-            title="Thanh toán"
-            subtitle="Thẻ và ví điện tử"
-            onPress={() =>
-              Alert.alert("Thông báo", "Tính năng đang phát triển")
-            }
+            title="Lịch sử thanh toán"
+            subtitle="Xem lịch sử giao dịch"
+            onPress={() => navigation.navigate("PaymentHistory")}
+          />
+          <MenuItem
+            icon={TicketPercent}
+            title="Voucher của tôi"
+            subtitle="Quản lý voucher đã đổi"
+            onPress={() => navigation.navigate("MyVouchers")}
           />
           <MenuItem
             icon={Bell}
@@ -700,10 +701,17 @@ const Profile = () => {
         <TouchableOpacity
           style={styles.logoutButton}
           onPress={handleLogout}
-          activeOpacity={0.7}
+          activeOpacity={0.9}
         >
-          <LogOut size={22} color={COLORS.WHITE} />
-          <Text style={styles.logoutText}>Đăng xuất</Text>
+          <LinearGradient
+            colors={["#DC3545", "#FF5370"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.logoutButtonGradient}
+          >
+            <LogOut size={20} color={COLORS.WHITE} />
+            <Text style={styles.logoutText}>Đăng xuất</Text>
+          </LinearGradient>
         </TouchableOpacity>
 
         {/* Version */}
@@ -728,18 +736,14 @@ const Profile = () => {
               style={styles.modalOption}
               onPress={() => handlePickImage("camera")}
             >
-              <Camera size={24} color={COLORS.PRIMARY} />
+              <Camera size={24} color="#FF5370" />
               <Text style={styles.modalOptionText}>Chụp ảnh</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.modalOption}
               onPress={() => handlePickImage("library")}
             >
-              <MaterialIcons
-                name="photo-library"
-                size={24}
-                color={COLORS.PRIMARY}
-              />
+              <MaterialIcons name="photo-library" size={24} color="#FF5370" />
               <Text style={styles.modalOptionText}>Chọn từ thư viện</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -766,9 +770,9 @@ const Profile = () => {
             <Text style={styles.editTitle}>Chỉnh sửa thông tin</Text>
             <TouchableOpacity onPress={handleSaveProfile} disabled={uploading}>
               {uploading ? (
-                <ActivityIndicator size="small" color={COLORS.PRIMARY} />
+                <ActivityIndicator size="small" color="#FF5370" />
               ) : (
-                <Text style={styles.editSave}>Lưu</Text>
+                <Text style={styles.editSave}>Lưu ✨</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -1000,7 +1004,7 @@ const Profile = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: "#FFF5F7",
   },
   loadingContainer: {
     flex: 1,
@@ -1011,16 +1015,18 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#F8F9FA",
+    backgroundColor: "#FFF",
     marginHorizontal: 16,
     marginTop: 16,
     padding: 20,
-    borderRadius: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
+    borderRadius: 24,
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 6,
+    borderWidth: 2,
+    borderColor: "#FFE5EC",
   },
   profileLeft: {
     flexDirection: "row",
@@ -1033,7 +1039,7 @@ const styles = StyleSheet.create({
     borderRadius: 32,
     backgroundColor: "#F0F0F0",
     borderWidth: 3,
-    borderColor: COLORS.PRIMARY,
+    borderColor: "#FF5370",
   },
   uploadingOverlay: {
     position: "absolute",
@@ -1053,7 +1059,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: "#FF5370",
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 2,
@@ -1064,9 +1070,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   profileName: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#1C1C1E",
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#FF5370",
     marginBottom: 4,
   },
   profilePhone: {
@@ -1085,12 +1091,14 @@ const styles = StyleSheet.create({
     color: "#1C1C1E",
   },
   editIconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#F0F8FF",
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#FFE5EC",
     justifyContent: "center",
     alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#FF6B9D",
   },
   statsContainer: {
     flexDirection: "row",
@@ -1100,20 +1108,22 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    backgroundColor: "#F8F9FA",
+    backgroundColor: "#FFF",
     padding: 20,
-    borderRadius: 16,
+    borderRadius: 20,
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 2,
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 4,
+    borderWidth: 2,
+    borderColor: "#FFE5EC",
   },
   statValue: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: "800",
-    color: COLORS.PRIMARY,
+    color: "#FF5370",
     marginBottom: 4,
   },
   statLabel: {
@@ -1126,42 +1136,46 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   sectionTitle: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: "#1C1C1E",
+    fontSize: 19,
+    fontWeight: "800",
+    color: "#FF5370",
     marginBottom: 12,
     paddingHorizontal: 4,
   },
   menuItem: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F8F9FA",
+    backgroundColor: "#FFF",
     paddingVertical: 16,
     paddingHorizontal: 16,
-    borderRadius: 16,
-    marginBottom: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 4,
-    elevation: 1,
+    borderRadius: 18,
+    marginBottom: 10,
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
+    borderWidth: 2,
+    borderColor: "#FFE5EC",
   },
   menuIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#F0F8FF",
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#FFE5EC",
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,
+    borderWidth: 2,
+    borderColor: "#FF6B9D",
   },
   menuContent: {
     flex: 1,
   },
   menuTitle: {
     fontSize: 16,
-    fontWeight: "600",
-    color: "#1C1C1E",
+    fontWeight: "700",
+    color: "#FF5370",
     marginBottom: 2,
   },
   menuSubtitle: {
@@ -1193,19 +1207,26 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   logoutButton: {
+    marginHorizontal: 16,
+    marginTop: 24,
+    borderRadius: 20,
+    overflow: "hidden",
+    elevation: 6,
+    shadowColor: "#DC3545",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  logoutButtonGradient: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#DC3545",
-    marginHorizontal: 16,
-    marginTop: 24,
     paddingVertical: 16,
-    borderRadius: 16,
     gap: 8,
   },
   logoutText: {
     fontSize: 16,
-    fontWeight: "700",
+    fontWeight: "800",
     color: COLORS.WHITE,
   },
   version: {
@@ -1219,20 +1240,22 @@ const styles = StyleSheet.create({
   // Image Picker Modal
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
     justifyContent: "flex-end",
   },
   imagePickerModal: {
     backgroundColor: COLORS.WHITE,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
     padding: 24,
     paddingBottom: 32,
+    borderWidth: 3,
+    borderColor: "#FFE5EC",
   },
   modalTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#1C1C1E",
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#FF5370",
     marginBottom: 20,
     textAlign: "center",
   },
@@ -1240,10 +1263,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     padding: 16,
-    borderRadius: 12,
-    backgroundColor: "#F8F9FA",
+    borderRadius: 16,
+    backgroundColor: "#FFE5EC",
     marginBottom: 12,
     gap: 12,
+    borderWidth: 2,
+    borderColor: "#FF6B9D",
   },
   modalOptionText: {
     fontSize: 16,
@@ -1285,14 +1310,14 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   editTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#1C1C1E",
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#FF5370",
   },
   editSave: {
     fontSize: 16,
-    color: COLORS.PRIMARY,
-    fontWeight: "700",
+    color: "#FF5370",
+    fontWeight: "800",
   },
   editContent: {
     flex: 1,
@@ -1311,7 +1336,7 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     backgroundColor: "#F0F0F0",
     borderWidth: 3,
-    borderColor: COLORS.PRIMARY,
+    borderColor: "#FF5370",
   },
   editUploadingOverlay: {
     position: "absolute",
@@ -1331,7 +1356,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: "#FF5370",
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 3,
@@ -1353,12 +1378,12 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   textInput: {
-    borderWidth: 1,
-    borderColor: "#E5E5EA",
-    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: "#FFE5EC",
+    borderRadius: 16,
     padding: 14,
     fontSize: 16,
-    backgroundColor: "#F9F9F9",
+    backgroundColor: "#FFF",
     marginBottom: 12,
     color: "#1C1C1E",
   },
@@ -1367,11 +1392,11 @@ const styles = StyleSheet.create({
     textAlignVertical: "top",
   },
   dateButton: {
-    borderWidth: 1,
-    borderColor: "#E5E5EA",
-    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: "#FFE5EC",
+    borderRadius: 16,
     padding: 14,
-    backgroundColor: "#F9F9F9",
+    backgroundColor: "#FFF",
     marginBottom: 12,
   },
   dateText: {

@@ -1,4 +1,4 @@
-import axiosClient from '../api/axiosClient';
+import axiosClient from "../api/axiosClient";
 
 /**
  * Upload ID card image for verification
@@ -9,26 +9,26 @@ import axiosClient from '../api/axiosClient';
 export const uploadIdCard = async (phoneNumber, imageUri) => {
   try {
     const formData = new FormData();
-    formData.append('phoneNumber', phoneNumber);
-    
+    formData.append("phoneNumber", phoneNumber);
+
     // Create file object for upload
     const file = {
       uri: imageUri,
-      type: 'image/jpeg',
+      type: "image/jpeg",
       name: `id_card_${Date.now()}.jpg`,
     };
-    
-    formData.append('idCardImage', file);
 
-    const response = await axiosClient.post('/verification/id-card', formData, {
+    formData.append("idCardImage", file);
+
+    const response = await axiosClient.post("/verification/id-card", formData, {
       headers: {
-        'Content-Type': 'multipart/form-data',
+        "Content-Type": "multipart/form-data",
       },
     });
 
     return response.data;
   } catch (error) {
-    console.error('Error uploading ID card:', error);
+    console.error("Error uploading ID card:", error);
     throw error;
   }
 };
@@ -42,26 +42,30 @@ export const uploadIdCard = async (phoneNumber, imageUri) => {
 export const verifyLiveness = async (phoneNumber, imageUri) => {
   try {
     const formData = new FormData();
-    formData.append('phoneNumber', phoneNumber);
-    
+    formData.append("phoneNumber", phoneNumber);
+
     // Create file object for upload
     const file = {
       uri: imageUri,
-      type: 'image/jpeg',
+      type: "image/jpeg",
       name: `selfie_${Date.now()}.jpg`,
     };
-    
-    formData.append('selfieImage', file);
 
-    const response = await axiosClient.post('/verification/liveness', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+    formData.append("selfieImage", file);
+
+    const response = await axiosClient.post(
+      "/verification/liveness",
+      formData,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      }
+    );
 
     return response.data;
   } catch (error) {
-    console.error('Error verifying liveness:', error);
+    console.error("Error verifying liveness:", error);
     throw error;
   }
 };
@@ -73,37 +77,50 @@ export const verifyLiveness = async (phoneNumber, imageUri) => {
  */
 export const getVerificationStatus = async (phoneNumber) => {
   try {
-    const response = await axiosClient.get(`/verification/status/${phoneNumber}`);
+    const response = await axiosClient.get(
+      `/verification/status/${phoneNumber}`
+    );
     return response.data;
   } catch (error) {
-    console.error('Error getting verification status:', error);
+    console.error("Error getting verification status:", error);
     throw error;
   }
 };
 
-export const verifyLivenessPhase = async (phoneNumber, phase, imageUri) => {
+/**
+ * Verify liveness phase (LOOK_STRAIGHT, BLINK, TURN_LEFT)
+ * @param {string} identifier - Phone number or tempId
+ * @param {string} phase - Phase ID (LOOK_STRAIGHT, BLINK, TURN_LEFT)
+ * @param {string} imageUri - Local file URI of the phase image
+ * @returns {Promise} Phase verification response
+ */
+export const verifyLivenessPhase = async (identifier, phase, imageUri) => {
   try {
     const formData = new FormData();
-    formData.append('phoneNumber', phoneNumber);
-    formData.append('phase', phase);
-    
+    formData.append("phoneNumber", identifier); // Backend accepts both phoneNumber and tempId as "phoneNumber" param
+    formData.append("phase", phase);
+
     const file = {
       uri: imageUri,
-      type: 'image/jpeg',
+      type: "image/jpeg",
       name: `phase_${phase}_${Date.now()}.jpg`,
     };
-    
-    formData.append('image', file);
 
-    const response = await axiosClient.post('/verification/liveness/verify-phase', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+    formData.append("image", file);
+
+    const response = await axiosClient.post(
+      "/verification/liveness/verify-phase",
+      formData,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      }
+    );
 
     return response.data.data;
   } catch (error) {
-    console.error('Error verifying liveness phase:', error);
+    console.error("Error verifying liveness phase:", error);
     throw error;
   }
 };
@@ -117,25 +134,29 @@ export const verifyLivenessPhase = async (phoneNumber, phase, imageUri) => {
 export const uploadIdCardWithTempId = async (tempId, imageUri) => {
   try {
     const formData = new FormData();
-    formData.append('tempId', tempId);
-    
+    formData.append("tempId", tempId);
+
     const file = {
       uri: imageUri,
-      type: 'image/jpeg',
+      type: "image/jpeg",
       name: `id_card_${Date.now()}.jpg`,
     };
-    
-    formData.append('idCardImage', file);
 
-    const response = await axiosClient.post('/verification/id-card-temp', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+    formData.append("idCardImage", file);
+
+    const response = await axiosClient.post(
+      "/verification/id-card-temp",
+      formData,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      }
+    );
 
     return response.data;
   } catch (error) {
-    console.error('Error uploading ID card with tempId:', error);
+    console.error("Error uploading ID card with tempId:", error);
     throw error;
   }
 };
@@ -149,25 +170,29 @@ export const uploadIdCardWithTempId = async (tempId, imageUri) => {
 export const verifyLivenessWithTempId = async (tempId, imageUri) => {
   try {
     const formData = new FormData();
-    formData.append('tempId', tempId);
-    
+    formData.append("tempId", tempId);
+
     const file = {
       uri: imageUri,
-      type: 'image/jpeg',
+      type: "image/jpeg",
       name: `selfie_${Date.now()}.jpg`,
     };
-    
-    formData.append('selfieImage', file);
 
-    const response = await axiosClient.post('/verification/liveness-temp', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+    formData.append("selfieImage", file);
+
+    const response = await axiosClient.post(
+      "/verification/liveness-temp",
+      formData,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      }
+    );
 
     return response.data;
   } catch (error) {
-    console.error('Error verifying liveness with tempId:', error);
+    console.error("Error verifying liveness with tempId:", error);
     throw error;
   }
 };
@@ -180,7 +205,7 @@ export const verifyLivenessWithTempId = async (tempId, imageUri) => {
  */
 export const linkTempVerificationToUser = async (tempId, phoneNumber) => {
   try {
-    const response = await axiosClient.post('/verification/link-temp', null, {
+    const response = await axiosClient.post("/verification/link-temp", null, {
       params: {
         tempId,
         phoneNumber,
@@ -189,7 +214,7 @@ export const linkTempVerificationToUser = async (tempId, phoneNumber) => {
 
     return response.data;
   } catch (error) {
-    console.error('Error linking temp verification:', error);
+    console.error("Error linking temp verification:", error);
     throw error;
   }
 };

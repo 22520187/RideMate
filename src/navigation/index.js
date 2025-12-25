@@ -24,8 +24,11 @@ import { useIsKeyboardVisible } from "../hooks/useIsKeyboardVisible";
 import MemberDetail from "../screens/User/Member/MemberDetail";
 import Member from "../screens/User/Member/Member";
 import Voucher from "../screens/User/Voucher";
+import MyVouchersScreen from "../screens/User/MyVouchersScreen";
 import Mission from "../screens/User/Mission";
 import RideHistory from "../screens/User/RideHistory";
+import PaymentScreen from "../screens/User/PaymentScreen";
+import PaymentHistory from "../screens/User/PaymentHistory";
 import RideDetail from "../screens/User/RideDetail";
 import Login from "../screens/Auth/Login";
 import Onboarding from "../screens/Auth/Onboarding";
@@ -91,7 +94,7 @@ const AdminTabNavigator = () => {
   if (isAuthorized === null) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color={COLORS.BLUE} />
+        <ActivityIndicator size="large" color="#FF5370" />
         <Text style={styles.loadingText}>Đang kiểm tra quyền truy cập...</Text>
       </View>
     );
@@ -199,13 +202,21 @@ const UserTabNavigator = () => {
           }
           return <Ionicons name={iconName} size={size} color={color} />;
         },
-        tabBarActiveTintColor: COLORS.PRIMARY,
-        tabBarInactiveTintColor: COLORS.GRAY,
+        tabBarActiveTintColor: "#FF5370",
+        tabBarInactiveTintColor: "#8E8E93",
         tabBarStyle: {
           display: isKeyboardVisible ? "none" : "flex",
           height: 60 + insets.bottom,
           paddingBottom: 8 + insets.bottom,
           paddingTop: 8,
+          backgroundColor: "#FFF",
+          borderTopWidth: 2,
+          borderTopColor: "#FFE5EC",
+          elevation: 8,
+          shadowColor: "#FF5370",
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 8,
         },
         headerShown: false,
       })}
@@ -228,7 +239,7 @@ const UserTabNavigator = () => {
       <Tab.Screen
         name={SCREENS.AWARD}
         component={Award}
-        options={{ tabBarLabel: "Reward" }}
+        options={{ tabBarLabel: "Voucher" }}
       />
       <Tab.Screen
         name={SCREENS.PROFILE}
@@ -260,10 +271,7 @@ const MainStackNavigator = () => {
         name="LivenessCheckScreen"
         component={LivenessCheckScreen}
       />
-      <Stack.Screen
-        name="PhoneNumberInput"
-        component={PhoneNumberInput}
-      />
+      <Stack.Screen name="PhoneNumberInput" component={PhoneNumberInput} />
       <Stack.Screen
         name={SCREENS.REGISTER_COMPLETE}
         component={RegisterComplete}
@@ -282,7 +290,10 @@ const MainStackNavigator = () => {
         component={DriverStatusScreen}
       />
       <Stack.Screen name={SCREENS.DRIVER_MAP} component={DriverMapScreen} />
-      <Stack.Screen name="DriverPersonalRideScreen" component={DriverPersonalRideScreen} />
+      <Stack.Screen
+        name="DriverPersonalRideScreen"
+        component={DriverPersonalRideScreen}
+      />
       <Stack.Screen name="DriverStatistics" component={DriverStatistics} />
       <Stack.Screen
         name={SCREENS.PASSENGER_RIDE}
@@ -293,9 +304,12 @@ const MainStackNavigator = () => {
       <Stack.Screen name={SCREENS.NOTIFICATION} component={Notification} />
       <Stack.Screen name={SCREENS.MEMBER_DETAIL} component={MemberDetail} />
       <Stack.Screen name={SCREENS.VOUCHER} component={Voucher} />
+      <Stack.Screen name={SCREENS.MY_VOUCHERS} component={MyVouchersScreen} />
       <Stack.Screen name={SCREENS.MISSION} component={Mission} />
       <Stack.Screen name={SCREENS.RIDE_HISTORY} component={RideHistory} />
       <Stack.Screen name="RideDetail" component={RideDetail} />
+      <Stack.Screen name={SCREENS.PAYMENT} component={PaymentScreen} />
+      <Stack.Screen name={SCREENS.PAYMENT_HISTORY} component={PaymentHistory} />
 
       {/* Chat Screen - Full screen without bottom tabs */}
       <Stack.Screen

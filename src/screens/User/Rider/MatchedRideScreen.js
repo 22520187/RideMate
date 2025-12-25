@@ -42,6 +42,7 @@ import { submitFeedback } from "../../../services/feedbackService";
 import useRideSession from "../../../hooks/useRideSession";
 import useDriverLocation from "../../../hooks/useDriverLocation";
 import { supabase } from "../../../config/supabaseClient";
+import { getUserData } from "../../../utils/storage";
 
 const { width, height } = Dimensions.get("window");
 
@@ -112,6 +113,13 @@ const MatchedRideScreen = ({ navigation, route }) => {
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [isCompletingRide, setIsCompletingRide] = useState(false);
   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
+
+  // Chat state
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInputText, setChatInputText] = useState("");
+  const [chatChannel, setChatChannel] = useState(null);
+  const [loadingChat, setLoadingChat] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState(null);
 
   // Custom Alert Modal State
   const [customAlert, setCustomAlert] = useState({
@@ -503,14 +511,168 @@ const MatchedRideScreen = ({ navigation, route }) => {
     }
   }, [rideStatus, navigation, isDriver, matchData]);
 
+  // Load current user ID
+  useEffect(() => {
+    const loadCurrentUserId = async () => {
+      try {
+        const userData = await getUserData();
+        if (userData?.id) {
+          setCurrentUserId(userData.id.toString());
+        }
+      } catch (error) {
+        console.error("Error loading current user ID:", error);
+      }
+    };
+    loadCurrentUserId();
+  }, []);
+
+  // Pre-create chat channel when matched (so it appears in MessageListScreen)
+  useEffect(() => {
+    if (!currentUserId) return;
+
+    const preCreateChannel = async () => {
+      try {
+        const otherUserId = isDriver
+          ? matchedRideData.passengerId?.toString() ||
+            matchData?.passengerId?.toString()
+          : matchedRideData.driverId?.toString() ||
+            matchData?.driverId?.toString();
+
+        if (!otherUserId) return;
+
+        console.log("💬 Pre-creating chat channel for match:", {
+          currentUserId,
+          otherUserId,
+        });
+
+        // Pre-create channel so it appears in MessageListScreen
+        const channel = await getOrCreateDirectChannel(
+          currentUserId,
+          otherUserId
+        );
+
+        // Watch channel but don't load messages yet (will load when modal opens)
+        await watchChannel(channel);
+        setChatChannel(channel);
+      } catch (error) {
+        console.warn("⚠️ Error pre-creating channel:", error);
+        // Don't show error to user, just log it
+      }
+    };
+
+    preCreateChannel();
+  }, [currentUserId, isDriver, matchedRideData, matchData]);
+
+  // Initialize chat channel when modal opens
+  useEffect(() => {
+    if (!showChatModal || !currentUserId) return;
+
+    let channelRef = null;
+    let messageHandler = null;
+
+    const initializeChat = async () => {
+      try {
+        setLoadingChat(true);
+        const otherUserId = isDriver
+          ? matchedRideData.passengerId?.toString() ||
+            matchData?.passengerId?.toString()
+          : matchedRideData.driverId?.toString() ||
+            matchData?.driverId?.toString();
+
+        if (!otherUserId) {
+          console.warn("⚠️ No other user ID found for chat");
+          setLoadingChat(false);
+          return;
+        }
+
+        console.log("💬 Initializing chat channel:", {
+          currentUserId,
+          otherUserId,
+        });
+
+        // Reuse existing channel if available, otherwise create new one
+        let channel = chatChannel;
+        if (!channel) {
+          channel = await getOrCreateDirectChannel(currentUserId, otherUserId);
+          // Watch channel for real-time updates
+          await watchChannel(channel);
+        } else {
+          // Channel already exists, just ensure it's watched
+          if (
+            !channel.state.watcher_count ||
+            channel.state.watcher_count === 0
+          ) {
+            await watchChannel(channel);
+          }
+        }
+
+        // Load existing messages
+        const messages = channel.state.messages || [];
+        setChatMessages(
+          messages.map((msg) => ({
+            id: msg.id,
+            text: msg.text || "",
+            user: msg.user,
+            created_at: msg.created_at,
+          }))
+        );
+
+        channelRef = channel;
+        setChatChannel(channel);
+
+        // Listen for new messages
+        messageHandler = (event) => {
+          if (event.message) {
+            setChatMessages((prev) => {
+              const exists = prev.some((msg) => msg.id === event.message.id);
+              if (exists) return prev;
+              return [
+                ...prev,
+                {
+                  id: event.message.id,
+                  text: event.message.text || "",
+                  user: event.message.user,
+                  created_at: event.message.created_at,
+                },
+              ];
+            });
+          }
+        };
+
+        channel.on("message.new", messageHandler);
+
+        setLoadingChat(false);
+      } catch (error) {
+        console.error("❌ Error initializing chat:", error);
+        Alert.alert("Lỗi", "Không thể khởi tạo chat. Vui lòng thử lại.");
+        setLoadingChat(false);
+      }
+    };
+
+    initializeChat();
+
+    // Cleanup on unmount or when modal closes
+    return () => {
+      if (channelRef) {
+        if (messageHandler) {
+          channelRef.off("message.new", messageHandler);
+        }
+        unwatchChannel(channelRef).catch(console.error);
+      }
+    };
+  }, [showChatModal, currentUserId, isDriver, matchedRideData, matchData]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       console.log("🧹 Cleaning up MatchedRideScreen");
       setCurrentMapPath(null);
       currentMapPathRef.current = null;
+      if (chatChannel) {
+        unwatchChannel(chatChannel).catch(console.error);
+      }
     };
-  }, []);
+  }, [chatChannel]);
 
   // ============================================
   // HELPERS
@@ -790,12 +952,39 @@ const MatchedRideScreen = ({ navigation, route }) => {
   }, [otherPerson.phone]);
 
   // ============================================
+  // CHAT HANDLERS
+  // ============================================
+  const handleSendMessage = useCallback(async () => {
+    if (!chatInputText.trim() || !chatChannel || loadingChat) return;
+
+    try {
+      await sendMessage(chatChannel, chatInputText.trim());
+      setChatInputText("");
+    } catch (error) {
+      console.error("❌ Error sending message:", error);
+      Alert.alert("Lỗi", "Không thể gửi tin nhắn. Vui lòng thử lại.");
+    }
+  }, [chatInputText, chatChannel, loadingChat]);
+
+  const handleAudioCall = useCallback(() => {
+    Alert.alert("Gọi điện thoại", `Đang gọi ${otherPerson.name}...`, [
+      { text: "Hủy" },
+    ]);
+  }, [otherPerson.name]);
+
+  const handleVideoCall = useCallback(() => {
+    Alert.alert("Gọi video", `Đang gọi video ${otherPerson.name}...`, [
+      { text: "Hủy" },
+    ]);
+  }, [otherPerson.name]);
+
+  // ============================================
   // RENDER
   // ============================================
   if (rideLoading) {
     return (
       <SafeAreaView style={[styles.container, styles.loadingContainer]}>
-        <ActivityIndicator size="large" color={COLORS.PRIMARY} />
+        <ActivityIndicator size="large" color="#FF5370" />
         <Text style={styles.loadingText}>Đang tải...</Text>
       </SafeAreaView>
     );
@@ -1021,12 +1210,18 @@ const MatchedRideScreen = ({ navigation, route }) => {
       {/* Chat Modal */}
       <ChatModal
         visible={showChatModal}
-        onClose={() => setShowChatModal(false)}
-        otherUser={{
-          id: isDriver ? matchedRideData.passengerId : matchedRideData.driverId,
-          name: otherPerson.name,
-          avatar: otherPerson.avatar,
+        onClose={() => {
+          setShowChatModal(false);
+          setChatInputText("");
         }}
+        messages={chatMessages}
+        inputText={chatInputText}
+        onInputChange={setChatInputText}
+        onSend={handleSendMessage}
+        onAudioCall={handleAudioCall}
+        onVideoCall={handleVideoCall}
+        loading={loadingChat}
+        currentUserId={currentUserId}
         otherPersonName={otherPerson.name}
       />
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -9,23 +9,24 @@ import {
   Alert,
   ScrollView,
   Dimensions,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { MaterialIcons } from '@expo/vector-icons';
-import COLORS from '../../../constant/colors';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { MaterialIcons } from "@expo/vector-icons";
+import COLORS from "../../../constant/colors";
 // import useNearestDriver from '../../../hooks/useNearestDriver';
-import { supabase } from '../../../config/supabaseClient';
-import axiosClient from '../../../api/axiosClient';
-import Toast from 'react-native-toast-message';
+import { supabase } from "../../../config/supabaseClient";
+import axiosClient from "../../../api/axiosClient";
+import Toast from "react-native-toast-message";
 
-const { width } = Dimensions.get('window');
+const { width } = Dimensions.get("window");
 
 /**
  * Màn hình hiển thị driver gần nhất và cho phép approve
  */
 const NearestDriverScreen = ({ navigation, route }) => {
-  const { pickupLocation, destinationLocation, rideDetails } = route.params || {};
-  
+  const { pickupLocation, destinationLocation, rideDetails } =
+    route.params || {};
+
   const [selectedDriver, setSelectedDriver] = useState(null);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
 
@@ -37,12 +38,15 @@ const NearestDriverScreen = ({ navigation, route }) => {
   // Helper to calculate distance
   const calculateDistance = (lat1, lon1, lat2, lon2) => {
     const R = 6371;
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-              Math.sin(dLon/2) * Math.sin(dLon/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLon = ((lon2 - lon1) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
   };
 
@@ -52,27 +56,29 @@ const NearestDriverScreen = ({ navigation, route }) => {
       try {
         setLoading(true);
         const { data, error: fetchError } = await supabase
-          .from('driver_locations')
-          .select('*')
-          .eq('driver_status', 'ONLINE'); // Removed gt/lt filters for simplicity, filtering by distance in JS
+          .from("driver_locations")
+          .select("*")
+          .eq("driver_status", "ONLINE"); // Removed gt/lt filters for simplicity, filtering by distance in JS
 
         if (fetchError) throw fetchError;
 
         if (data && pickupLocation) {
-          const driversWithDistance = data.map(d => {
-            const dist = calculateDistance(
-              pickupLocation.latitude,
-              pickupLocation.longitude,
-              d.latitude, 
-              d.longitude
-            );
-            return {
-              ...d,
-              driver_name: d.driver_id, // Simple fallback if name not joined
-              distance: dist.toFixed(1),
-              eta: Math.ceil(dist * 2) // Rough estimate 30km/h -> 2 min/km
-            };
-          }).filter(d => parseFloat(d.distance) <= 7) // 7km radius
+          const driversWithDistance = data
+            .map((d) => {
+              const dist = calculateDistance(
+                pickupLocation.latitude,
+                pickupLocation.longitude,
+                d.latitude,
+                d.longitude
+              );
+              return {
+                ...d,
+                driver_name: d.driver_id, // Simple fallback if name not joined
+                distance: dist.toFixed(1),
+                eta: Math.ceil(dist * 2), // Rough estimate 30km/h -> 2 min/km
+              };
+            })
+            .filter((d) => parseFloat(d.distance) <= 7) // 7km radius
             .sort((a, b) => parseFloat(a.distance) - parseFloat(b.distance));
 
           setAllDrivers(driversWithDistance);
@@ -83,7 +89,7 @@ const NearestDriverScreen = ({ navigation, route }) => {
           setAllDrivers([]);
         }
       } catch (err) {
-        console.error('Error fetching drivers:', err);
+        console.error("Error fetching drivers:", err);
         setError(err.message);
       } finally {
         setLoading(false);
@@ -98,7 +104,7 @@ const NearestDriverScreen = ({ navigation, route }) => {
 
   const handleApproveDriver = async () => {
     if (!selectedDriver) {
-      Alert.alert('Lỗi', 'Vui lòng chọn tài xế');
+      Alert.alert("Lỗi", "Vui lòng chọn tài xế");
       return;
     }
 
@@ -106,9 +112,9 @@ const NearestDriverScreen = ({ navigation, route }) => {
       setIsCreatingSession(true);
 
       // Tạo ride session với driver đã chọn
-      const response = await axiosClient.post('/api/matches/book', {
-        pickupAddress: rideDetails?.from || '',
-        destinationAddress: rideDetails?.to || '',
+      const response = await axiosClient.post("/api/matches/book", {
+        pickupAddress: rideDetails?.from || "",
+        destinationAddress: rideDetails?.to || "",
         pickupLatitude: pickupLocation?.latitude,
         pickupLongitude: pickupLocation?.longitude,
         destinationLatitude: destinationLocation?.latitude,
@@ -119,17 +125,17 @@ const NearestDriverScreen = ({ navigation, route }) => {
       const matchData = response?.data?.data;
 
       Toast.show({
-        type: 'success',
-        text1: 'Thành công',
-        text2: 'Đã tạo chuyến đi!',
+        type: "success",
+        text1: "Thành công",
+        text2: "Đã tạo chuyến đi!",
       });
 
       // Navigate to matched ride screen
-      navigation.replace('MatchedRide', {
+      navigation.replace("MatchedRide", {
         matchId: matchData.id,
         rideId: matchData.id,
         driverId: selectedDriver.driver_id,
-        driverName: selectedDriver.driver_name || 'Tài xế',
+        driverName: selectedDriver.driver_name || "Tài xế",
         driverLocation: {
           latitude: selectedDriver.latitude,
           longitude: selectedDriver.longitude,
@@ -142,10 +148,11 @@ const NearestDriverScreen = ({ navigation, route }) => {
         eta: selectedDriver.eta,
       });
     } catch (error) {
-      console.error('Error creating ride session:', error);
+      console.error("Error creating ride session:", error);
       Alert.alert(
-        'Lỗi',
-        error.response?.data?.message || 'Không thể tạo chuyến đi. Vui lòng thử lại.'
+        "Lỗi",
+        error.response?.data?.message ||
+          "Không thể tạo chuyến đi. Vui lòng thử lại."
       );
     } finally {
       setIsCreatingSession(false);
@@ -155,26 +162,25 @@ const NearestDriverScreen = ({ navigation, route }) => {
   const renderDriverCard = (driver, isSelected) => (
     <TouchableOpacity
       key={driver.driver_id}
-      style={[
-        styles.driverCard,
-        isSelected && styles.driverCardSelected,
-      ]}
+      style={[styles.driverCard, isSelected && styles.driverCardSelected]}
       onPress={() => setSelectedDriver(driver)}
       activeOpacity={0.7}
     >
       <View style={styles.driverCardContent}>
         <Image
           source={{
-            uri: driver.profile_picture_url || `https://api.dicebear.com/7.x/avataaars/png?seed=${driver.driver_id}`,
+            uri:
+              driver.profile_picture_url ||
+              `https://api.dicebear.com/7.x/avataaars/png?seed=${driver.driver_id}`,
           }}
           style={styles.driverAvatar}
         />
-        
+
         <View style={styles.driverInfo}>
           <Text style={styles.driverName}>
             {driver.driver_name || `Tài xế #${driver.driver_id}`}
           </Text>
-          
+
           <View style={styles.driverStats}>
             <MaterialIcons name="star" size={16} color="#FFD700" />
             <Text style={styles.driverRating}>4.8</Text>
@@ -182,7 +188,11 @@ const NearestDriverScreen = ({ navigation, route }) => {
           </View>
 
           <View style={styles.driverDistance}>
-            <MaterialIcons name="location-on" size={16} color={COLORS.PRIMARY} />
+            <MaterialIcons
+              name="location-on"
+              size={16}
+              color={COLORS.PRIMARY}
+            />
             <Text style={styles.distanceText}>
               {driver.distance} km • {driver.eta} phút
             </Text>
@@ -202,7 +212,7 @@ const NearestDriverScreen = ({ navigation, route }) => {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.PRIMARY} />
+          <ActivityIndicator size="large" color="#FF5370" />
           <Text style={styles.loadingText}>Đang tìm tài xế gần bạn...</Text>
         </View>
       </SafeAreaView>
@@ -286,7 +296,10 @@ const NearestDriverScreen = ({ navigation, route }) => {
         showsVerticalScrollIndicator={false}
       >
         {allDrivers.map((driver) =>
-          renderDriverCard(driver, selectedDriver?.driver_id === driver.driver_id)
+          renderDriverCard(
+            driver,
+            selectedDriver?.driver_id === driver.driver_id
+          )
         )}
       </ScrollView>
 
@@ -295,7 +308,8 @@ const NearestDriverScreen = ({ navigation, route }) => {
         <TouchableOpacity
           style={[
             styles.approveButton,
-            (!selectedDriver || isCreatingSession) && styles.approveButtonDisabled,
+            (!selectedDriver || isCreatingSession) &&
+              styles.approveButtonDisabled,
           ]}
           onPress={handleApproveDriver}
           disabled={!selectedDriver || isCreatingSession}
@@ -305,9 +319,7 @@ const NearestDriverScreen = ({ navigation, route }) => {
           ) : (
             <>
               <MaterialIcons name="check" size={24} color={COLORS.WHITE} />
-              <Text style={styles.approveButtonText}>
-                Xác nhận tài xế
-              </Text>
+              <Text style={styles.approveButtonText}>Xác nhận tài xế</Text>
             </>
           )}
         </TouchableOpacity>
@@ -322,9 +334,9 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.BG,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 12,
     backgroundColor: COLORS.WHITE,
@@ -336,7 +348,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: "700",
     color: COLORS.BLACK,
   },
   headerSpacer: {
@@ -344,8 +356,8 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   loadingText: {
     marginTop: 16,
@@ -354,13 +366,13 @@ const styles = StyleSheet.create({
   },
   errorContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     padding: 24,
   },
   errorText: {
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: "700",
     color: COLORS.BLACK,
     marginTop: 16,
   },
@@ -368,17 +380,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.GRAY,
     marginTop: 8,
-    textAlign: 'center',
+    textAlign: "center",
   },
   emptyContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     padding: 24,
   },
   emptyText: {
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: "700",
     color: COLORS.BLACK,
     marginTop: 16,
   },
@@ -386,7 +398,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.GRAY,
     marginTop: 8,
-    textAlign: 'center',
+    textAlign: "center",
   },
   retryButton: {
     marginTop: 24,
@@ -397,13 +409,13 @@ const styles = StyleSheet.create({
   },
   retryButtonText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.WHITE,
   },
   infoBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#E3F2FD',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#E3F2FD",
     paddingHorizontal: 16,
     paddingVertical: 12,
     gap: 8,
@@ -411,7 +423,7 @@ const styles = StyleSheet.create({
   infoBannerText: {
     fontSize: 14,
     color: COLORS.PRIMARY,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   driversList: {
     flex: 1,
@@ -423,7 +435,7 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 12,
     borderWidth: 2,
-    borderColor: 'transparent',
+    borderColor: "transparent",
     shadowColor: COLORS.BLACK,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -432,11 +444,11 @@ const styles = StyleSheet.create({
   },
   driverCardSelected: {
     borderColor: COLORS.GREEN,
-    backgroundColor: '#F0FFF4',
+    backgroundColor: "#F0FFF4",
   },
   driverCardContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   driverAvatar: {
     width: 60,
@@ -450,18 +462,18 @@ const styles = StyleSheet.create({
   },
   driverName: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: "700",
     color: COLORS.BLACK,
     marginBottom: 4,
   },
   driverStats: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 4,
   },
   driverRating: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.BLACK,
     marginLeft: 4,
   },
@@ -471,14 +483,14 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   driverDistance: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   distanceText: {
     fontSize: 14,
     color: COLORS.PRIMARY,
     marginLeft: 4,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   selectedBadge: {
     marginLeft: 8,
@@ -490,9 +502,9 @@ const styles = StyleSheet.create({
     borderTopColor: COLORS.GRAY_LIGHT,
   },
   approveButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     backgroundColor: COLORS.GREEN,
     paddingVertical: 16,
     borderRadius: 12,
@@ -503,7 +515,7 @@ const styles = StyleSheet.create({
   },
   approveButtonText: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: "700",
     color: COLORS.WHITE,
   },
 });

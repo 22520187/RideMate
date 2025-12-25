@@ -183,7 +183,7 @@ const LocationSearch = ({
               style={styles.locationButton}
             >
               {isGettingLocation ? (
-                <ActivityIndicator size="small" color={COLORS.PRIMARY} />
+                <ActivityIndicator size="small" color="#FF5370" />
               ) : (
                 <View style={styles.locationIconWrapper}>
                   <MaterialIcons

@@ -10,13 +10,18 @@ import {
   Image,
   ScrollView,
   Linking,
+  ActivityIndicator,
 } from "react-native";
 import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
+import { Bike } from "lucide-react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import COLORS from "../../constant/colors";
 import Toast from "react-native-toast-message";
 import { SafeAreaView } from "react-native-safe-area-context";
 import CustomAlert from "../../components/CustomAlert";
+import GradientHeader from "../../components/GradientHeader";
+import SnowEffect from "../../components/SnowEffect";
 import {
   validatePhoneNumber,
   formatPhoneNumber,
@@ -299,6 +304,11 @@ const Login = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
+      <SnowEffect />
+      <GradientHeader
+        title="🔐 Đăng nhập"
+        showBackButton={false}
+      />
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardAvoidingView}
@@ -312,7 +322,7 @@ const Login = ({ navigation }) => {
             {/* Logo */}
             <View style={styles.logoContainer}>
               <View style={styles.logoCircle}>
-                <Ionicons name="car" size={60} color={COLORS.WHITE} />
+                <Bike size={48} color={COLORS.WHITE} />
               </View>
               <Text style={styles.appName}>RideMate</Text>
               <Text style={styles.subtitle}>Đăng nhập để tiếp tục</Text>
@@ -363,9 +373,21 @@ const Login = ({ navigation }) => {
               onPress={handlePhoneLogin}
               disabled={isLoading}
             >
-              <Text style={styles.loginButtonText}>
-                {isLoading ? "Đang đăng nhập..." : "Đăng nhập"}
-              </Text>
+              {isLoading ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator color={COLORS.WHITE} size="small" />
+                  <Text style={styles.loginButtonText}>Đang đăng nhập...</Text>
+                </View>
+              ) : (
+                <LinearGradient
+                  colors={["#FF5370", "#FF6B9D", "#FF8FAB"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.loginButtonGradient}
+                >
+                  <Text style={styles.loginButtonText}>Đăng nhập</Text>
+                </LinearGradient>
+              )}
             </TouchableOpacity>
 
             {/* Divider */}
@@ -442,7 +464,7 @@ const Login = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#FFF5F7",
   },
   keyboardAvoidingView: {
     flex: 1,
@@ -457,53 +479,68 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     alignItems: "center",
-    marginBottom: 10,
+    marginBottom: 32,
+    marginTop: 20,
   },
   logoCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 60,
-    backgroundColor: "#004553",
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: "#FF5370",
     justifyContent: "center",
     alignItems: "center",
+    borderWidth: 3,
+    borderColor: "#FFE5EC",
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
   },
   appName: {
-    fontSize: 32,
-    fontWeight: "bold",
-    color: "#004553",
+    fontSize: 36,
+    fontWeight: "800",
+    color: "#FF5370",
+    marginTop: 16,
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: COLORS.GRAY,
+    color: "#FF6B9D",
+    fontWeight: "500",
   },
   inputContainer: {
     marginBottom: 12,
   },
   inputLabel: {
     fontSize: 16,
-    fontWeight: "600",
-    color: "#004553",
+    fontWeight: "700",
+    color: "#FF5370",
     marginBottom: 12,
   },
   phoneInputWrapper: {
     flexDirection: "row",
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: COLORS.GRAY_LIGHT,
-    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: "#FFE5EC",
+    borderRadius: 16,
     backgroundColor: COLORS.WHITE,
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   countryCode: {
     paddingHorizontal: 16,
     paddingVertical: 16,
-    borderRightWidth: 1,
-    borderRightColor: COLORS.GRAY_LIGHT,
+    borderRightWidth: 2,
+    borderRightColor: "#FFE5EC",
   },
   countryCodeText: {
     fontSize: 16,
-    color: COLORS.BLACK,
-    fontWeight: "500",
+    color: "#FF5370",
+    fontWeight: "600",
   },
   phoneInput: {
     flex: 1,
@@ -513,19 +550,34 @@ const styles = StyleSheet.create({
     color: COLORS.BLACK,
   },
   loginButton: {
-    backgroundColor: "#004553",
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: "center",
+    borderRadius: 16,
     marginBottom: 24,
+    overflow: "hidden",
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
   },
   loginButtonDisabled: {
     backgroundColor: COLORS.GRAY_LIGHT,
   },
+  loginButtonGradient: {
+    paddingVertical: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  loadingContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 16,
+    gap: 8,
+  },
   loginButtonText: {
     color: COLORS.WHITE,
-    fontSize: 16,
-    fontWeight: "600",
+    fontSize: 18,
+    fontWeight: "700",
   },
   dividerContainer: {
     flexDirection: "row",
@@ -534,13 +586,14 @@ const styles = StyleSheet.create({
   },
   dividerLine: {
     flex: 1,
-    height: 1,
-    backgroundColor: COLORS.GRAY_LIGHT,
+    height: 2,
+    backgroundColor: "#FFE5EC",
   },
   dividerText: {
     marginHorizontal: 16,
     fontSize: 14,
-    color: COLORS.GRAY,
+    color: "#FF6B9D",
+    fontWeight: "600",
   },
   socialContainer: {
     flexDirection: "row",
@@ -553,10 +606,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: COLORS.GRAY_LIGHT,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: "#FFE5EC",
     marginHorizontal: 6,
+    backgroundColor: COLORS.WHITE,
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   googleButton: {
     backgroundColor: COLORS.WHITE,
@@ -575,14 +634,14 @@ const styles = StyleSheet.create({
   },
   termsText: {
     fontSize: 12,
-    color: COLORS.GRAY,
+    color: "#FF6B9D",
     textAlign: "center",
     lineHeight: 18,
     marginBottom: 24,
   },
   termsLink: {
-    color: "#004553",
-    fontWeight: "500",
+    color: "#FF5370",
+    fontWeight: "700",
   },
   adminAccess: {
     marginTop: 16,
@@ -603,17 +662,23 @@ const styles = StyleSheet.create({
   },
   registerButton: {
     alignSelf: "center",
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 16,
     backgroundColor: COLORS.WHITE,
-    borderWidth: 1,
-    borderColor: "#004553",
+    borderWidth: 2,
+    borderColor: "#FF5370",
+    marginBottom: 24,
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   registerButtonText: {
-    color: "#004553",
-    fontSize: 14,
-    fontWeight: "600",
+    color: "#FF5370",
+    fontSize: 16,
+    fontWeight: "700",
   },
 });
 

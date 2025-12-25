@@ -33,17 +33,17 @@ const LONGITUDE_DELTA = LATITUDE_DELTA * ASPECT_RATIO;
 const DriverPersonalRideScreen = () => {
   const navigation = useNavigation();
   const mapRef = useRef(null);
-  
+
   const [currentLocation, setCurrentLocation] = useState(null);
   const [destination, setDestination] = useState(null);
   const [address, setAddress] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  
+
   // Search state
   const [searchQuery, setSearchQuery] = useState("");
   const [suggestions, setSuggestions] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
-  
+
   const debouncedQuery = useDebounce(searchQuery, 1000);
 
   // Get current location on mount
@@ -66,7 +66,7 @@ const DriverPersonalRideScreen = () => {
         longitudeDelta: 0.005,
       };
       setCurrentLocation(region);
-      
+
       // Get address using reverse geocoding if needed
       // For now, just set as "Vị trí hiện tại"
     })();
@@ -98,30 +98,27 @@ const DriverPersonalRideScreen = () => {
   const handleSelectLocation = (item) => {
     const lat = parseFloat(item.lat);
     const lng = parseFloat(item.lon);
-    
+
     const newDest = {
-        latitude: lat,
-        longitude: lng,
-        address: item.display_name,
-        latitudeDelta: 0.005,
-        longitudeDelta: 0.005,
+      latitude: lat,
+      longitude: lng,
+      address: item.display_name,
+      latitudeDelta: 0.005,
+      longitudeDelta: 0.005,
     };
-    
+
     setDestination(newDest);
     setSearchQuery(item.display_name);
     setSuggestions([]); // Clear suggestions
-    
+
     // Fit map to both points
     if (currentLocation && mapRef.current) {
-        setTimeout(() => {
-            mapRef.current.fitToCoordinates(
-                [currentLocation, newDest],
-                {
-                    edgePadding: { top: 100, right: 50, bottom: 200, left: 50 },
-                    animated: true,
-                }
-            );
-        }, 500);
+      setTimeout(() => {
+        mapRef.current.fitToCoordinates([currentLocation, newDest], {
+          edgePadding: { top: 100, right: 50, bottom: 200, left: 50 },
+          animated: true,
+        });
+      }, 500);
     }
   };
 
@@ -160,43 +157,43 @@ const DriverPersonalRideScreen = () => {
 
       if (response.data?.statusCode === 200) {
         const matchData = response.data.data;
-        
+
         Toast.show({
-            type: "success",
-            text1: "Bắt đầu chuyến đi thành công!",
+          type: "success",
+          text1: "Bắt đầu chuyến đi thành công!",
         });
 
         // Navigate to MatchedRideScreen
         navigation.navigate("MatchedRide", {
-            // Standard data for MatchedRideScreen
-            id: matchData.id,
-            rideId: matchData.id,
-            status: matchData.status,
-            
-            // Coordinates
-            pickupLatitude: matchData.pickupLatitude,
-            pickupLongitude: matchData.pickupLongitude,
-            destinationLatitude: matchData.destinationLatitude,
-            destinationLongitude: matchData.destinationLongitude,
-            
-            // Addresses
-            pickupAddress: matchData.pickupAddress,
-            destinationAddress: matchData.destinationAddress,
-            from: matchData.pickupAddress,
-            to: matchData.destinationAddress,
-            
-            // Driver (Me)
-            isDriver: true,
-            driverId: matchData.driverId,
-            currentUserId: matchData.driverId,
-            
-            // Passenger
-            passengerId: matchData.passengerId,
-            passengerName: matchData.passengerName,
-            passengerPhone: matchData.passengerPhone, 
-            
-            // Session
-            sessionId: matchData.sessionId
+          // Standard data for MatchedRideScreen
+          id: matchData.id,
+          rideId: matchData.id,
+          status: matchData.status,
+
+          // Coordinates
+          pickupLatitude: matchData.pickupLatitude,
+          pickupLongitude: matchData.pickupLongitude,
+          destinationLatitude: matchData.destinationLatitude,
+          destinationLongitude: matchData.destinationLongitude,
+
+          // Addresses
+          pickupAddress: matchData.pickupAddress,
+          destinationAddress: matchData.destinationAddress,
+          from: matchData.pickupAddress,
+          to: matchData.destinationAddress,
+
+          // Driver (Me)
+          isDriver: true,
+          driverId: matchData.driverId,
+          currentUserId: matchData.driverId,
+
+          // Passenger
+          passengerId: matchData.passengerId,
+          passengerName: matchData.passengerName,
+          passengerPhone: matchData.passengerPhone,
+
+          // Session
+          sessionId: matchData.sessionId,
         });
       }
     } catch (error) {
@@ -217,7 +214,7 @@ const DriverPersonalRideScreen = () => {
       onPress={() => handleSelectLocation(item)}
     >
       <View style={styles.iconContainer}>
-         <MaterialIcons name="place" size={20} color={COLORS.PRIMARY} />
+        <MaterialIcons name="place" size={20} color={COLORS.PRIMARY} />
       </View>
       <View style={styles.suggestionContent}>
         <Text style={styles.suggestionText} numberOfLines={2}>
@@ -251,9 +248,9 @@ const DriverPersonalRideScreen = () => {
           />
         )}
       </MapView>
-      
+
       {/* Back Button */}
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.backButton}
         onPress={() => navigation.goBack()}
       >
@@ -261,66 +258,70 @@ const DriverPersonalRideScreen = () => {
       </TouchableOpacity>
 
       <View style={styles.headerInput}>
-         <View style={styles.searchContainer}>
-            <Ionicons name="search" size={20} color={COLORS.GRAY} style={styles.searchIcon} />
-            <TextInput
-                style={styles.searchInput}
-                placeholder="Nhập điểm đến..."
-                value={searchQuery}
-                onChangeText={(text) => {
-                    setSearchQuery(text);
-                    if (text.length === 0) {
-                        setSuggestions([]);
-                        setDestination(null);
-                    }
-                }}
-                placeholderTextColor={COLORS.GRAY}
-            />
-            {isSearching && <ActivityIndicator size="small" color={COLORS.PRIMARY} />}
-            {searchQuery.length > 0 && !isSearching && (
-                <TouchableOpacity onPress={() => {
-                    setSearchQuery("");
-                    setSuggestions([]);
-                    setDestination(null);
-                }}>
-                    <Ionicons name="close-circle" size={20} color={COLORS.GRAY} />
-                </TouchableOpacity>
-            )}
-         </View>
+        <View style={styles.searchContainer}>
+          <Ionicons
+            name="search"
+            size={20}
+            color={COLORS.GRAY}
+            style={styles.searchIcon}
+          />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Nhập điểm đến..."
+            value={searchQuery}
+            onChangeText={(text) => {
+              setSearchQuery(text);
+              if (text.length === 0) {
+                setSuggestions([]);
+                setDestination(null);
+              }
+            }}
+            placeholderTextColor={COLORS.GRAY}
+          />
+          {isSearching && <ActivityIndicator size="small" color="#FF5370" />}
+          {searchQuery.length > 0 && !isSearching && (
+            <TouchableOpacity
+              onPress={() => {
+                setSearchQuery("");
+                setSuggestions([]);
+                setDestination(null);
+              }}
+            >
+              <Ionicons name="close-circle" size={20} color={COLORS.GRAY} />
+            </TouchableOpacity>
+          )}
+        </View>
 
-         {suggestions.length > 0 && (
-            <View style={styles.suggestionsContainer}>
-                <FlatList
-                    data={suggestions}
-                    renderItem={renderSuggestionItem}
-                    keyExtractor={(item, index) => item.place_id || index.toString()}
-                    style={styles.suggestionsList}
-                    showsVerticalScrollIndicator={false}
-                    keyboardShouldPersistTaps="handled"
-                />
-            </View>
-         )}
+        {suggestions.length > 0 && (
+          <View style={styles.suggestionsContainer}>
+            <FlatList
+              data={suggestions}
+              renderItem={renderSuggestionItem}
+              keyExtractor={(item, index) => item.place_id || index.toString()}
+              style={styles.suggestionsList}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            />
+          </View>
+        )}
       </View>
 
       {destination && (
         <View style={styles.bottomCard}>
           <View style={styles.locationInfo}>
-              <View style={styles.iconContainerBig}>
-                 <Ionicons name="location" size={24} color={COLORS.RED} />
-              </View>
-              <View style={styles.addressContainer}>
-                  <Text style={styles.addressLabel}>Điểm đến</Text>
-                  <Text style={styles.addressText} numberOfLines={2}>
-                      {destination.address}
-                  </Text>
-              </View>
+            <View style={styles.iconContainerBig}>
+              <Ionicons name="location" size={24} color={COLORS.RED} />
+            </View>
+            <View style={styles.addressContainer}>
+              <Text style={styles.addressLabel}>Điểm đến</Text>
+              <Text style={styles.addressText} numberOfLines={2}>
+                {destination.address}
+              </Text>
+            </View>
           </View>
-          
+
           <TouchableOpacity
-            style={[
-                styles.startButton,
-                isLoading && styles.disabledButton
-            ]}
+            style={[styles.startButton, isLoading && styles.disabledButton]}
             onPress={handleStartRide}
             disabled={isLoading}
           >

@@ -7,9 +7,10 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
-  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
+import Toast from "react-native-toast-message";
 import {
   ArrowLeft,
   Gift,
@@ -25,6 +26,8 @@ import {
   getMissionStats,
 } from "../../services/missionService";
 import { getProfile } from "../../services/userService";
+import SnowEffect from "../../components/SnowEffect";
+import GradientHeader from "../../components/GradientHeader";
 
 const Mission = ({ navigation, route }) => {
   const { mockMissions } = route?.params || {};
@@ -231,12 +234,18 @@ const Mission = ({ navigation, route }) => {
         getProfile(),
       ]);
 
-      if (availRes?.data) setAvailableMissions(availRes.data);
-      if (myRes?.data) {
-        // myRes.data expected to be array of UserMissionDto
-        setMyMissions(myRes.data);
-      }
+      // Backend returns ResponseEntity<List<MissionDto>> directly (no ApiResponse wrapper)
+      // Axios wraps in response.data, so availRes.data is the array
+      const availableMissionsData = Array.isArray(availRes?.data)
+        ? availRes.data
+        : [];
+      setAvailableMissions(availableMissionsData);
 
+      // Backend returns ResponseEntity<List<UserMissionDto>> directly
+      const myMissionsData = Array.isArray(myRes?.data) ? myRes.data : [];
+      setMyMissions(myMissionsData);
+
+      // Stats returns Map<String, Long> directly
       if (statsRes?.data) {
         setStats(statsRes.data);
         // Some APIs may include points in mission stats
@@ -259,7 +268,13 @@ const Mission = ({ navigation, route }) => {
       if (typeof profilePoints === "number") setUserPoints(profilePoints);
     } catch (err) {
       console.error("Failed to load missions", err);
-      Alert.alert("Lỗi", "Không thể tải nhiệm vụ. Vui lòng thử lại.");
+      Toast.show({
+        type: "error",
+        text1: "Lỗi",
+        text2: "Không thể tải nhiệm vụ. Vui lòng thử lại.",
+        position: "top",
+        visibilityTime: 3000,
+      });
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -279,14 +294,23 @@ const Mission = ({ navigation, route }) => {
     try {
       setLoading(true);
       await acceptMission(missionId);
-      Alert.alert("Thành công", "Bạn đã nhận nhiệm vụ");
+      Toast.show({
+        type: "success",
+        text1: "Thành công",
+        text2: "Bạn đã nhận nhiệm vụ",
+        position: "top",
+        visibilityTime: 3000,
+      });
       await loadAll();
     } catch (err) {
       console.error("Accept error", err);
-      Alert.alert(
-        "Lỗi",
-        err?.response?.data?.message || "Không thể nhận nhiệm vụ"
-      );
+      Toast.show({
+        type: "error",
+        text1: "Lỗi",
+        text2: err?.response?.data?.message || "Không thể nhận nhiệm vụ",
+        position: "top",
+        visibilityTime: 3000,
+      });
     } finally {
       setLoading(false);
     }
@@ -296,17 +320,23 @@ const Mission = ({ navigation, route }) => {
     try {
       setLoading(true);
       await claimMissionReward(missionId);
-      Alert.alert(
-        "Thành công",
-        "Phần thưởng đã được gửi vào tài khoản của bạn"
-      );
+      Toast.show({
+        type: "success",
+        text1: "Thành công",
+        text2: "Phần thưởng đã được gửi vào tài khoản của bạn",
+        position: "top",
+        visibilityTime: 3000,
+      });
       await loadAll();
     } catch (err) {
       console.error("Claim error", err);
-      Alert.alert(
-        "Lỗi",
-        err?.response?.data?.message || "Không thể nhận phần thưởng"
-      );
+      Toast.show({
+        type: "error",
+        text1: "Lỗi",
+        text2: err?.response?.data?.message || "Không thể nhận phần thưởng",
+        position: "top",
+        visibilityTime: 3000,
+      });
     } finally {
       setLoading(false);
     }
@@ -317,10 +347,8 @@ const Mission = ({ navigation, route }) => {
     return (
       <View style={styles.missionCard}>
         <View style={styles.missionHeader}>
-          <View
-            style={[styles.iconContainer, { backgroundColor: "#00000010" }]}
-          >
-            <Gift size={20} color={COLORS.PRIMARY} />
+          <View style={styles.iconContainer}>
+            <Text style={styles.iconEmoji}>🎯</Text>
           </View>
           <View style={styles.missionInfo}>
             <Text style={styles.missionTitle}>{item.title}</Text>
@@ -330,7 +358,7 @@ const Mission = ({ navigation, route }) => {
           </View>
           <View style={styles.pointsContainer}>
             <Text style={styles.pointsText}>+{item.rewardPoints || 0}</Text>
-            <Star size={16} color={COLORS.YELLOW} />
+            <Text style={styles.starEmoji}>⭐</Text>
           </View>
         </View>
 
@@ -339,7 +367,7 @@ const Mission = ({ navigation, route }) => {
             <View
               style={[
                 styles.progressFill,
-                { width: `0%`, backgroundColor: COLORS.PRIMARY },
+                { width: `0%`, backgroundColor: "#FF5370" },
               ]}
             />
           </View>
@@ -353,10 +381,17 @@ const Mission = ({ navigation, route }) => {
           </View>
 
           <TouchableOpacity
-            style={[styles.button, styles.acceptButton]}
             onPress={() => handleAccept(item.id)}
+            style={styles.acceptButton}
           >
-            <Text style={styles.buttonText}>Nhận</Text>
+            <LinearGradient
+              colors={["#FF5370", "#FF6B9D", "#FF8FAB"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.buttonGradient}
+            >
+              <Text style={styles.buttonText}>Nhận ✨</Text>
+            </LinearGradient>
           </TouchableOpacity>
         </View>
       </View>
@@ -374,10 +409,8 @@ const Mission = ({ navigation, route }) => {
     return (
       <View style={styles.missionCard}>
         <View style={styles.missionHeader}>
-          <View
-            style={[styles.iconContainer, { backgroundColor: "#00000010" }]}
-          >
-            <Gift size={20} color={COLORS.PRIMARY} />
+          <View style={styles.iconContainer}>
+            <Text style={styles.iconEmoji}>🎯</Text>
           </View>
           <View style={styles.missionInfo}>
             <Text style={styles.missionTitle}>{mission.title}</Text>
@@ -389,7 +422,7 @@ const Mission = ({ navigation, route }) => {
           </View>
           <View style={styles.pointsContainer}>
             <Text style={styles.pointsText}>+{mission.rewardPoints || 0}</Text>
-            <Star size={16} color={COLORS.YELLOW} />
+            <Text style={styles.starEmoji}>⭐</Text>
           </View>
         </View>
 
@@ -400,8 +433,7 @@ const Mission = ({ navigation, route }) => {
                 styles.progressFill,
                 {
                   width: `${percent}%`,
-                  backgroundColor:
-                    percent === 100 ? COLORS.GREEN : COLORS.PRIMARY,
+                  backgroundColor: percent === 100 ? COLORS.GREEN : "#FF5370",
                 },
               ]}
             />
@@ -419,18 +451,25 @@ const Mission = ({ navigation, route }) => {
 
           {canClaim ? (
             <TouchableOpacity
-              style={[styles.button, styles.claimButton]}
               onPress={() => handleClaim(mission.id)}
+              style={styles.claimButton}
             >
-              <Text style={styles.buttonText}>Nhận phần thưởng</Text>
+              <LinearGradient
+                colors={["#4ECDC4", "#44A08D"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.buttonGradient}
+              >
+                <Text style={styles.buttonText}>Nhận phần thưởng 🎁</Text>
+              </LinearGradient>
             </TouchableOpacity>
           ) : (
             <TouchableOpacity
               style={[styles.button, styles.disabledButton]}
               disabled
             >
-              <Text style={styles.buttonText}>
-                {item.isCompleted ? "Đã nhận" : "Đang tiến trình"}
+              <Text style={styles.buttonTextDisabled}>
+                {item.isCompleted ? "Đã nhận ✓" : "Đang tiến trình..."}
               </Text>
             </TouchableOpacity>
           )}
@@ -440,55 +479,55 @@ const Mission = ({ navigation, route }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <ArrowLeft size={20} color={COLORS.WHITE} />
-        </TouchableOpacity>
-
-        <View style={{ flex: 1, marginLeft: 12 }}>
-          <Text style={styles.headerTitle}>Nhiệm vụ</Text>
-          <Text style={styles.headerSubtitle}>
-            Hoàn thành nhiệm vụ để nhận điểm
-          </Text>
-        </View>
-
-        <View style={styles.pointsDisplay}>
-          <Star size={18} color={COLORS.YELLOW} />
-          <Text style={styles.pointsValue}>{userPoints}</Text>
-        </View>
-      </View>
+    <SafeAreaView style={styles.container} edges={["top"]}>
+      <SnowEffect />
+      <GradientHeader
+        title="🎯 Nhiệm vụ"
+        onBackPress={() => navigation.goBack()}
+        showBackButton={true}
+      />
 
       <View style={styles.tabRow}>
         <TouchableOpacity
-          style={[styles.tabButton, tab === "available" && styles.tabActive]}
+          style={styles.tabButton}
           onPress={() => setTab("available")}
         >
-          <Text
-            style={[
-              styles.tabText,
-              tab === "available" && styles.tabTextActive,
-            ]}
-          >
-            Sẵn có
-          </Text>
+          {tab === "available" ? (
+            <LinearGradient
+              colors={["#FF5370", "#FF6B9D", "#FF8FAB"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.tabGradient}
+            >
+              <Text style={styles.tabTextActive}>Sẵn có</Text>
+            </LinearGradient>
+          ) : (
+            <View style={styles.tabTextContainer}>
+              <Text style={styles.tabText}>Sẵn có</Text>
+            </View>
+          )}
         </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tabButton, tab === "my" && styles.tabActive]}
-          onPress={() => setTab("my")}
-        >
-          <Text style={[styles.tabText, tab === "my" && styles.tabTextActive]}>
-            Của tôi
-          </Text>
+        <TouchableOpacity style={styles.tabButton} onPress={() => setTab("my")}>
+          {tab === "my" ? (
+            <LinearGradient
+              colors={["#FF5370", "#FF6B9D", "#FF8FAB"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.tabGradient}
+            >
+              <Text style={styles.tabTextActive}>Của tôi</Text>
+            </LinearGradient>
+          ) : (
+            <View style={styles.tabTextContainer}>
+              <Text style={styles.tabText}>Của tôi</Text>
+            </View>
+          )}
         </TouchableOpacity>
       </View>
 
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.PRIMARY} />
+          <ActivityIndicator size="large" color="#FF5370" />
         </View>
       ) : (
         <FlatList
@@ -502,11 +541,12 @@ const Mission = ({ navigation, route }) => {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              colors={[COLORS.PRIMARY]}
+              colors={["#FF5370", "#FF6B9D"]}
             />
           }
           ListEmptyComponent={() => (
             <View style={styles.emptyState}>
+              <Text style={styles.emptyEmoji}>🎯</Text>
               <Text style={styles.emptyTitle}>Không có nhiệm vụ</Text>
               <Text style={styles.emptySubtitle}>Vui lòng thử lại sau</Text>
             </View>
@@ -518,87 +558,135 @@ const Mission = ({ navigation, route }) => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.BG },
-  header: {
-    backgroundColor: COLORS.PRIMARY,
-    paddingHorizontal: 16,
-    paddingVertical: 18,
+  container: { flex: 1, backgroundColor: "#FFF5F7" },
+  tabRow: {
     flexDirection: "row",
-    alignItems: "center",
+    padding: 12,
+    backgroundColor: "#FFE5EC",
+    paddingVertical: 16,
+    paddingBottom: 20,
+    borderBottomWidth: 2,
+    borderBottomColor: "#FF6B9D",
+    gap: 12,
   },
-  backButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: COLORS.WHITE + "20",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  headerTitle: { color: COLORS.WHITE, fontSize: 18, fontWeight: "700" },
-  headerSubtitle: { color: COLORS.WHITE + "CC", fontSize: 12 },
-  pointsDisplay: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: COLORS.WHITE + "20",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 16,
-  },
-  pointsValue: { color: COLORS.WHITE, fontWeight: "700", marginLeft: 8 },
-  tabRow: { flexDirection: "row", padding: 12, backgroundColor: COLORS.BG },
   tabButton: {
     flex: 1,
-    paddingVertical: 10,
     alignItems: "center",
-    borderRadius: 8,
-    backgroundColor: COLORS.WHITE,
+    justifyContent: "center",
   },
-  tabActive: { backgroundColor: COLORS.PRIMARY },
-  tabText: { fontWeight: "700", color: COLORS.GRAY },
-  tabTextActive: { color: COLORS.WHITE },
-  missionCard: {
-    backgroundColor: COLORS.WHITE,
+  tabGradient: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
     borderRadius: 12,
-    padding: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tabTextContainer: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: "rgba(255, 83, 112, 0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tabText: {
+    color: "#FFF",
+    fontWeight: "700",
+    fontSize: 14,
+  },
+  tabTextActive: {
+    color: "#FFF",
+    fontWeight: "700",
+    fontSize: 14,
+  },
+  missionCard: {
+    backgroundColor: "#FFF",
+    borderRadius: 16,
+    padding: 16,
     marginBottom: 12,
-    shadowColor: COLORS.BLACK,
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 2,
+    marginHorizontal: 16,
+    borderWidth: 2,
+    borderColor: "#FFE5EC",
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
   missionHeader: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 8,
+    marginBottom: 12,
   },
   iconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     justifyContent: "center",
     alignItems: "center",
     marginRight: 12,
+    backgroundColor: "#FFE5EC",
+    borderWidth: 2,
+    borderColor: "#FF6B9D",
+  },
+  iconEmoji: {
+    fontSize: 24,
   },
   missionInfo: { flex: 1 },
-  missionTitle: { fontSize: 16, fontWeight: "700", color: COLORS.BLACK },
-  missionDescription: { color: COLORS.GRAY, marginTop: 2 },
-  pointsContainer: { flexDirection: "row", alignItems: "center", gap: 6 },
-  pointsText: { fontWeight: "700", color: COLORS.PRIMARY, marginRight: 6 },
+  missionTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#1A1A1A",
+    marginBottom: 4,
+  },
+  missionDescription: {
+    color: "#8E8E93",
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  pointsContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#FFE5EC",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#FF6B9D",
+  },
+  pointsText: {
+    fontWeight: "800",
+    color: "#FF5370",
+    fontSize: 14,
+  },
+  starEmoji: {
+    fontSize: 14,
+  },
   progressContainer: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 8,
+    marginBottom: 12,
   },
   progressBar: {
     flex: 1,
-    height: 8,
-    backgroundColor: COLORS.GRAY_LIGHT,
-    borderRadius: 8,
+    height: 10,
+    backgroundColor: "#FFE5EC",
+    borderRadius: 10,
     overflow: "hidden",
     marginRight: 8,
+    borderWidth: 1,
+    borderColor: "#FF6B9D",
   },
-  progressFill: { height: "100%" },
-  progressText: { fontSize: 12, color: COLORS.GRAY },
+  progressFill: {
+    height: "100%",
+    borderRadius: 10,
+  },
+  progressText: {
+    fontSize: 12,
+    color: "#FF5370",
+    fontWeight: "600",
+  },
   missionFooter: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -607,21 +695,88 @@ const styles = StyleSheet.create({
   typeBadge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: COLORS.GRAY_LIGHT,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    backgroundColor: "#FFE5EC",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#FF6B9D",
   },
-  typeText: { marginLeft: 6, color: COLORS.GRAY },
-  button: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 },
-  acceptButton: { backgroundColor: COLORS.PRIMARY },
-  claimButton: { backgroundColor: COLORS.GREEN },
-  disabledButton: { backgroundColor: COLORS.GRAY_LIGHT },
-  buttonText: { color: COLORS.WHITE, fontWeight: "700" },
-  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
-  emptyState: { paddingTop: 60, alignItems: "center" },
-  emptyTitle: { fontSize: 16, fontWeight: "700", color: COLORS.GRAY },
-  emptySubtitle: { color: COLORS.GRAY, marginTop: 8 },
+  typeText: {
+    marginLeft: 6,
+    color: "#FF5370",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  acceptButton: {
+    borderRadius: 20,
+    overflow: "hidden",
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  claimButton: {
+    borderRadius: 20,
+    overflow: "hidden",
+    shadowColor: "#4ECDC4",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  buttonGradient: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  button: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  disabledButton: {
+    backgroundColor: "#FFE5EC",
+    borderWidth: 1,
+    borderColor: "#FF6B9D",
+  },
+  buttonText: {
+    color: "#FFF",
+    fontWeight: "800",
+    fontSize: 13,
+  },
+  buttonTextDisabled: {
+    color: "#8E8E93",
+    fontWeight: "600",
+    fontSize: 13,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  emptyState: {
+    paddingTop: 80,
+    alignItems: "center",
+    paddingHorizontal: 32,
+  },
+  emptyEmoji: {
+    fontSize: 64,
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#FF5370",
+    marginBottom: 8,
+  },
+  emptySubtitle: {
+    color: "#8E8E93",
+    fontSize: 14,
+    textAlign: "center",
+  },
 });
 
 export default Mission;

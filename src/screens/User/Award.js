@@ -11,8 +11,8 @@ import {
   Image,
   AppState,
   ActivityIndicator,
-  Alert,
 } from "react-native";
+import Toast from "react-native-toast-message";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -27,6 +27,9 @@ import {
 import { getProfile } from "../../services/userService";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import GradientHeader from "../../components/GradientHeader";
+import { LinearGradient } from "expo-linear-gradient";
+import { Sparkles } from "lucide-react-native";
+import SnowEffect from "../../components/SnowEffect";
 
 const { width: screenWidth } = Dimensions.get("window");
 
@@ -152,7 +155,13 @@ const Award = () => {
     } catch (error) {
       console.error("❌ Error loading data:", error);
       console.error("Error details:", error.response?.data);
-      Alert.alert("Lỗi", "Không thể tải dữ liệu. Vui lòng thử lại.");
+      Toast.show({
+        type: "error",
+        text1: "Lỗi",
+        text2: "Không thể tải dữ liệu. Vui lòng thử lại.",
+        position: "top",
+        visibilityTime: 3000,
+      });
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -257,20 +266,36 @@ const Award = () => {
 
       // Check if redeem was successful (payload exists or statusCode 200)
       if (response?.data?.statusCode === 200 || redeemPayload) {
-        Alert.alert("Thành công", redeemMessage || "Đổi voucher thành công!");
+        Toast.show({
+          type: "success",
+          text1: "Thành công",
+          text2: redeemMessage || "Đổi voucher thành công!",
+          position: "top",
+          visibilityTime: 3000,
+        });
         // Reload data
         await loadData();
       } else {
-        Alert.alert("Lỗi", redeemMessage || "Không thể đổi voucher.");
+        Toast.show({
+          type: "error",
+          text1: "Lỗi",
+          text2: redeemMessage || "Không thể đổi voucher.",
+          position: "top",
+          visibilityTime: 3000,
+        });
       }
     } catch (error) {
       console.error("Redeem error:", error);
-      Alert.alert(
-        "Lỗi",
-        error.response?.data?.message ||
+      Toast.show({
+        type: "error",
+        text1: "Lỗi",
+        text2:
+          error.response?.data?.message ||
           error.message ||
-          "Không thể đổi voucher. Vui lòng thử lại."
-      );
+          "Không thể đổi voucher. Vui lòng thử lại.",
+        position: "top",
+        visibilityTime: 3000,
+      });
     } finally {
       setLoading(false);
     }
@@ -333,7 +358,7 @@ const Award = () => {
           </View>
         </View>
         <View style={styles.balanceRight}>
-          <MaterialIcons name="local-mall" size={18} color={COLORS.PRIMARY} />
+          <MaterialIcons name="local-mall" size={18} color="#FF5370" />
           <Text style={styles.balanceHint}>Tích điểm từ chuyến đi</Text>
         </View>
       </View>
@@ -359,9 +384,7 @@ const Award = () => {
           <MaterialIcons
             name={category.icon}
             size={20}
-            color={
-              selectedCategory === category.id ? COLORS.WHITE : COLORS.PRIMARY
-            }
+            color={selectedCategory === category.id ? COLORS.WHITE : "#FF5370"}
           />
           <Text
             style={[
@@ -407,67 +430,181 @@ const Award = () => {
     </View>
   );
 
+  const getVoucherImage = (voucherType, voucherCode) => {
+    // Map voucher codes to specific brand images
+    const codeImageMap = {
+      // Food & Beverage
+      STARBUCKS:
+        "https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=400&h=300&fit=crop",
+      MCDONALD:
+        "https://images.unsplash.com/photo-1551782450-17144efb9c50?w=400&h=300&fit=crop",
+      "COCA-COLA":
+        "https://images.unsplash.com/photo-1554866585-cd94860890b7?w=400&h=300&fit=crop",
+      KFC: "https://images.unsplash.com/photo-1527477396000-e27163b481c2?w=400&h=300&fit=crop",
+      LOTTERIA:
+        "https://images.unsplash.com/photo-1551782450-17144efb9c50?w=400&h=300&fit=crop",
+      // Shopping
+      SHOPEE:
+        "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=400&h=300&fit=crop",
+      LAZADA:
+        "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=400&h=300&fit=crop",
+      TIKI: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=400&h=300&fit=crop",
+      SENDO:
+        "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=400&h=300&fit=crop",
+      // Vehicle Service
+      VINFAST:
+        "https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?w=400&h=300&fit=crop",
+      HONDA:
+        "https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?w=400&h=300&fit=crop",
+      YAMAHA:
+        "https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?w=400&h=300&fit=crop",
+      PETROL:
+        "https://images.unsplash.com/photo-1502877338535-766e1452684a?w=400&h=300&fit=crop",
+    };
+
+    // Check if voucher code matches any brand
+    if (voucherCode) {
+      const upperCode = voucherCode.toUpperCase();
+      for (const [brand, imageUrl] of Object.entries(codeImageMap)) {
+        if (upperCode.includes(brand)) {
+          return imageUrl;
+        }
+      }
+    }
+
+    // Fallback to type-based images
+    const typeImageMap = {
+      FOOD_AND_BEVERAGE:
+        "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=400&h=300&fit=crop",
+      SHOPPING:
+        "https://images.unsplash.com/photo-1555529908-3af0358c7f32?w=400&h=300&fit=crop",
+      VEHICLE_SERVICE:
+        "https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?w=400&h=300&fit=crop",
+    };
+    return typeImageMap[voucherType] || typeImageMap.FOOD_AND_BEVERAGE;
+  };
+
+  const getBrandLogo = (voucherType) => {
+    // Brand logo based on voucher type or voucher code
+    const logoMap = {
+      FOOD_AND_BEVERAGE: "☕",
+      SHOPPING: "🛍️",
+      VEHICLE_SERVICE: "🚗",
+    };
+    return logoMap[voucherType] || "🎁";
+  };
+
+  const getBrandName = (voucherCode) => {
+    // Extract brand name from voucher code or use default
+    if (voucherCode?.includes("STARBUCKS") || voucherCode?.includes("SB")) {
+      return "Starbucks";
+    }
+    if (voucherCode?.includes("MCDONALD") || voucherCode?.includes("MCD")) {
+      return "McDonald's";
+    }
+    if (voucherCode?.includes("COCA") || voucherCode?.includes("COKE")) {
+      return "Coca-Cola";
+    }
+    return voucherCode || "Brand";
+  };
+
   const renderItem = ({ item }) => {
     const disabled = !canRedeem(item);
     const alreadyHas = myVouchers.some((v) => v.voucher?.id === item.id);
     const typeInfo = getVoucherTypeInfo(item.voucherType);
+    const voucherImage = getVoucherImage(item.voucherType, item.voucherCode);
+    const brandLogo = getBrandLogo(item.voucherType);
+    const brandName = getBrandName(item.voucherCode);
 
     return (
       <TouchableOpacity
         style={styles.promoCard}
         onPress={() => navigation.navigate("Voucher", { voucher: item })}
+        activeOpacity={0.9}
       >
+        {/* Image Container with Brand Logo - Full Width */}
         <View style={styles.promoImageContainer}>
-          <MaterialIcons
-            name={typeInfo.icon}
-            size={48}
-            color={COLORS.PRIMARY}
+          <Image
+            source={{ uri: voucherImage }}
+            style={styles.promoImage}
+            resizeMode="cover"
           />
-        </View>
-        <View style={styles.promoContent}>
-          <View style={styles.promoHeader}>
-            <Text style={styles.promoBrand}>{typeInfo.label}</Text>
-            <View style={styles.costPill}>
-              <MaterialIcons
-                name="stars"
-                size={14}
-                color={COLORS.ORANGE_DARK}
-              />
-              <Text style={styles.costText}>{item.cost}</Text>
+          {/* Brand Logo Overlay */}
+          <View style={styles.brandLogoContainer}>
+            <View style={styles.brandLogoCircle}>
+              <Text style={styles.brandLogoEmoji}>{brandLogo}</Text>
             </View>
           </View>
-          <Text style={styles.promoTitle} numberOfLines={1}>
-            {item.description}
-          </Text>
-          <Text style={styles.promoDesc} numberOfLines={2}>
-            Hết hạn: {formatDate(item.expiryDate)}
-          </Text>
-          {alreadyHas && (
-            <View style={styles.redeemedPill}>
-              <MaterialIcons
-                name="check-circle"
-                size={14}
-                color={COLORS.WHITE}
-              />
-              <Text style={styles.redeemedText}>Đã có</Text>
-            </View>
-          )}
-          <TouchableOpacity
-            disabled={disabled || alreadyHas}
-            onPress={() => openRedeemModal(item)}
-            style={[
-              styles.redeemBtn,
-              (disabled || alreadyHas) && styles.redeemBtnDisabled,
-            ]}
-          >
-            <Text style={styles.redeemBtnText}>
-              {alreadyHas
-                ? "Đã đổi"
-                : disabled
-                ? "Không đủ điểm"
-                : "Đổi voucher"}
+        </View>
+
+        {/* Content Section - Below Image */}
+        <View style={styles.promoContent}>
+          <View style={styles.promoHeader}>
+            <Text style={styles.promoTitle} numberOfLines={2}>
+              {item.description || `Get Free ${typeInfo.label} E-Voucher`}
             </Text>
-          </TouchableOpacity>
+          </View>
+
+          <View style={styles.promoInfoRow}>
+            <View style={styles.promoPointsContainer}>
+              <MaterialIcons
+                name="stars"
+                size={16}
+                color={COLORS.ORANGE_DARK}
+              />
+              <Text style={styles.promoPoints}>
+                {item.cost?.toLocaleString("vi-VN") || "0"} points
+              </Text>
+            </View>
+
+            <Text style={styles.promoBrand}>{brandName}</Text>
+          </View>
+
+          <View style={styles.actionRow}>
+            {alreadyHas && (
+              <View style={styles.redeemedPill}>
+                <MaterialIcons
+                  name="check-circle"
+                  size={14}
+                  color={COLORS.WHITE}
+                />
+                <Text style={styles.redeemedText}>Đã có</Text>
+              </View>
+            )}
+
+            {!alreadyHas && (
+              <>
+                {!disabled ? (
+                  <TouchableOpacity
+                    onPress={() => openRedeemModal(item)}
+                    style={styles.redeemBtn}
+                    activeOpacity={0.9}
+                  >
+                    <LinearGradient
+                      colors={["#FF5370", "#FF6B9D"]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={styles.redeemBtnGradient}
+                    >
+                      <Sparkles size={14} color="#FFF" />
+                      <Text style={styles.redeemBtnText}>Đổi voucher ✨</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                ) : (
+                  <View style={styles.insufficientPointsContainer}>
+                    <MaterialIcons
+                      name="error-outline"
+                      size={16}
+                      color={COLORS.RED || "#FF3B30"}
+                    />
+                    <Text style={styles.insufficientPointsText}>
+                      Không đủ điểm
+                    </Text>
+                  </View>
+                )}
+              </>
+            )}
+          </View>
         </View>
       </TouchableOpacity>
     );
@@ -530,7 +667,7 @@ const Award = () => {
     return (
       <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.PRIMARY} />
+          <ActivityIndicator size="large" color="#FF5370" />
           <Text style={styles.loadingText}>Đang tải...</Text>
         </View>
       </SafeAreaView>
@@ -540,7 +677,8 @@ const Award = () => {
   return (
     <SafeAreaView key={refreshKey} style={styles.container} edges={["top"]}>
       {/* Header */}
-      <GradientHeader title="Phần thưởng" showBackButton={false} />
+      <SnowEffect />
+      <GradientHeader title="🎁 Phần thưởng" showBackButton={false} />
 
       {renderBannerSlider()}
 
@@ -559,16 +697,17 @@ const Award = () => {
             </View>
           </View>
           <View style={styles.balanceRight}>
-            <MaterialIcons name="local-mall" size={18} color="#004553" />
-            <Text style={styles.balanceHint}>Từ chuyến đi</Text>
+            <MaterialIcons name="local-mall" size={18} color="#FF5370" />
           </View>
         </View>
       </View>
 
+      {/* Tabs - Fixed */}
       {renderTabs()}
 
       {activeTab === "vouchers" ? (
         <View style={styles.voucherContainer}>
+          {/* Category Filter - Fixed */}
           {renderCategoryFilter()}
           <FlatList
             data={filteredPromos}
@@ -576,19 +715,18 @@ const Award = () => {
             renderItem={renderItem}
             contentContainerStyle={[
               styles.listContent,
-              { paddingBottom: insets.bottom },
+              { paddingBottom: insets.bottom + 20 },
             ]}
             showsVerticalScrollIndicator={false}
             refreshing={refreshing}
             onRefresh={handleRefresh}
             ListEmptyComponent={
               <View style={styles.emptyContainer}>
-                <MaterialIcons
-                  name="card-giftcard"
-                  size={64}
-                  color={COLORS.GRAY_LIGHT}
-                />
+                <Text style={styles.emptyEmoji}>🎁</Text>
                 <Text style={styles.emptyText}>Chưa có voucher nào</Text>
+                <Text style={styles.emptySubtext}>
+                  Hãy tích điểm để đổi voucher nhé! 🎄
+                </Text>
               </View>
             }
           />
@@ -601,19 +739,18 @@ const Award = () => {
             renderItem={renderRedeemedVoucherItem}
             contentContainerStyle={[
               styles.historyList,
-              { paddingBottom: insets.bottom },
+              { paddingBottom: insets.bottom + 20 },
             ]}
             showsVerticalScrollIndicator={false}
             refreshing={refreshing}
             onRefresh={handleRefresh}
             ListEmptyComponent={
               <View style={styles.emptyContainer}>
-                <MaterialIcons
-                  name="inbox"
-                  size={64}
-                  color={COLORS.GRAY_LIGHT}
-                />
+                <Text style={styles.emptyEmoji}>📜</Text>
                 <Text style={styles.emptyText}>Bạn chưa đổi voucher nào</Text>
+                <Text style={styles.emptySubtext}>
+                  Lịch sử đổi voucher sẽ hiển thị tại đây ✨
+                </Text>
               </View>
             }
           />
@@ -677,10 +814,19 @@ const Award = () => {
               <TouchableOpacity
                 style={[styles.modalBtn, styles.modalConfirm]}
                 onPress={confirmRedeem}
+                activeOpacity={0.9}
               >
-                <Text style={[styles.modalBtnText, styles.modalConfirmText]}>
-                  Xác nhận
-                </Text>
+                <LinearGradient
+                  colors={["#FF5370", "#FF6B9D"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.modalConfirmGradient}
+                >
+                  <Sparkles size={14} color="#FFF" />
+                  <Text style={[styles.modalBtnText, styles.modalConfirmText]}>
+                    Xác nhận ✨
+                  </Text>
+                </LinearGradient>
               </TouchableOpacity>
             </View>
           </View>
@@ -693,7 +839,7 @@ const Award = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: "#FFF5F7",
   },
   // Header styles
   listContent: {
@@ -756,7 +902,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
   },
   bannerDotActive: {
-    backgroundColor: "#004553",
+    backgroundColor: "#FF5370",
     width: 20,
   },
   // Balance Card styles
@@ -771,11 +917,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    shadowColor: "#004553",
+    shadowColor: "#FF5370",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.15,
     shadowRadius: 12,
     elevation: 6,
+    borderWidth: 2,
+    borderColor: "#FFE5EC",
   },
   balanceLeft: {
     flexDirection: "row",
@@ -786,9 +934,11 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: "rgba(0, 69, 83, 0.1)",
+    backgroundColor: "#FFE5EC",
     justifyContent: "center",
     alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#FF6B9D",
   },
   balanceTextWrap: {
     marginLeft: 14,
@@ -801,30 +951,36 @@ const styles = StyleSheet.create({
   balanceValue: {
     fontSize: 24,
     fontWeight: "800",
-    color: "#004553",
+    color: "#FF5370",
   },
   balanceRight: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(0, 69, 83, 0.08)",
+    backgroundColor: "#FFE5EC",
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 12,
+    borderWidth: 2,
+    borderColor: "#FF6B9D",
   },
   balanceHint: {
     marginLeft: 6,
     fontSize: 11,
-    color: "#004553",
+    color: "#FF5370",
     fontWeight: "600",
   },
   // Tab styles
   tabContainer: {
     flexDirection: "row",
     marginHorizontal: 20,
-    marginBottom: 20,
-    backgroundColor: "#F3F4F6",
+    marginBottom: 16,
+    marginTop: 8,
+    backgroundColor: "#FFE5EC",
     borderRadius: 16,
     padding: 4,
+    paddingBottom: 12,
+    borderWidth: 2,
+    borderColor: "#FF6B9D",
   },
   tab: {
     flex: 1,
@@ -834,28 +990,29 @@ const styles = StyleSheet.create({
   },
   activeTab: {
     backgroundColor: "#fff",
-    shadowColor: "#000",
+    shadowColor: "#FF5370",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.15,
     shadowRadius: 4,
     elevation: 2,
   },
   tabText: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#6B7280",
+    color: "#8E8E93",
   },
   activeTabText: {
-    color: "#004553",
+    color: "#FF5370",
     fontWeight: "700",
   },
   // Category filter styles
   categoryContainer: {
     marginBottom: 16,
-    paddingBottom: 4,
+    paddingBottom: 16,
   },
   categoryContent: {
     paddingHorizontal: 20,
+    paddingBottom: 4,
   },
   categoryItem: {
     flexDirection: "row",
@@ -865,24 +1022,24 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 20,
     marginRight: 12,
-    borderWidth: 1,
-    borderColor: "rgba(0, 69, 83, 0.2)",
+    borderWidth: 2,
+    borderColor: "#FFE5EC",
     height: 44,
-    shadowColor: "#000",
+    shadowColor: "#FF5370",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 1,
+    elevation: 2,
   },
   categoryItemActive: {
-    backgroundColor: "#004553",
-    borderColor: "#004553",
+    backgroundColor: "#FF5370",
+    borderColor: "#FF5370",
   },
   categoryText: {
     marginLeft: 6,
     fontSize: 14,
     fontWeight: "600",
-    color: "#004553",
+    color: "#FF5370",
   },
   categoryTextActive: {
     color: "#fff",
@@ -901,55 +1058,84 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.WHITE,
     borderRadius: 20,
     marginBottom: 16,
-    shadowColor: "#004553",
+    shadowColor: "#FF5370",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.15,
     shadowRadius: 12,
     elevation: 6,
-    flexDirection: "row",
+    flexDirection: "column",
     overflow: "hidden",
     marginHorizontal: 20,
-  },
-  promoImage: {
-    width: 120,
-    height: 100,
-    resizeMode: "cover",
+    borderWidth: 2,
+    borderColor: "#FFE5EC",
   },
   promoImageContainer: {
-    width: 120,
-    height: 100,
-    backgroundColor: `${COLORS.PRIMARY}15`,
+    width: "100%",
+    height: 180,
+    position: "relative",
+    overflow: "hidden",
+  },
+  promoImage: {
+    width: "100%",
+    height: "100%",
+    resizeMode: "cover",
+  },
+  brandLogoContainer: {
+    position: "absolute",
+    top: 8,
+    left: 8,
+    zIndex: 10,
+  },
+  brandLogoCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
     justifyContent: "center",
     alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#FF5370",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  brandLogoEmoji: {
+    fontSize: 24,
   },
   promoContent: {
-    flex: 1,
-    padding: 12,
-    justifyContent: "space-between",
+    padding: 16,
   },
   promoHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 8,
-  },
-  promoBrand: {
-    fontSize: 12,
-    fontWeight: "800",
-    color: COLORS.BLUE,
-    flex: 1,
+    marginBottom: 12,
   },
   promoTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: COLORS.BLACK,
+    lineHeight: 22,
+  },
+  promoInfoRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  promoPointsContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  promoPoints: {
     fontSize: 14,
     fontWeight: "700",
     color: COLORS.BLACK,
-    marginBottom: 4,
+    marginLeft: 6,
   },
-  promoDesc: {
-    fontSize: 12,
-    color: COLORS.GRAY_DARK,
-    marginBottom: 8,
-    lineHeight: 16,
+  promoBrand: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#FF5370",
   },
   costPill: {
     flexDirection: "row",
@@ -969,27 +1155,40 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: COLORS.GREEN,
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    alignSelf: "flex-start",
+    marginTop: 8,
   },
   redeemedText: {
-    marginLeft: 4,
+    marginLeft: 6,
     fontSize: 12,
     fontWeight: "700",
     color: COLORS.WHITE,
   },
-  redeemBtn: {
-    backgroundColor: COLORS.PRIMARY,
-    borderRadius: 12,
-    paddingVertical: 10,
+  actionRow: {
+    flexDirection: "row",
     alignItems: "center",
-    marginTop: 8,
-    elevation: 2,
-    shadowColor: COLORS.PRIMARY,
+    marginTop: 12,
+    gap: 8,
+  },
+  redeemBtn: {
+    flex: 1,
+    borderRadius: 12,
+    elevation: 4,
+    shadowColor: "#FF5370",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
+    overflow: "hidden",
+  },
+  redeemBtnGradient: {
+    paddingVertical: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
   },
   redeemBtnDisabled: {
     backgroundColor: COLORS.GRAY,
@@ -999,6 +1198,23 @@ const styles = StyleSheet.create({
     color: COLORS.WHITE,
     fontSize: 14,
     fontWeight: "700",
+  },
+  insufficientPointsContainer: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#FFF5F5",
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#FFE5E5",
+  },
+  insufficientPointsText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: COLORS.RED || "#FF3B30",
+    flex: 1,
   },
   modalBackdrop: {
     flex: 1,
@@ -1010,6 +1226,8 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     padding: 20,
+    borderWidth: 3,
+    borderColor: "#FFE5EC",
   },
   modalTitle: {
     fontSize: 18,
@@ -1028,7 +1246,7 @@ const styles = StyleSheet.create({
   },
   modalStrong: {
     fontWeight: "800",
-    color: COLORS.PRIMARY,
+    color: "#FF5370",
   },
   modalActions: {
     flexDirection: "row",
@@ -1037,17 +1255,25 @@ const styles = StyleSheet.create({
   },
   modalBtn: {
     flex: 1,
-    paddingVertical: 12,
     borderRadius: 12,
     alignItems: "center",
+  },
+  modalConfirmGradient: {
+    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    width: "100%",
   },
   modalCancel: {
     backgroundColor: COLORS.GRAY_BG,
     marginRight: 8,
   },
   modalConfirm: {
-    backgroundColor: COLORS.PRIMARY,
     marginLeft: 8,
+    overflow: "hidden",
+    borderRadius: 12,
   },
   modalBtnText: {
     fontSize: 16,
@@ -1070,7 +1296,7 @@ const styles = StyleSheet.create({
     borderBottomColor: COLORS.GRAY_LIGHT,
   },
   activeTab: {
-    borderBottomColor: COLORS.PRIMARY,
+    borderBottomColor: "#FF5370",
     borderBottomWidth: 2,
   },
   tabText: {
@@ -1079,7 +1305,7 @@ const styles = StyleSheet.create({
     color: COLORS.GRAY,
   },
   activeTabText: {
-    color: COLORS.PRIMARY,
+    color: "#FF5370",
   },
   historyContainer: {
     flex: 1,
@@ -1091,65 +1317,21 @@ const styles = StyleSheet.create({
     color: COLORS.BLACK,
     marginBottom: 12,
   },
-  pointsHistoryTitle: {
-    marginTop: 24,
-  },
   historyList: {
     paddingBottom: 24,
-  },
-  historyCard: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    backgroundColor: COLORS.WHITE,
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 8,
-    shadowColor: COLORS.BLUE,
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: COLORS.BLUE + "30",
-  },
-  historyLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-  },
-  historyTextWrap: {
-    marginLeft: 12,
-    flex: 1,
-  },
-  historyDesc: {
-    fontSize: 14,
-    color: COLORS.BLACK,
-    fontWeight: "600",
-  },
-  historyDate: {
-    fontSize: 12,
-    color: COLORS.GRAY,
-    marginTop: 2,
-  },
-  historyAmount: {
-    fontSize: 16,
-    fontWeight: "700",
-    marginLeft: 12,
-  },
-  earnedAmount: {
-    color: COLORS.GREEN,
-  },
-  spentAmount: {
-    color: COLORS.ORANGE_DARK,
   },
   redeemedCard: {
     backgroundColor: COLORS.WHITE,
     borderRadius: 12,
     marginBottom: 8,
     padding: 16,
+    borderWidth: 2,
+    borderColor: "#FFE5EC",
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   redeemedHeader: {
     flexDirection: "row",
@@ -1183,9 +1365,11 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: COLORS.PRIMARY,
+    backgroundColor: "#FF5370",
     justifyContent: "center",
     alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#FF6B9D",
   },
   loadingContainer: {
     flex: 1,
@@ -1202,10 +1386,22 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: 60,
   },
+  emptyEmoji: {
+    fontSize: 64,
+    marginBottom: 16,
+  },
   emptyText: {
-    fontSize: 16,
-    color: COLORS.GRAY,
-    marginTop: 16,
+    fontSize: 18,
+    color: "#FF5370",
+    marginTop: 8,
+    fontWeight: "700",
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: "#8E8E93",
+    marginTop: 8,
+    textAlign: "center",
+    paddingHorizontal: 40,
   },
   usedBadge: {
     backgroundColor: COLORS.GRAY,

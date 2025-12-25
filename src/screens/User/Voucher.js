@@ -1,87 +1,260 @@
-import React, { useState, useEffect } from 'react'
-import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity, Alert, ActivityIndicator, FlatList } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
-import { CalendarClock, ChevronLeft, TicketPercent, Gift } from 'lucide-react-native'
-import COLORS from '../../constant/colors'
-import { redeemVoucher } from '../../services/voucherService'
+import React, { useState, useEffect } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
+import Toast from "react-native-toast-message";
+import {
+  CalendarClock,
+  TicketPercent,
+  Gift,
+  Star,
+  AlertCircle,
+} from "lucide-react-native";
+import COLORS from "../../constant/colors";
+import { redeemVoucher } from "../../services/voucherService";
+import { getProfile } from "../../services/userService";
+import GradientHeader from "../../components/GradientHeader";
+import SnowEffect from "../../components/SnowEffect";
 
 const Voucher = ({ route, navigation }) => {
-  const {
-    voucher,
-    userVoucher,
-    mockVouchers,
-    myVouchers,
-    title,
-    subtitle,
-    image,
-    badge: promoBadge,
-    validFrom,
-    validTo,
-    terms,
-    code: promoCode,
-  } = route.params || {}
-  const [isRedeeming, setIsRedeeming] = useState(false)
-  const [redeemed, setRedeemed] = useState(!!userVoucher)
+  const { voucher, userVoucher } = route.params || {};
+  const [isRedeeming, setIsRedeeming] = useState(false);
+  const [redeemed, setRedeemed] = useState(!!userVoucher);
+  const [currentUserVoucher, setCurrentUserVoucher] = useState(userVoucher);
+  const [userPoints, setUserPoints] = useState(0);
+  const [loadingPoints, setLoadingPoints] = useState(true);
 
   // Map voucher type to badge text
   const getVoucherTypeBadge = (type) => {
     switch (type) {
-      case 'FOOD_AND_BEVERAGE':
-        return 'Đồ ăn & Uống'
-      case 'SHOPPING':
-        return 'Mua sắm'
-      case 'VEHICLE_SERVICE':
-        return 'Dịch vụ xe'
+      case "FOOD_AND_BEVERAGE":
+        return "Đồ ăn & Uống";
+      case "SHOPPING":
+        return "Mua sắm";
+      case "VEHICLE_SERVICE":
+        return "Dịch vụ xe";
       default:
-        return 'Ưu đãi'
+        return "Ưu đãi";
     }
-  }
+  };
 
   // Format date
   const formatDate = (dateString) => {
-    if (!dateString) return ''
-    const date = new Date(dateString)
-    return date.toLocaleDateString('vi-VN')
+    if (!dateString) return "";
+    const date = new Date(dateString);
+    return date.toLocaleDateString("vi-VN");
+  };
+
+  // Load user points
+  useEffect(() => {
+    const loadUserPoints = async () => {
+      try {
+        setLoadingPoints(true);
+        const profileResp = await getProfile();
+        const profilePayload =
+          profileResp?.data?.data ?? profileResp?.data ?? profileResp;
+        const points = profilePayload?.coins ?? profilePayload?.userPoints ?? 0;
+        const pointsNumber = Number(points) || 0;
+        console.log("💰 [Voucher] Loaded user points:", {
+          raw: points,
+          converted: pointsNumber,
+          profilePayload,
+        });
+        setUserPoints(pointsNumber);
+      } catch (error) {
+        console.error("Error loading user points:", error);
+        setUserPoints(0);
+      } finally {
+        setLoadingPoints(false);
+      }
+    };
+
+    if (voucher) {
+      if (!redeemed) {
+        loadUserPoints();
+      } else {
+        // If already redeemed, still load points to show updated balance
+        loadUserPoints();
+      }
+    } else {
+      setLoadingPoints(false);
+    }
+  }, [redeemed, voucher]);
+
+  // Get display data
+  const voucherData =
+    currentUserVoucher?.voucher || userVoucher?.voucher || voucher;
+
+  // Check if user has enough points (only check after loading points)
+  const voucherCost = voucherData?.cost ? Number(voucherData.cost) : 0;
+  const currentPoints = Number(userPoints) || 0;
+  const hasEnoughPoints =
+    !loadingPoints &&
+    voucherData &&
+    voucherData.cost != null &&
+    !isNaN(voucherCost) &&
+    !isNaN(currentPoints) &&
+    currentPoints >= voucherCost;
+
+  // Debug log
+  if (voucherData && !loadingPoints) {
+    console.log("🔍 [Voucher] Points check:", {
+      voucherCost,
+      currentPoints,
+      hasEnoughPoints,
+      userPoints,
+      voucherDataCost: voucherData.cost,
+      voucherDataCostType: typeof voucherData.cost,
+      loadingPoints,
+      comparison: `${currentPoints} >= ${voucherCost} = ${
+        currentPoints >= voucherCost
+      }`,
+    });
   }
 
   // Handle redeem voucher
   const handleRedeem = async () => {
-    if (!voucher || redeemed) return
+    if (!voucher || redeemed) return;
 
-    Alert.alert(
-      'Đổi voucher',
-      `Bạn có muốn đổi voucher này với ${voucher.cost} điểm không?`,
-      [
-        { text: 'Hủy', style: 'cancel' },
-        {
-          text: 'Đổi',
-          onPress: async () => {
-            try {
-              setIsRedeeming(true)
-              await redeemVoucher(voucher.id)
-              setRedeemed(true)
-              Alert.alert('Thành công', 'Đổi voucher thành công!')
-            } catch (error) {
-              console.error('Redeem error:', error)
-              Alert.alert(
-                'Lỗi',
-                error.response?.data?.message || 'Không thể đổi voucher. Vui lòng thử lại.'
-              )
-            } finally {
-              setIsRedeeming(false)
-            }
-          }
+    // Show confirmation toast first, then proceed
+    try {
+      setIsRedeeming(true);
+      const response = await redeemVoucher(voucher.id);
+
+      // Unwrap API response (similar to Award.js)
+      const unwrapApiPayload = (resp) => resp?.data?.data ?? resp?.data ?? resp;
+      const unwrapApiMessage = (resp) => resp?.data?.message ?? resp?.message;
+      const redeemPayload = unwrapApiPayload(response);
+      const redeemMessage = unwrapApiMessage(response);
+
+      // Check if redeem was successful
+      if (response?.data?.statusCode === 200 || redeemPayload) {
+        // Update state with the redeemed voucher
+        if (redeemPayload) {
+          setCurrentUserVoucher(redeemPayload);
         }
-      ]
-    )
-  }
+        setRedeemed(true);
 
-  // Get display data
-  const voucherData = userVoucher?.voucher || voucher
-  const badge = voucherData ? getVoucherTypeBadge(voucherData.voucherType) : 'Ưu đãi'
-  const code = voucherData?.voucherCode
-  const expiryDate = voucherData?.expiryDate
-  const description = voucherData?.description
+        // Reload user points after successful redeem
+        try {
+          const profileResp = await getProfile();
+          const profilePayload =
+            profileResp?.data?.data ?? profileResp?.data ?? profileResp;
+          const points =
+            profilePayload?.coins ?? profilePayload?.userPoints ?? 0;
+          const pointsNumber = Number(points) || 0;
+          setUserPoints(pointsNumber);
+          console.log(
+            "💰 [Voucher] Points updated after redeem:",
+            pointsNumber
+          );
+        } catch (error) {
+          console.error("Error reloading points after redeem:", error);
+        }
+
+        Toast.show({
+          type: "success",
+          text1: "Thành công",
+          text2: redeemMessage || "Đổi voucher thành công!",
+          position: "top",
+          visibilityTime: 3000,
+          onHide: () => {
+            // Navigate back to refresh the previous screen
+            navigation.goBack();
+          },
+        });
+      } else {
+        Toast.show({
+          type: "error",
+          text1: "Lỗi",
+          text2: redeemMessage || "Không thể đổi voucher.",
+          position: "top",
+          visibilityTime: 3000,
+        });
+      }
+    } catch (error) {
+      console.error("Redeem error:", error);
+      Toast.show({
+        type: "error",
+        text1: "Lỗi",
+        text2:
+          error.response?.data?.message ||
+          error.message ||
+          "Không thể đổi voucher. Vui lòng thử lại.",
+        position: "top",
+        visibilityTime: 3000,
+      });
+    } finally {
+      setIsRedeeming(false);
+    }
+  };
+
+  // Get voucher image based on type and code
+  const getVoucherImage = (voucherType, voucherCode) => {
+    const codeImageMap = {
+      STARBUCKS:
+        "https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=800&h=400&fit=crop",
+      MCDONALD:
+        "https://images.unsplash.com/photo-1551782450-17144efb9c50?w=800&h=400&fit=crop",
+      "COCA-COLA":
+        "https://images.unsplash.com/photo-1554866585-cd94860890b7?w=800&h=400&fit=crop",
+      KFC: "https://images.unsplash.com/photo-1527477396000-e27163b481c2?w=800&h=400&fit=crop",
+      LOTTERIA:
+        "https://images.unsplash.com/photo-1551782450-17144efb9c50?w=800&h=400&fit=crop",
+      SHOPEE:
+        "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=800&h=400&fit=crop",
+      LAZADA:
+        "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=800&h=400&fit=crop",
+      TIKI: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=800&h=400&fit=crop",
+      SENDO:
+        "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=800&h=400&fit=crop",
+      VINFAST:
+        "https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?w=800&h=400&fit=crop",
+      HONDA:
+        "https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?w=800&h=400&fit=crop",
+      YAMAHA:
+        "https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?w=800&h=400&fit=crop",
+      PETROL:
+        "https://images.unsplash.com/photo-1502877338535-766e1452684a?w=800&h=400&fit=crop",
+    };
+
+    if (voucherCode) {
+      const upperCode = voucherCode.toUpperCase();
+      for (const [brand, imageUrl] of Object.entries(codeImageMap)) {
+        if (upperCode.includes(brand)) {
+          return imageUrl;
+        }
+      }
+    }
+
+    const typeImageMap = {
+      FOOD_AND_BEVERAGE:
+        "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=800&h=400&fit=crop",
+      SHOPPING:
+        "https://images.unsplash.com/photo-1555529908-3af0358c7f32?w=800&h=400&fit=crop",
+      VEHICLE_SERVICE:
+        "https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?w=800&h=400&fit=crop",
+    };
+    return typeImageMap[voucherType] || typeImageMap.FOOD_AND_BEVERAGE;
+  };
+
+  const badge = voucherData
+    ? getVoucherTypeBadge(voucherData.voucherType)
+    : "Ưu đãi";
+  const code = voucherData?.voucherCode;
+  const expiryDate = voucherData?.expiryDate;
+  const description = voucherData?.description;
+  const voucherImage = voucherData
+    ? getVoucherImage(voucherData.voucherType, voucherData.voucherCode)
+    : null;
 
   // MY VOUCHERS LIST MODE (Home service button passes myVouchers from API)
   if (!voucherData && Array.isArray(myVouchers) && !Array.isArray(mockVouchers)) {
@@ -329,50 +502,62 @@ const Voucher = ({ route, navigation }) => {
 
   if (!voucherData) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-            <ChevronLeft size={22} color={COLORS.WHITE} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Chi tiết khuyến mãi</Text>
-          <View style={{ width: 32 }} />
-        </View>
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        <SnowEffect />
+        <GradientHeader
+          title="🎁 Chi tiết khuyến mãi"
+          onBackPress={() => navigation.goBack()}
+          showBackButton={true}
+        />
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyText}>Không tìm thấy thông tin voucher</Text>
         </View>
       </SafeAreaView>
-    )
+    );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <ChevronLeft size={22} color={COLORS.WHITE} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Chi tiết khuyến mãi</Text>
-        <View style={{ width: 32 }} />
-      </View>
+    <SafeAreaView style={styles.container} edges={["top"]}>
+      <SnowEffect />
+      <GradientHeader
+        title="🎁 Chi tiết khuyến mãi"
+        onBackPress={() => navigation.goBack()}
+        showBackButton={true}
+      />
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 24 }}
+      >
         <View style={styles.hero}>
-          <View style={styles.heroGradient}>
-            <View style={styles.heroIconContainer}>
-              <Gift size={64} color={COLORS.WHITE} />
+          {voucherImage ? (
+            <Image
+              source={{ uri: voucherImage }}
+              style={styles.heroImage}
+              resizeMode="cover"
+            />
+          ) : null}
+          <LinearGradient
+            colors={[
+              "rgba(255, 83, 112, 0.85)",
+              "rgba(255, 107, 157, 0.8)",
+              "rgba(255, 143, 171, 0.75)",
+            ]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.heroGradient}
+          >
+            <View style={styles.heroContent}>
+              <View style={styles.badge}>
+                <TicketPercent size={14} color={COLORS.WHITE} />
+                <Text style={styles.badgeText}>{badge}</Text>
+              </View>
+              <Text style={styles.title}>{voucherData.voucherCode}</Text>
+              {!!description && (
+                <Text style={styles.subtitle}>{description}</Text>
+              )}
             </View>
-          </View>
-          <View style={styles.heroContent}>
-            <View style={styles.badge}>
-              <TicketPercent size={14} color={COLORS.WHITE} />
-              <Text style={styles.badgeText}>{badge}</Text>
-            </View>
-            <Text style={styles.title}>{description || 'Ưu đãi'}</Text>
-            {!redeemed ? (
-              <Text style={styles.subtitle}>Mã sẽ hiển thị sau khi bạn đổi voucher.</Text>
-            ) : (
-              !!code && <Text style={styles.subtitle}>Mã: {code}</Text>
-            )}
-          </View>
+          </LinearGradient>
         </View>
 
         {/* Cost section - only show if not redeemed yet */}
@@ -381,33 +566,66 @@ const Voucher = ({ route, navigation }) => {
             <Text style={styles.sectionTitle}>Chi phí đổi điểm</Text>
             <View style={styles.card}>
               <View style={styles.costRow}>
-                <Text style={styles.costLabel}>Số điểm cần:</Text>
+                <View style={styles.costLeft}>
+                  <Star size={18} color={COLORS.ORANGE_DARK} />
+                  <Text style={styles.costLabel}>Số điểm cần:</Text>
+                </View>
                 <Text style={styles.costValue}>{voucherData.cost} điểm</Text>
               </View>
+              <View style={styles.pointsInfoRow}>
+                <View style={styles.pointsInfoLeft}>
+                  <Star size={16} color="#FF5370" />
+                  <Text style={styles.pointsInfoLabel}>Điểm hiện có:</Text>
+                </View>
+                <Text style={styles.pointsInfoValue}>
+                  {loadingPoints ? "..." : userPoints} điểm
+                </Text>
+              </View>
+              {!loadingPoints && !hasEnoughPoints && (
+                <View style={styles.insufficientPointsContainer}>
+                  <AlertCircle size={16} color={COLORS.RED || "#FF3B30"} />
+                  <Text style={styles.insufficientPointsText}>
+                    Không đủ điểm
+                  </Text>
+                </View>
+              )}
             </View>
           </View>
         )}
 
         {/* Status section - only show if redeemed */}
-        {userVoucher && (
+        {(currentUserVoucher || userVoucher) && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Trạng thái</Text>
             <View style={styles.card}>
               <View style={styles.statusRow}>
                 <Text style={styles.statusLabel}>Trạng thái:</Text>
-                <Text style={[
-                  styles.statusValue,
-                  { color: userVoucher.status !== 'UNUSED' ? COLORS.GRAY : COLORS.GREEN }
-                ]}>
-                  {userVoucher.status === 'REDEEMED' ? 'Đã sử dụng' : 
-                   userVoucher.status === 'EXPIRED' ? 'Đã hết hạn' : 
-                   'Chưa sử dụng'}
+                <Text
+                  style={[
+                    styles.statusValue,
+                    {
+                      color:
+                        (currentUserVoucher || userVoucher).status !== "UNUSED"
+                          ? COLORS.GRAY
+                          : COLORS.GREEN,
+                    },
+                  ]}
+                >
+                  {(currentUserVoucher || userVoucher).status === "REDEEMED"
+                    ? "Đã sử dụng"
+                    : (currentUserVoucher || userVoucher).status === "EXPIRED"
+                    ? "Đã hết hạn"
+                    : "Chưa sử dụng"}
                 </Text>
               </View>
-              {userVoucher.acquiredDate && (
+              {(currentUserVoucher || userVoucher).acquiredDate && (
                 <View style={styles.statusRow}>
                   <Text style={styles.statusLabel}>Ngày nhận:</Text>
-                  <Text style={styles.statusValue}>{formatDate(userVoucher.acquiredDate)}</Text>
+                  <Text style={styles.statusValue}>
+                    {formatDate(
+                      (currentUserVoucher || userVoucher).acquiredDate
+                    )}
+                  </Text>
                 </View>
               )}
             </View>
@@ -418,9 +636,10 @@ const Voucher = ({ route, navigation }) => {
           <Text style={styles.sectionTitle}>Thời gian hiệu lực</Text>
           <View style={styles.card}>
             <View style={styles.row}>
-              <CalendarClock size={18} color={COLORS.PRIMARY} />
+              <CalendarClock size={18} color="#FF5370" />
               <Text style={styles.rowText}>
-                Hết hạn: {expiryDate ? formatDate(expiryDate) : 'Không giới hạn'}
+                Hết hạn:{" "}
+                {expiryDate ? formatDate(expiryDate) : "Không giới hạn"}
               </Text>
             </View>
           </View>
@@ -440,8 +659,9 @@ const Voucher = ({ route, navigation }) => {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Mã áp dụng</Text>
             <View style={styles.card}>
+              <Text style={styles.code}>{code}</Text>
               <Text style={styles.note}>
-                Bạn cần đổi voucher để xem mã.
+                Sao chép và nhập mã khi thanh toán.
               </Text>
             </View>
           </View>
@@ -451,7 +671,8 @@ const Voucher = ({ route, navigation }) => {
           <Text style={styles.sectionTitle}>Mô tả</Text>
           <View style={styles.card}>
             <Text style={styles.bodyText}>
-              {description || 'Áp dụng cho người dùng RideMate. Không cộng dồn với ưu đãi khác.'}
+              {description ||
+                "Áp dụng cho người dùng RideMate. Không cộng dồn với ưu đãi khác."}
             </Text>
           </View>
         </View>
@@ -459,78 +680,86 @@ const Voucher = ({ route, navigation }) => {
         {/* Redeem button - only show if not redeemed yet */}
         {!redeemed && voucher && (
           <View style={styles.section}>
-            <TouchableOpacity
-              style={[styles.redeemButton, isRedeeming && styles.redeemButtonDisabled]}
-              onPress={handleRedeem}
-              disabled={isRedeeming}
-            >
-              {isRedeeming ? (
-                <ActivityIndicator color={COLORS.WHITE} />
-              ) : (
-                <>
-                  <Gift size={20} color={COLORS.WHITE} />
-                  <Text style={styles.redeemButtonText}>Đổi voucher với {voucherData.cost} điểm</Text>
-                </>
-              )}
-            </TouchableOpacity>
+            {hasEnoughPoints ? (
+              <TouchableOpacity
+                style={[
+                  styles.redeemButton,
+                  isRedeeming && styles.redeemButtonDisabled,
+                ]}
+                onPress={handleRedeem}
+                disabled={isRedeeming || loadingPoints}
+              >
+                {isRedeeming ? (
+                  <ActivityIndicator color={COLORS.WHITE} />
+                ) : (
+                  <LinearGradient
+                    colors={["#FF5370", "#FF6B9D", "#FF8FAB"]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.redeemButtonGradient}
+                  >
+                    <Gift size={20} color={COLORS.WHITE} />
+                    <Text style={styles.redeemButtonText}>
+                      Đổi voucher với {voucherData.cost} điểm
+                    </Text>
+                  </LinearGradient>
+                )}
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.disabledRedeemButton}>
+                <AlertCircle size={20} color={COLORS.GRAY} />
+                <Text style={styles.disabledRedeemButtonText}>
+                  Không đủ điểm để đổi voucher
+                </Text>
+              </View>
+            )}
           </View>
         )}
       </ScrollView>
     </SafeAreaView>
-  )
-}
+  );
+};
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BG,
-  },
-  header: {
-    height: 56,
-    backgroundColor: COLORS.PRIMARY,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 12,
-  },
-  backBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    color: COLORS.WHITE,
-    fontSize: 16,
-    fontWeight: '700',
+    backgroundColor: "#FFF5F7",
   },
   hero: {
-    height: 200,
-    backgroundColor: COLORS.GRAY_LIGHT,
+    height: 220,
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 8,
+    borderRadius: 20,
+    overflow: "hidden",
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+    position: "relative",
   },
   heroImage: {
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
+    position: "absolute",
+    resizeMode: "cover",
   },
   heroOverlay: {
-    position: 'absolute',
+    position: "absolute",
     left: 0,
     right: 0,
     top: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.35)'
+    backgroundColor: "rgba(0,0,0,0.35)",
   },
   heroContent: {
-    position: 'absolute',
-    left: 16,
-    right: 16,
-    bottom: 16,
+    alignItems: "flex-start",
   },
   badge: {
-    alignSelf: 'flex-start',
-    flexDirection: 'row',
-    alignItems: 'center',
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
     paddingHorizontal: 10,
     paddingVertical: 6,
@@ -541,41 +770,51 @@ const styles = StyleSheet.create({
   badgeText: {
     color: COLORS.WHITE,
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   title: {
     color: COLORS.WHITE,
-    fontSize: 20,
-    fontWeight: '800',
+    fontSize: 26,
+    fontWeight: "800",
+    marginBottom: 6,
+    textShadowColor: "rgba(0, 0, 0, 0.2)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   subtitle: {
     color: COLORS.WHITE,
+    fontSize: 14,
     opacity: 0.95,
-    marginTop: 6,
+    lineHeight: 20,
+    textShadowColor: "rgba(0, 0, 0, 0.2)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   section: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingTop: 20,
   },
   sectionTitle: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: "700",
     color: COLORS.BLACK,
     marginBottom: 10,
   },
   card: {
     backgroundColor: COLORS.WHITE,
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: '#000',
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: "#F0F0F0",
   },
   row: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 10,
   },
   rowText: {
@@ -584,8 +823,8 @@ const styles = StyleSheet.create({
   },
   code: {
     fontSize: 18,
-    fontWeight: '800',
-    color: COLORS.PRIMARY,
+    fontWeight: "800",
+    color: "#FF5370",
   },
   note: {
     color: COLORS.GRAY,
@@ -597,8 +836,8 @@ const styles = StyleSheet.create({
   },
   emptyContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     padding: 20,
   },
   emptyText: {
@@ -606,35 +845,78 @@ const styles = StyleSheet.create({
     color: COLORS.GRAY,
   },
   heroGradient: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: COLORS.PRIMARY,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  heroIconContainer: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 60,
+    width: "100%",
+    height: "100%",
+    justifyContent: "flex-end",
     padding: 20,
+    position: "relative",
   },
   costRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F0F0F0",
+  },
+  costLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   costLabel: {
-    fontSize: 14,
+    fontSize: 15,
     color: COLORS.GRAY,
+    fontWeight: "600",
   },
   costValue: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: COLORS.PRIMARY,
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#FF5370",
+  },
+  pointsInfoRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  pointsInfoLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  pointsInfoLabel: {
+    fontSize: 14,
+    color: COLORS.GRAY,
+    fontWeight: "500",
+  },
+  pointsInfoValue: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: COLORS.BLACK,
+  },
+  insufficientPointsContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#FFF5F5",
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#FFE5E5",
+    marginTop: 8,
+  },
+  insufficientPointsText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: COLORS.RED || "#FF3B30",
+    flex: 1,
   },
   statusRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 8,
   },
   statusLabel: {
@@ -643,124 +925,48 @@ const styles = StyleSheet.create({
   },
   statusValue: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   redeemButton: {
-    backgroundColor: COLORS.PRIMARY,
-    borderRadius: 12,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderRadius: 16,
+    overflow: "hidden",
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  redeemButtonGradient: {
+    padding: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
   },
   redeemButtonDisabled: {
     backgroundColor: COLORS.GRAY,
   },
   redeemButtonText: {
     color: COLORS.WHITE,
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 17,
+    fontWeight: "700",
   },
-
-  // List mode styles
-  listCard: {
-    backgroundColor: COLORS.WHITE,
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 2,
+  disabledRedeemButton: {
+    backgroundColor: "#F5F5F5",
+    borderRadius: 16,
+    padding: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    borderWidth: 1,
+    borderColor: "#E0E0E0",
   },
-  listTopRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
-  listIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: COLORS.PRIMARY,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  listMain: {
-    flex: 1,
-    paddingRight: 10,
-  },
-  listCode: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: COLORS.BLACK,
-  },
-  listBadgeText: {
-    marginTop: 2,
-    fontSize: 12,
-    fontWeight: '600',
+  disabledRedeemButtonText: {
     color: COLORS.GRAY,
+    fontSize: 16,
+    fontWeight: "600",
   },
-  listDesc: {
-    marginTop: 6,
-    fontSize: 13,
-    color: COLORS.GRAY,
-    lineHeight: 18,
-  },
-  listPill: {
-    backgroundColor: 'rgba(34, 197, 94, 0.12)',
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  listPillText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: COLORS.GREEN,
-  },
-  listMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 12,
-  },
-  listMetaText: {
-    marginLeft: 8,
-    fontSize: 12,
-    color: COLORS.BLACK,
-  },
+});
 
-  // Promotion mode styles
-  promoHero: {
-    height: 220,
-    backgroundColor: COLORS.GRAY_LIGHT,
-  },
-  promoHeroImage: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
-  },
-  promoHeroOverlay: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-  },
-  promoHeroContent: {
-    position: 'absolute',
-    left: 16,
-    right: 16,
-    bottom: 16,
-  },
-})
-
-export default Voucher
-
+export default Voucher;

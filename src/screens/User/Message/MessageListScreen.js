@@ -6,6 +6,8 @@ import {
   TouchableOpacity,
   FlatList,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { Sparkles } from "lucide-react-native";
 import COLORS from "../../../constant/colors";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { chatClient } from "../../../utils/StreamClient";
@@ -13,6 +15,7 @@ import { useEffect, useMemo, useState } from "react";
 import { getChatToken, getUserData } from "../../../utils/storage";
 import GradientHeader from "../../../components/GradientHeader";
 import { ChannelListItem } from "../../../components/ChannelListItem";
+import SnowEffect from "../../../components/SnowEffect";
 
 export default function MessageListScreen({ navigation }) {
   const [isConnecting, setIsConnecting] = useState(false);
@@ -148,22 +151,23 @@ export default function MessageListScreen({ navigation }) {
 
   return (
     <SafeAreaView
-      style={{ flex: 1, backgroundColor: "#FFFFFF" }}
+      style={{ flex: 1, backgroundColor: "#FFF5F7" }}
       edges={["top"]}
     >
-      <GradientHeader title="TIN NHẮN" showBackButton={false} />
+      <SnowEffect />
+      <GradientHeader title="💬 TIN NHẮN" showBackButton={false} />
 
       {/* Danh sách kênh chat */}
       {!userId ? (
         <View style={styles.loadingWrapper}>
           <ActivityIndicator
             size="large"
-            color={COLORS.PRIMARY}
+            color="#FF5370"
             animating={isConnecting}
           />
           <Text style={styles.loadingText}>
             {isConnecting
-              ? "Đang kết nối chat..."
+              ? "Đang kết nối chat... ⏳"
               : connectionError
               ? "Không thể kết nối chat. Vui lòng kiểm tra cấu hình hoặc đăng nhập lại."
               : "Chat chưa sẵn sàng. Vui lòng đăng nhập lại."}
@@ -174,8 +178,17 @@ export default function MessageListScreen({ navigation }) {
               onPress={() =>
                 navigation.reset({ index: 0, routes: [{ name: "Login" }] })
               }
+              activeOpacity={0.9}
             >
-              <Text style={styles.retryButtonText}>Đăng nhập lại</Text>
+              <LinearGradient
+                colors={["#FF5370", "#FF6B9D"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.retryButtonGradient}
+              >
+                <Sparkles size={16} color="#FFF" />
+                <Text style={styles.retryButtonText}>Đăng nhập lại ✨</Text>
+              </LinearGradient>
             </TouchableOpacity>
           )}
         </View>
@@ -207,16 +220,17 @@ export default function MessageListScreen({ navigation }) {
           ListEmptyComponent={
             loading ? (
               <View style={styles.loadingWrapper}>
-                <ActivityIndicator size="large" color={COLORS.PRIMARY} />
-                <Text style={styles.loadingText}>Đang tải...</Text>
+                <ActivityIndicator size="large" color="#FF5370" />
+                <Text style={styles.loadingText}>Đang tải... ⏳</Text>
               </View>
             ) : (
               <View style={styles.emptyContainer}>
+                <Text style={styles.emptyEmoji}>💬</Text>
                 <Text style={styles.emptyText}>
                   Chưa có cuộc trò chuyện nào
                 </Text>
                 <Text style={styles.emptySubtext}>
-                  Tin nhắn của bạn sẽ xuất hiện ở đây
+                  Tin nhắn của bạn sẽ xuất hiện ở đây 🎄
                 </Text>
               </View>
             )
@@ -243,21 +257,33 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 10,
-    color: "#8E8E93",
+    color: "#FF6B9D",
     textAlign: "center",
     fontSize: 16,
+    fontWeight: "600",
   },
   retryButton: {
     marginTop: 20,
-    backgroundColor: COLORS.PRIMARY,
+    borderRadius: 16,
+    overflow: "hidden",
+    elevation: 4,
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
+  retryButtonGradient: {
     paddingHorizontal: 24,
     paddingVertical: 12,
-    borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
   },
   retryButtonText: {
     color: COLORS.WHITE,
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "800",
   },
   emptyListContainer: {
     flexGrow: 1,
@@ -268,16 +294,21 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 60,
   },
+  emptyEmoji: {
+    fontSize: 64,
+    marginBottom: 16,
+  },
   emptyText: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#1C1C1E",
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#FF5370",
     marginTop: 16,
   },
   emptySubtext: {
-    fontSize: 14,
-    color: "#8E8E93",
+    fontSize: 15,
+    color: "#FF6B9D",
     marginTop: 8,
     textAlign: "center",
+    fontWeight: "600",
   },
 });
