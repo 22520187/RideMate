@@ -10,6 +10,8 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
+import { Bike } from "lucide-react-native";
 import COLORS from "../../constant/colors";
 import Toast from "react-native-toast-message";
 import SCREENS from "../../screens";
@@ -17,6 +19,8 @@ import {
   validatePhoneNumber,
   formatPhoneNumber,
 } from "../../config/auth";
+import SnowEffect from "../../components/SnowEffect";
+import GradientHeader from "../../components/GradientHeader";
 
 const PhoneNumberInput = ({ navigation, route }) => {
   const { tempId, livenessVerified, similarityScore } = route.params || {};
@@ -44,65 +48,40 @@ const PhoneNumberInput = ({ navigation, route }) => {
 
     const formattedPhone = phoneNumber.replace(/\s/g, "");
     
-    setIsLoading(true);
-    try {
-      // Link temporary verification data to this phone number
-      console.log('🔗 Linking temp verification to phone:', formattedPhone);
-      const { linkTempVerificationToUser } = require('../../services/verificationService');
-      await linkTempVerificationToUser(tempId, formattedPhone);
-      
-      console.log('✅ Verification data linked successfully!');
-      
-      // Navigate to OTP verification
-      navigation.navigate(SCREENS.PHONE_VERIFICATION, {
-        phoneNumber: formattedPhone,
-        isExistingUser: false,
-        mode: "register",
-        verificationLinked: true,
-      });
-    } catch (error) {
-      console.error('❌ Error linking verification:', error);
-      Toast.show({
-        type: "error",
-        text1: "Lỗi",
-        text2: error.response?.data?.message || "Không thể liên kết dữ liệu xác thực. Vui lòng thử lại.",
-      });
-    } finally {
-      setIsLoading(false);
-    }
+    // Direct navigation to OTP - Skip Face ID linking
+    navigation.navigate(SCREENS.PHONE_VERIFICATION, {
+    phoneNumber: formattedPhone,
+    isExistingUser: false,
+    mode: "register",
+    verificationLinked: false,
+    });
   };
 
   return (
     <SafeAreaView style={styles.container}>
+      <SnowEffect />
+      <GradientHeader 
+        title="📱 Đăng ký" 
+        showBackButton={true} 
+        onBackPress={() => navigation.goBack()} 
+      />
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardAvoidingView}
       >
         <View style={styles.content}>
-          {/* Header */}
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Ionicons name="arrow-back" size={24} color={COLORS.BLACK} />
-          </TouchableOpacity>
-
-          {/* Success Icon */}
-          <View style={styles.successContainer}>
-            <View style={styles.successCircle}>
-              <Ionicons name="checkmark" size={60} color={COLORS.WHITE} />
+          {/* Logo */}
+          <View style={styles.logoContainer}>
+            <View style={styles.logoCircle}>
+              <Bike size={40} color={COLORS.WHITE} />
             </View>
-            <Text style={styles.successTitle}>Xác thực thành công!</Text>
-            <Text style={styles.successSubtitle}>
-              Căn cước công dân của bạn đã được xác thực
-            </Text>
           </View>
 
           {/* Title */}
           <View style={styles.titleContainer}>
-            <Text style={styles.title}>Nhập số điện thoại</Text>
+            <Text style={styles.title}>Tạo tài khoản mới</Text>
             <Text style={styles.subtitle}>
-              Vui lòng nhập số điện thoại để hoàn tất đăng ký
+              Nhập số điện thoại để bắt đầu hành trình cùng RideMate
             </Text>
           </View>
 
@@ -135,14 +114,25 @@ const PhoneNumberInput = ({ navigation, route }) => {
             onPress={handleContinue}
             disabled={isLoading}
           >
-            <Text style={styles.continueButtonText}>
-              {isLoading ? "Đang xử lý..." : "Tiếp tục"}
-            </Text>
+            {isLoading ? (
+               <View style={styles.continueButtonGradient}>
+                  <Text style={styles.continueButtonText}>Đang xử lý...</Text>
+               </View>
+            ) : (
+                <LinearGradient
+                  colors={["#FF5370", "#FF6B9D", "#FF8FAB"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.continueButtonGradient}
+                >
+                  <Text style={styles.continueButtonText}>Tiếp tục</Text>
+                </LinearGradient>
+            )}
           </TouchableOpacity>
 
           {/* Help Text */}
           <Text style={styles.helpText}>
-            Mã OTP sẽ được gửi đến số điện thoại này
+            Mã OTP sẽ được gửi đến số điện thoại này để xác thực
           </Text>
         </View>
       </KeyboardAvoidingView>
@@ -153,89 +143,102 @@ const PhoneNumberInput = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: "#FFF5F7",
   },
   keyboardAvoidingView: {
     flex: 1,
   },
   content: {
     flex: 1,
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
     paddingTop: 20,
   },
   backButton: {
     width: 40,
     height: 40,
     justifyContent: "center",
-    alignItems: "start",
-    marginBottom: 20,
-  },
-  successContainer: {
     alignItems: "center",
-    marginBottom: 30,
+    marginBottom: 10,
+    backgroundColor: COLORS.WHITE,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#FFE5EC",
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  successCircle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: "#4CAF50",
+  logoContainer: {
+    alignItems: "center",
+    marginBottom: 32,
+  },
+  logoCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "#FF5370",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 16,
-  },
-  successTitle: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: COLORS.BLACK,
-    marginBottom: 8,
-  },
-  successSubtitle: {
-    fontSize: 14,
-    color: COLORS.GRAY,
-    textAlign: "center",
-    paddingHorizontal: 20,
+    borderWidth: 3,
+    borderColor: "#FFE5EC",
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
   },
   titleContainer: {
     marginBottom: 24,
+    alignItems: "center",
   },
   title: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: COLORS.BLACK,
+    fontSize: 28,
+    fontWeight: "800",
+    color: "#FF5370",
+    marginTop: 16,
     marginBottom: 8,
+    textAlign: "center",
   },
   subtitle: {
-    fontSize: 14,
-    color: COLORS.GRAY,
-    lineHeight: 20,
+    fontSize: 16,
+    color: "#FF6B9D",
+    fontWeight: "500",
+    textAlign: "center",
+    paddingHorizontal: 20,
   },
   inputContainer: {
     marginBottom: 24,
   },
   inputLabel: {
     fontSize: 16,
-    fontWeight: "600",
-    color: "#004553",
+    fontWeight: "700",
+    color: "#FF5370",
     marginBottom: 12,
   },
   phoneInputWrapper: {
     flexDirection: "row",
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: COLORS.GRAY_LIGHT,
-    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: "#FFE5EC",
+    borderRadius: 16,
     backgroundColor: COLORS.WHITE,
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   countryCode: {
     paddingHorizontal: 16,
     paddingVertical: 16,
-    borderRightWidth: 1,
-    borderRightColor: COLORS.GRAY_LIGHT,
+    borderRightWidth: 2,
+    borderRightColor: "#FFE5EC",
   },
   countryCodeText: {
     fontSize: 16,
-    color: COLORS.BLACK,
-    fontWeight: "500",
+    color: "#FF5370",
+    fontWeight: "600",
   },
   phoneInput: {
     flex: 1,
@@ -245,25 +248,34 @@ const styles = StyleSheet.create({
     color: COLORS.BLACK,
   },
   continueButton: {
-    backgroundColor: "#004553",
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: "center",
+    borderRadius: 16,
     marginBottom: 16,
+    overflow: "hidden",
+    shadowColor: "#FF5370",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  continueButtonGradient: {
+    paddingVertical: 16,
+    alignItems: "center",
+    justifyContent: "center",
   },
   continueButtonDisabled: {
     backgroundColor: COLORS.GRAY_LIGHT,
   },
   continueButtonText: {
     color: COLORS.WHITE,
-    fontSize: 16,
-    fontWeight: "600",
+    fontSize: 18,
+    fontWeight: "700",
   },
   helpText: {
     fontSize: 14,
-    color: COLORS.GRAY,
+    color: "#FF6B9D",
     textAlign: "center",
     lineHeight: 20,
+    marginTop: 10,
   },
 });
 

@@ -38,6 +38,7 @@ import { getProfile } from "../../../services/userService";
 import { getMyVehicle } from "../../../services/vehicleService";
 import { getUserData, getToken } from "../../../utils/storage";
 import { getAllVouchers } from "../../../services/voucherService";
+import { getMyNotifications } from "../../../services/notificationService";
 import { LinearGradient } from "expo-linear-gradient";
 import { supabase } from "../../../config/supabaseClient";
 import AsyncStorageService from "../../../services/AsyncStorageService";
@@ -63,6 +64,7 @@ const Home = ({ navigation }) => {
   const [spinInfo, setSpinInfo] = useState(null);
   const [vouchers, setVouchers] = useState([]);
   const [loadingVouchers, setLoadingVouchers] = useState(false);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
 
   useEffect(() => {
     checkSpinStatus();
@@ -188,7 +190,8 @@ const Home = ({ navigation }) => {
       badge: "Mới",
       validFrom: "15/12/2025",
       validTo: "15/01/2026",
-      terms: "Hoàn điểm trong 24h sau khi kết thúc chuyến. Áp dụng 1 lần/tài khoản.",
+      terms:
+        "Hoàn điểm trong 24h sau khi kết thúc chuyến. Áp dụng 1 lần/tài khoản.",
       points: 0,
       ctaLabel: "Nhận ưu đãi",
     },
@@ -264,6 +267,7 @@ const Home = ({ navigation }) => {
   useEffect(() => {
     loadUserData();
     loadVouchers();
+    loadUnreadNotificationCount();
   }, []);
 
   useEffect(() => {
@@ -289,25 +293,29 @@ const Home = ({ navigation }) => {
     const setupRealtimeListener = async () => {
       try {
         console.log("🔧 Home: setupRealtimeListener called");
-        
+
         // Get user from API instead of AsyncStorage for reliability
         const profileResp = await getProfile();
         const user = profileResp?.data?.data;
-        
+
         console.log("🔧 Home: User from API:", user?.id, user?.userType);
         console.log("🔧 Home: Supabase client exists:", !!supabase);
-        
+
         if (!user?.id) {
           console.log("⚠️ Home: Cannot setup listener - no user ID");
           return;
         }
-        
+
         if (!supabase) {
           console.log("⚠️ Home: Cannot setup listener - no supabase client");
           return;
         }
 
-        console.log("🔔 Home: Setting up MATCH listener for user:", user.id, user.userType);
+        console.log(
+          "🔔 Home: Setting up MATCH listener for user:",
+          user.id,
+          user.userType
+        );
 
         // Use ALL table events without filter to avoid schema mismatch
         channel = supabase
@@ -321,18 +329,27 @@ const Home = ({ navigation }) => {
             },
             (payload) => {
               const newMatch = payload.new;
-              
+
               // Client-side filter by passenger_id
               if (newMatch?.passenger_id !== user.id) {
                 return; // Not for this user
               }
-              
-              console.log("🔔 Home: Received MATCH update:", newMatch?.status, "Match ID:", newMatch?.id);
+
+              console.log(
+                "🔔 Home: Received MATCH update:",
+                newMatch?.status,
+                "Match ID:",
+                newMatch?.id
+              );
 
               // Check if already processed this match
               const matchKey = `${newMatch?.id}_${newMatch?.status}`;
               if (processedMatches.has(matchKey)) {
-                console.log("⏭️ Home: Already processed match", matchKey, "- skipping");
+                console.log(
+                  "⏭️ Home: Already processed match",
+                  matchKey,
+                  "- skipping"
+                );
                 return;
               }
 
@@ -509,6 +526,24 @@ const Home = ({ navigation }) => {
     }
   };
 
+  const loadUnreadNotificationCount = async () => {
+    try {
+      const token = await getToken();
+      if (!token) return;
+
+      const response = await getMyNotifications();
+      const notifications = response?.data?.data || response?.data || [];
+
+      // Count unread notifications
+      const unreadCount = notifications.filter((n) => !n.isRead).length;
+      setUnreadNotificationCount(unreadCount);
+      console.log("✅ Unread notifications:", unreadCount);
+    } catch (error) {
+      console.error("❌ Error loading notification count:", error);
+      setUnreadNotificationCount(0);
+    }
+  };
+
   const getVoucherImage = (voucher) => {
     // Use imageUrl if available
     if (voucher?.imageUrl) {
@@ -589,7 +624,7 @@ const Home = ({ navigation }) => {
           handleCreateRide();
           break;
         case 2: // Tìm xe
-          navigation.navigate(SCREENS.HOME_SEARCH);
+          navigation.navigate(SCREENS.PASSENGER_RIDE);
           break;
         case 3: // Nhiệm vụ
           navigation.navigate("Mission");
@@ -598,10 +633,10 @@ const Home = ({ navigation }) => {
           setShowSpinWheel(true);
           break;
         case 5: // Voucher
-          navigation.navigate("Voucher");
+          navigation.navigate(SCREENS.MY_VOUCHERS);
           break;
         case 6: // Tìm chuyến cố định
-          navigation.navigate("FindFixedRouteScreen");
+          navigation.navigate("FixedRoutesScreen");
           break;
         default:
           break;
@@ -615,10 +650,7 @@ const Home = ({ navigation }) => {
         activeOpacity={0.7}
       >
         <View
-          style={[
-            styles.categoryIcon,
-            { backgroundColor: item.color + "20" },
-          ]}
+          style={[styles.categoryIcon, { backgroundColor: item.color + "20" }]}
         >
           <Text style={styles.categoryEmoji}>{item.icon}</Text>
         </View>
@@ -693,7 +725,7 @@ const Home = ({ navigation }) => {
     </TouchableOpacity>
   );
 
-  const userPoints = 1250;
+  // Removed userPoints constant - use actual coins from userProfile
 
   // My vouchers: UserVoucherDto status = UNUSED | REDEEMED | EXPIRED
   const availableVoucherCount = myVouchers.filter(
@@ -739,27 +771,6 @@ const Home = ({ navigation }) => {
     },
   ];
 
-  const quickStats = [
-    { 
-      icon: "🏍️", 
-      label: "Chuyến đi", 
-      value: userProfile?.totalRides?.toString() || "0", 
-      color: "#FFB6C1" 
-    },
-    { 
-      icon: "⭐", 
-      label: "Đánh giá", 
-      value: userProfile?.rating ? userProfile.rating.toFixed(1) : "0.0", 
-      color: "#FFD700" 
-    },
-    { 
-      icon: "🎁", 
-      label: "Xu", 
-      value: userProfile?.coins?.toString() || "0", 
-      color: "#FF69B4" 
-    },
-  ];
-
   const todayDeals = [
     {
       id: 1,
@@ -795,7 +806,7 @@ const Home = ({ navigation }) => {
       image:
         "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400&h=200&fit=crop",
       badge: "Ưu đãi đặc biệt",
-      points: userPoints,
+      points: userProfile?.coins ?? 0,
     },
     {
       id: 2,
@@ -851,32 +862,35 @@ const Home = ({ navigation }) => {
     <TouchableOpacity
       style={styles.promotionCard}
       onPress={() => {
+        // Navigate to Voucher detail page with the voucher object
         navigation.navigate("Voucher", {
-          title: item.title,
-          subtitle: item.subtitle,
-          image: item.image,
-          badge: item.badge,
-          validFrom: "01/10/2025",
-          validTo: "31/12/2025",
-          terms:
-            "Áp dụng cho chuyến đi đầu tiên trong ngày. Không cộng dồn ưu đãi.",
-          code: item.points > 0 ? undefined : "RIDEMATE30",
+          voucher: item,
         });
       }}
     >
-      <Image source={{ uri: item.image }} style={styles.promotionImage} />
-      <View style={styles.promotionContent}>
-        <View style={styles.promotionBadge}>
-          <Star size={12} color={COLORS.YELLOW} />
-          <Text style={styles.badgeText}>{item.badge}</Text>
+      <Image
+        source={{ uri: getVoucherImage(item) }}
+        style={styles.promotionImage}
+      />
+      <LinearGradient
+        colors={["transparent", "rgba(0,0,0,0.7)"]}
+        style={styles.promotionOverlay}
+      >
+        <View style={styles.promotionContent}>
+          <View style={styles.promotionBadge}>
+            <Star size={12} color={COLORS.YELLOW} />
+            <Text style={styles.promotionBadgeText}>
+              {getVoucherBadge(item)}
+            </Text>
+          </View>
+          <Text style={styles.promotionTitle} numberOfLines={2}>
+            {item.voucherCode || item.title}
+          </Text>
+          <Text style={styles.promotionSubtitle} numberOfLines={1}>
+            {getVoucherDiscount(item)}
+          </Text>
         </View>
-        <Text style={styles.promotionTitle} numberOfLines={2}>
-          {item.title}
-        </Text>
-        <Text style={styles.promotionSubtitle} numberOfLines={1}>
-          {item.subtitle}
-        </Text>
-      </View>
+      </LinearGradient>
     </TouchableOpacity>
   );
 
@@ -1033,9 +1047,13 @@ const Home = ({ navigation }) => {
                 >
                   <View style={styles.iconWrapper}>
                     <Bell size={20} color="#FF5370" />
-                    <View style={styles.notificationBadge}>
-                      <Text style={styles.notificationCount}>3</Text>
-                    </View>
+                    {unreadNotificationCount > 0 && (
+                      <View style={styles.notificationBadge}>
+                        <Text style={styles.notificationCount}>
+                          {unreadNotificationCount}
+                        </Text>
+                      </View>
+                    )}
                   </View>
                 </TouchableOpacity>
               </View>
@@ -1070,24 +1088,6 @@ const Home = ({ navigation }) => {
           />
         </View>
 
-        <View style={styles.statsSection}>
-          <View style={styles.statsContainer}>
-            {quickStats.map((stat, index) => (
-              <View
-                key={index}
-                style={[
-                  styles.statCard,
-                  { backgroundColor: stat.color + "20" },
-                ]}
-              >
-                <Text style={styles.statEmoji}>{stat.icon}</Text>
-                <Text style={styles.statValue}>{stat.value}</Text>
-                <Text style={styles.statLabel}>{stat.label}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-
         <View style={styles.pointsBanner}>
           <LinearGradient
             colors={["#FFD700", "#FFA500"]}
@@ -1102,56 +1102,18 @@ const Home = ({ navigation }) => {
               <View style={styles.pointsTextContainer}>
                 <Text style={styles.pointsLabel}>Điểm thưởng của bạn</Text>
                 <Text style={styles.pointsValue}>
-                  {userProfile?.coins || userPoints} điểm
+                  {userProfile?.coins ?? 0} điểm
                 </Text>
               </View>
             </View>
-            <View style={styles.pointsRight}>
-              <TouchableOpacity
-                style={styles.serviceItem}
-                onPress={() => navigation.navigate("Mission")}
-              >
-                <View
-                  style={[styles.serviceIcon, { backgroundColor: "#F3E5F5" }]}
-                >
-                  <Text style={styles.serviceEmoji}>🎁</Text>
-                </View>
-                <Text style={styles.serviceLabel}>Nhiệm vụ</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.serviceItem}
-                onPress={() => navigation.navigate("Voucher")}
-              >
-                <View
-                  style={[styles.serviceIcon, { backgroundColor: "#E0F7FA" }]}
-                >
-                  <Text style={styles.serviceEmoji}>🎟️</Text>
-                </View>
-                <Text style={styles.serviceLabel}>Voucher</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.serviceItem}
-                onPress={() => navigation.navigate("Member")}
-              >
-                <View
-                  style={[styles.serviceIcon, { backgroundColor: "#FFF8E1" }]}
-                >
-                  <Text style={styles.serviceEmoji}>👑</Text>
-                </View>
-                <Text style={styles.serviceLabel}>Hội viên</Text>
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity
+              style={styles.pointsButton}
+              onPress={() => navigation.navigate("Award")}
+            >
+              <Gift size={20} color="#FFF" />
+              <Text style={styles.pointsButtonText}>Đổi quà</Text>
+            </TouchableOpacity>
           </LinearGradient>
-          <FlatList
-            data={christmasFeatures}
-            renderItem={renderChristmasFeature}
-            keyExtractor={(item) => item.id.toString()}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.featuresList}
-          />
         </View>
 
         <View style={styles.section}>
@@ -1177,7 +1139,7 @@ const Home = ({ navigation }) => {
             </TouchableOpacity>
           </View>
           <FlatList
-            data={promotions}
+            data={vouchers}
             renderItem={renderPromotion}
             keyExtractor={(item) =>
               (item.id || item.voucherId || Math.random()).toString()
@@ -1529,7 +1491,8 @@ const styles = StyleSheet.create({
 
   pointsBanner: {
     paddingHorizontal: 20,
-    marginTop: 24,
+    marginTop: 28,
+    marginBottom: 16,
   },
   pointsGradient: {
     flexDirection: "row",
@@ -1548,11 +1511,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 12,
     flex: 1,
-  },
-  pointsRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
   },
   pointsIconCircle: {
     width: 48,
@@ -1585,6 +1543,15 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 12,
     gap: 4,
+  },
+  pointsButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.3)",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    gap: 6,
   },
   pointsButtonText: {
     color: "#FFF",
@@ -1773,10 +1740,14 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   promotionBadge: {
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: "#FF5370",
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 12,
+    gap: 4,
+    alignSelf: "flex-start",
   },
   promotionBadgeText: {
     fontSize: 11,
@@ -2058,26 +2029,6 @@ const styles = StyleSheet.create({
   modalButtonTextPrimary: {
     fontSize: 15,
     fontWeight: "800",
-    color: "#FFF",
-  },
-
-  serviceItem: {
-    alignItems: "center",
-    gap: 8,
-  },
-  serviceIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  serviceEmoji: {
-    fontSize: 24,
-  },
-  serviceLabel: {
-    fontSize: 11,
-    fontWeight: "600",
     color: "#FFF",
   },
 });

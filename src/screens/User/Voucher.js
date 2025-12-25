@@ -7,6 +7,7 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  FlatList,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -17,6 +18,7 @@ import {
   Gift,
   Star,
   AlertCircle,
+  ChevronLeft,
 } from "lucide-react-native";
 import COLORS from "../../constant/colors";
 import { redeemVoucher } from "../../services/voucherService";
@@ -25,7 +27,20 @@ import GradientHeader from "../../components/GradientHeader";
 import SnowEffect from "../../components/SnowEffect";
 
 const Voucher = ({ route, navigation }) => {
-  const { voucher, userVoucher } = route.params || {};
+  const { 
+    voucher, 
+    userVoucher,
+    myVouchers,
+    mockVouchers,
+    title,
+    subtitle,
+    image,
+    badge: promoBadge,
+    validFrom,
+    validTo,
+    terms,
+    code: promoCode,
+  } = route.params || {};
   const [isRedeeming, setIsRedeeming] = useState(false);
   const [redeemed, setRedeemed] = useState(!!userVoucher);
   const [currentUserVoucher, setCurrentUserVoucher] = useState(userVoucher);

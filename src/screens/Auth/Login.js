@@ -13,7 +13,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import * as Location from "expo-location";
-import { Ionicons } from "@expo/vector-icons";
+
 import { Bike } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import COLORS from "../../constant/colors";
@@ -22,12 +22,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import CustomAlert from "../../components/CustomAlert";
 import GradientHeader from "../../components/GradientHeader";
 import SnowEffect from "../../components/SnowEffect";
-import {
-  validatePhoneNumber,
-  formatPhoneNumber,
-  performGoogleAuth,
-  performFacebookAuth,
-} from "../../config/auth";
+import { validatePhoneNumber, formatPhoneNumber } from "../../config/auth";
 import SCREENS from "..";
 import { chatClient } from "../../utils/StreamClient";
 import { ENV } from "../../config/env";
@@ -112,10 +107,14 @@ const Login = ({ navigation }) => {
       console.log("API Response:", response?.data);
       const authData = response?.data?.data;
 
-      const { chatToken, user, accessToken, refreshToken } = authData;
+      const { chatToken, user, accessToken, refreshToken, streamApiKey } =
+        authData;
       console.log("User:", user);
       console.log("Access token:", accessToken);
       console.log("User type:", user.userType);
+      console.log("ChatToken received:", chatToken ? "YES" : "NO");
+      console.log("StreamApiKey from server:", streamApiKey);
+      console.log("StreamApiKey from ENV:", ENV.STREAM_API_KEY);
 
       if (accessToken) {
         await saveToken(accessToken);
@@ -134,6 +133,15 @@ const Login = ({ navigation }) => {
 
       try {
         if (chatToken && user?.id != null) {
+          console.log("🔌 Connecting to Stream Chat...");
+          console.log("   User ID:", user.id.toString());
+          console.log("   User Name:", user.fullName);
+          console.log("   ChatToken length:", chatToken?.length);
+          console.log(
+            "   StreamApiKey match:",
+            streamApiKey === ENV.STREAM_API_KEY ? "YES" : "NO"
+          );
+
           await chatClient.connectUser(
             {
               id: user.id.toString(),
@@ -142,10 +150,18 @@ const Login = ({ navigation }) => {
             },
             chatToken
           );
+          console.log("✅ Stream connect successful");
+        } else {
+          console.warn(
+            "⚠️ Cannot connect: chatToken=",
+            !!chatToken,
+            "userId=",
+            user?.id
+          );
         }
-        console.log("Stream connect successful");
       } catch (streamError) {
-        console.log("Stream connect failed:", streamError.message);
+        console.error("❌ Stream connect failed:", streamError.message);
+        console.error("   Error details:", streamError);
       }
 
       // Lấy vị trí im lặng sau khi đăng nhập thành công
@@ -190,7 +206,9 @@ const Login = ({ navigation }) => {
 
       if (error.response?.status === 404 || error.response?.status === 401) {
         errorTitle = "Sai thông tin đăng nhập";
-        errorMessage = error.response?.data?.message || "Số điện thoại hoặc mật khẩu không đúng. Vui lòng kiểm tra lại.";
+        errorMessage =
+          error.response?.data?.message ||
+          "Số điện thoại hoặc mật khẩu không đúng. Vui lòng kiểm tra lại.";
       } else if (error.response?.data?.message) {
         errorMessage = error.response.data.message;
       }
@@ -201,12 +219,12 @@ const Login = ({ navigation }) => {
       errorMessage = errorMessage.replace(isoDatePattern, (match) => {
         try {
           const date = new Date(match);
-          const day = String(date.getDate()).padStart(2, '0');
-          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, "0");
+          const month = String(date.getMonth() + 1).padStart(2, "0");
           const year = date.getFullYear();
-          const hours = String(date.getHours()).padStart(2, '0');
-          const minutes = String(date.getMinutes()).padStart(2, '0');
-          const seconds = String(date.getSeconds()).padStart(2, '0');
+          const hours = String(date.getHours()).padStart(2, "0");
+          const minutes = String(date.getMinutes()).padStart(2, "0");
+          const seconds = String(date.getSeconds()).padStart(2, "0");
           return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
         } catch (e) {
           return match; // Nếu parse lỗi thì giữ nguyên
@@ -215,7 +233,7 @@ const Login = ({ navigation }) => {
 
       // Hiển thị Alert thay vì Toast
       showCustomAlert(errorTitle, errorMessage, [
-        { text: "OK", onPress: () => {} }
+        { text: "OK", onPress: () => {} },
       ]);
     } finally {
       setIsLoading(false);
@@ -230,85 +248,10 @@ const Login = ({ navigation }) => {
     });
   };
 
-  const handleGoogleLogin = async () => {
-    try {
-      setIsLoading(true);
-      const result = await performGoogleAuth();
-
-      if (result.success) {
-        Toast.show({
-          type: "success",
-          text1: "Thành công",
-          text2: `Chào mừng ${result.user.name}!`,
-        });
-        // Navigate to main app
-        navigation.reset({
-          index: 0,
-          routes: [{ name: "MainTabs" }],
-        });
-      } else {
-        if (result.error !== "Authentication cancelled") {
-          Toast.show({
-            type: "error",
-            text1: "Lỗi",
-            text2: result.error || "Có lỗi xảy ra khi đăng nhập Google",
-          });
-        }
-      }
-    } catch (error) {
-      Toast.show({
-        type: "error",
-        text1: "Lỗi",
-        text2: "Có lỗi xảy ra khi đăng nhập Google",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleFacebookLogin = async () => {
-    try {
-      setIsLoading(true);
-      const result = await performFacebookAuth();
-
-      if (result.success) {
-        Toast.show({
-          type: "success",
-          text1: "Thành công",
-          text2: `Chào mừng ${result.user.name}!`,
-        });
-        // Navigate to main app
-        navigation.reset({
-          index: 0,
-          routes: [{ name: "MainTabs" }],
-        });
-      } else {
-        if (result.error !== "Authentication cancelled") {
-          Toast.show({
-            type: "error",
-            text1: "Lỗi",
-            text2: result.error || "Có lỗi xảy ra khi đăng nhập Facebook",
-          });
-        }
-      }
-    } catch (error) {
-      Toast.show({
-        type: "error",
-        text1: "Lỗi",
-        text2: "Có lỗi xảy ra khi đăng nhập Facebook",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   return (
     <SafeAreaView style={styles.container}>
       <SnowEffect />
-      <GradientHeader
-        title="🔐 Đăng nhập"
-        showBackButton={false}
-      />
+      <GradientHeader title="🔐 Đăng nhập" showBackButton={false} />
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardAvoidingView}
@@ -390,42 +333,6 @@ const Login = ({ navigation }) => {
               )}
             </TouchableOpacity>
 
-            {/* Divider */}
-            <View style={styles.dividerContainer}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>hoặc</Text>
-              <View style={styles.dividerLine} />
-            </View>
-
-            {/* Social Login Buttons */}
-            <View style={styles.socialContainer}>
-              <TouchableOpacity
-                style={[
-                  styles.socialButton,
-                  styles.googleButton,
-                  isLoading && styles.socialButtonDisabled,
-                ]}
-                onPress={handleGoogleLogin}
-                disabled={isLoading}
-              >
-                <Ionicons name="logo-google" size={24} color="#DB4437" />
-                <Text style={styles.socialButtonText}>Google</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.socialButton,
-                  styles.facebookButton,
-                  isLoading && styles.socialButtonDisabled,
-                ]}
-                onPress={handleFacebookLogin}
-                disabled={isLoading}
-              >
-                <Ionicons name="logo-facebook" size={24} color="#4267B2" />
-                <Text style={styles.socialButtonText}>Facebook</Text>
-              </TouchableOpacity>
-            </View>
-
             {/* Terms */}
             <Text style={styles.termsText}>
               Bằng cách đăng nhập, bạn đồng ý với{" "}
@@ -438,8 +345,8 @@ const Login = ({ navigation }) => {
           <TouchableOpacity
             style={styles.registerButton}
             onPress={() => {
-              // Navigate directly to ID Card capture - no phone number needed yet
-              navigation.navigate(SCREENS.ID_CARD_CAPTURE);
+              // Skip ID Card and Liveness, go straight to Phone Input
+              navigation.navigate(SCREENS.PHONE_NUMBER_INPUT);
             }}
           >
             <Text style={styles.registerButtonText}>
@@ -579,59 +486,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
   },
-  dividerContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 24,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 2,
-    backgroundColor: "#FFE5EC",
-  },
-  dividerText: {
-    marginHorizontal: 16,
-    fontSize: 14,
-    color: "#FF6B9D",
-    fontWeight: "600",
-  },
-  socialContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 32,
-  },
-  socialButton: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 16,
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: "#FFE5EC",
-    marginHorizontal: 6,
-    backgroundColor: COLORS.WHITE,
-    shadowColor: "#FF5370",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  googleButton: {
-    backgroundColor: COLORS.WHITE,
-  },
-  facebookButton: {
-    backgroundColor: COLORS.WHITE,
-  },
-  socialButtonText: {
-    marginLeft: 8,
-    fontSize: 16,
-    fontWeight: "500",
-    color: COLORS.BLACK,
-  },
-  socialButtonDisabled: {
-    opacity: 0.5,
-  },
+
   termsText: {
     fontSize: 12,
     color: "#FF6B9D",

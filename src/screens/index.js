@@ -35,6 +35,7 @@ const SCREENS = {
   ADMIN_PROFILE: "AdminProfile",
   ADMIN_MEMBERSHIP_MANAGEMENT: "MembershipManagement",
   PAYMENT: "Payment",
+  PAYMENT_SUCCESS: "PaymentSuccess",
   PAYMENT_HISTORY: "PaymentHistory",
 };
 

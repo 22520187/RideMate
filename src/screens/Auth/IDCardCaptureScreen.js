@@ -65,7 +65,18 @@ const IDCardCaptureScreen = ({ navigation, route }) => {
         
         console.log('✅ CCCD uploaded successfully:', response);
         
-        // Navigate to liveness check with tempId
+        const verifyData = response?.data;
+        
+        // Critical Check: Only block if explicitly REJECTED
+        if (verifyData && verifyData.status === 'REJECTED') {
+            Alert.alert(
+                "Ảnh không hợp lệ", 
+                verifyData.message || "Không thể xác thực ảnh căn cước. Vui lòng chụp rõ nét khuôn mặt và thử lại."
+            );
+            return;
+        }
+
+        // Navigate to liveness check with tempId only if valid
         navigation.navigate('LivenessCheckScreen', {
           idCardUri: capturedImage.uri,
           tempId: tempId,  // Pass tempId to liveness screen

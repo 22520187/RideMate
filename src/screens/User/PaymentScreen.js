@@ -33,7 +33,8 @@ const PaymentScreen = ({ navigation, route }) => {
   } = route.params || {};
   const [loading, setLoading] = useState(false);
   const [sessionId, setSessionId] = useState(initialSessionId || null);
-  const [hasHandledCallback, setHasHandledCallback] = useState(false);
+
+  const handledRef = React.useRef(false); // Use ref to track handled state across closures
 
   const formatAmount = (amount) => {
     if (!amount) return "0 VNĐ";
@@ -194,51 +195,76 @@ const PaymentScreen = ({ navigation, route }) => {
       return;
     }
 
-    if (hasHandledCallback) {
+    if (handledRef.current) {
       console.log("✅ Payment callback already handled, skipping...");
       return;
     }
 
     setLoading(true);
-    setHasHandledCallback(true);
+    handledRef.current = true;
+
+    // Try to dismiss browser if it's still open (e.g. triggered by deep link)
+    try {
+      WebBrowser.dismissBrowser();
+    } catch (e) {
+      // Ignore error if browser not open
+    }
 
     try {
       console.log(
         "💰 Checking payment status for sessionId:",
         sessionIdToCheck
       );
-      const response = await confirmStripePayment(sessionIdToCheck);
-      const paymentData = response?.data?.data;
+      
+      // Retry logic: Check status up to 3 times with delay
+      let paymentData = null;
+      let attempts = 0;
+      const maxAttempts = 3;
+      
+      while (attempts < maxAttempts) {
+        attempts++;
+        try {
+            const response = await confirmStripePayment(sessionIdToCheck);
+            paymentData = response?.data?.data;
+            
+            if (paymentData?.status === "SUCCESS") {
+                break;
+            }
+            
+            // If API returns success but payload status is not SUCCESS (e.g. still PENDING)
+            // Wait before retry
+            console.log(`Payment status check attempt ${attempts}: ${paymentData?.status}`);
+            if (attempts < maxAttempts) {
+                await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+        } catch (err) {
+            console.warn(`Attempt ${attempts} failed:`, err);
+             if (attempts < maxAttempts) {
+                await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+        }
+      }
 
       if (paymentData?.status === "SUCCESS") {
         const isMembership = referenceType === "MEMBERSHIP";
-        Alert.alert(
-          "Thành công",
-          isMembership
-            ? "Thanh toán thành công! Gói hội viên đã được kích hoạt."
-            : "Thanh toán thành công!",
-          [
-            {
-              text: "OK",
-              onPress: () => {
-                // Navigate back, and if it's membership, go back to Member screen
-                if (isMembership) {
-                  // Go back to Member screen (pop 2 screens: Payment -> MemberDetail -> Member)
-                  navigation.navigate("Member");
-                } else {
-                  navigation.goBack();
-                }
-              },
-            },
-          ]
-        );
+        
+        // Navigate to Success Screen
+        navigation.replace("PaymentSuccess", {
+            amount: amount,
+            transactionId: paymentData.transId,
+            orderInfo: orderInfo,
+            isMembership: isMembership
+        });
       } else {
-        Alert.alert("Thông báo", "Thanh toán chưa hoàn tất. Vui lòng thử lại.");
+        // If status is not SUCCESS yet, silently go back to let user check history
+        // Or we could navigate to Success screen anyway if we trust the mock
+        console.log("Payment status not SUCCESS yet, navigating back");
+        navigation.goBack();
       }
     } catch (error) {
       console.error("Payment confirmation error:", error);
-      // Still check payment status
-      Alert.alert("Thông báo", "Đang kiểm tra trạng thái thanh toán...");
+      Alert.alert("Thông báo", "Đang kiểm tra trạng thái thanh toán. Vui lòng kiểm tra lịch sử.");
+      navigation.goBack();
     } finally {
       setLoading(false);
     }
@@ -248,13 +274,13 @@ const PaymentScreen = ({ navigation, route }) => {
   useFocusEffect(
     React.useCallback(() => {
       // If opened from deep link, handle payment callback immediately
-      if (fromDeepLink && initialSessionId && !hasHandledCallback) {
+      if (fromDeepLink && initialSessionId && !handledRef.current) {
         console.log(
           "🔗 Payment screen opened from deep link, handling callback..."
         );
         handlePaymentCallback(initialSessionId);
       }
-    }, [fromDeepLink, initialSessionId, hasHandledCallback])
+    }, [fromDeepLink, initialSessionId])
   );
 
   // Listen for deep links while screen is mounted
@@ -268,7 +294,7 @@ const PaymentScreen = ({ navigation, route }) => {
 
         if (parsedUrl.path === "payment-success") {
           const sessionIdFromLink = parsedUrl.queryParams?.session_id;
-          if (sessionIdFromLink && !hasHandledCallback) {
+          if (sessionIdFromLink && !handledRef.current) {
             console.log("💰 Handling payment success from deep link");
             setSessionId(sessionIdFromLink);
             handlePaymentCallback(sessionIdFromLink);
@@ -284,7 +310,7 @@ const PaymentScreen = ({ navigation, route }) => {
     return () => {
       subscription.remove();
     };
-  }, [hasHandledCallback]);
+  }, []);
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>

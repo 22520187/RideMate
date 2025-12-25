@@ -29,6 +29,7 @@ import Mission from "../screens/User/Mission";
 import RideHistory from "../screens/User/RideHistory";
 import PaymentScreen from "../screens/User/PaymentScreen";
 import PaymentHistory from "../screens/User/PaymentHistory";
+import PaymentSuccessScreen from "../screens/User/PaymentSuccessScreen";
 import RideDetail from "../screens/User/RideDetail";
 import Login from "../screens/Auth/Login";
 import Onboarding from "../screens/Auth/Onboarding";
@@ -309,6 +310,7 @@ const MainStackNavigator = () => {
       <Stack.Screen name={SCREENS.RIDE_HISTORY} component={RideHistory} />
       <Stack.Screen name="RideDetail" component={RideDetail} />
       <Stack.Screen name={SCREENS.PAYMENT} component={PaymentScreen} />
+      <Stack.Screen name={SCREENS.PAYMENT_SUCCESS} component={PaymentSuccessScreen} />
       <Stack.Screen name={SCREENS.PAYMENT_HISTORY} component={PaymentHistory} />
 
       {/* Chat Screen - Full screen without bottom tabs */}
