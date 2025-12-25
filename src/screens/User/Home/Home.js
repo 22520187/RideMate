@@ -890,8 +890,8 @@ const Home = ({ navigation }) => {
           image: item.image,
           badge: item.badge,
           badgeColor: item.badgeColor,
-          description: item.features.join("\n"),
-          benefits: item.features,
+          description: (item.benefits || []).join("\n"),
+          benefits: item.benefits || [],
           price: item.price,
         });
       }}
@@ -915,9 +915,9 @@ const Home = ({ navigation }) => {
         </View>
         <View style={styles.packageContent}>
           <Text style={styles.packageTitle}>{item.title}</Text>
-          <Text style={styles.packagePrice}>{item.price}/tháng</Text>
+          <Text style={styles.packagePrice}>{item.price}</Text>
           <View style={styles.packageFeatures}>
-            {item.features.map((feature, index) => (
+            {(item.benefits || []).map((feature, index) => (
               <View key={index} style={styles.packageFeatureRow}>
                 <View style={styles.packageCheckmark}>
                   <Text style={styles.checkIcon}>✓</Text>
