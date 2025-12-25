@@ -58,6 +58,37 @@ const TripManagement = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearchTerm = useDebounce(searchTerm, 500);
 
+  const normalizeTripDetail = (detailData, fallbackTrip) => {
+    if (!detailData) return detailData;
+
+    // Backend TripDetailResponse uses: tripId, pickupAddress, dropoffAddress, startedAt, completedAt, driverName...
+    const normalizedId = detailData.id ?? detailData.tripId ?? fallbackTrip?.id;
+
+    const normalizedStartLocation =
+      detailData.startLocation ?? detailData.pickupAddress ?? fallbackTrip?.startLocation;
+    const normalizedEndLocation =
+      detailData.endLocation ?? detailData.dropoffAddress ?? fallbackTrip?.endLocation;
+
+    const normalizedStartTime =
+      detailData.startTime ??
+      detailData.startedAt ??
+      detailData.createdAt ??
+      fallbackTrip?.startTime ??
+      fallbackTrip?.createdAt;
+    const normalizedEndTime =
+      detailData.endTime ?? detailData.completedAt ?? fallbackTrip?.endTime;
+
+    // Keep whatever other fields exist; we just add compatibility aliases.
+    return {
+      ...detailData,
+      id: normalizedId,
+      startLocation: normalizedStartLocation,
+      endLocation: normalizedEndLocation,
+      startTime: normalizedStartTime,
+      endTime: normalizedEndTime,
+    };
+  };
+
   const fetchTrips = useCallback(
     async (pageNum = 0, refresh = false, search = "") => {
       try {
@@ -139,7 +170,7 @@ const TripManagement = () => {
     try {
       const detailRes = await adminService.getTripById(trip.id);
       const detailData = unwrapApiData(detailRes);
-      setSelectedTrip(detailData);
+      setSelectedTrip(normalizeTripDetail(detailData, trip));
       setModalVisible(true);
     } catch (error) {
       console.error("Error fetching trip detail:", error);
@@ -367,6 +398,10 @@ const TripManagement = () => {
     const driver = selectedTrip.driver;
     const passengers = selectedTrip.passengers || [];
 
+    const tripId = selectedTrip.id ?? selectedTrip.tripId;
+    const startLocation = selectedTrip.startLocation ?? selectedTrip.pickupAddress;
+    const endLocation = selectedTrip.endLocation ?? selectedTrip.dropoffAddress;
+
     return (
       <Modal
         visible={modalVisible}
@@ -388,7 +423,7 @@ const TripManagement = () => {
               <View style={styles.detailSection}>
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Mã chuyến</Text>
-                  <Text style={styles.detailValue}>#{selectedTrip.id}</Text>
+                  <Text style={styles.detailValue}>#{tripId}</Text>
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Trạng thái</Text>
@@ -416,7 +451,7 @@ const TripManagement = () => {
                       <Ionicons name="location" size={18} color="#4CAF50" />
                     </View>
                     <Text style={styles.routeDetailText}>
-                      {formatLocation(selectedTrip.startLocation) || "Điểm đi"}
+                      {formatLocation(startLocation) || "Điểm đi"}
                     </Text>
                   </View>
                   <View style={styles.routeLineDetail} />
@@ -425,14 +460,14 @@ const TripManagement = () => {
                       <Ionicons name="location" size={18} color="#F44336" />
                     </View>
                     <Text style={styles.routeDetailText}>
-                      {formatLocation(selectedTrip.endLocation) || "Điểm đến"}
+                      {formatLocation(endLocation) || "Điểm đến"}
                     </Text>
                   </View>
                 </View>
               </View>
 
               {/* Driver Info */}
-              {driver && (
+              {(driver || selectedTrip.driverName) && (
                 <View style={styles.detailSection}>
                   <Text style={styles.sectionTitle}>Tài xế</Text>
                   <View style={styles.driverDetailCard}>
@@ -445,15 +480,18 @@ const TripManagement = () => {
                     </View>
                     <View style={styles.driverDetailInfo}>
                       <Text style={styles.driverDetailName}>
-                        {driver.fullName}
+                        {driver?.fullName || selectedTrip.driverName || "N/A"}
                       </Text>
                       <Text style={styles.driverDetailPhone}>
-                        {driver.phoneNumber || "N/A"}
+                        {driver?.phoneNumber || selectedTrip.driverPhone || "N/A"}
                       </Text>
                       <View style={styles.driverDetailRating}>
                         <Ionicons name="star" size={14} color="#FFB300" />
                         <Text style={styles.driverDetailRatingText}>
-                          {driver.rating?.toFixed(1) || "N/A"}
+                          {driver?.rating?.toFixed(1) ||
+                            (typeof selectedTrip.driverRating === "number"
+                              ? selectedTrip.driverRating.toFixed(1)
+                              : "N/A")}
                         </Text>
                       </View>
                     </View>
@@ -488,6 +526,26 @@ const TripManagement = () => {
                     ))}
                   </View>
                 )}
+
+              {/* Single passenger fallback (TripDetailResponse) */}
+              {passengers.length === 0 && selectedTrip.passengerName && (
+                <View style={styles.detailSection}>
+                  <Text style={styles.sectionTitle}>Hành khách</Text>
+                  <View style={styles.riderCard}>
+                    <View style={styles.riderAvatar}>
+                      <Ionicons name="person" size={20} color="#9C27B0" />
+                    </View>
+                    <View style={styles.riderInfo}>
+                      <Text style={styles.riderName}>
+                        {selectedTrip.passengerName}
+                      </Text>
+                      <Text style={styles.riderPhone}>
+                        {selectedTrip.passengerPhone || "N/A"}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              )}
 
               {/* Fare */}
               {selectedTrip.fare != null && (

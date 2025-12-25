@@ -15,6 +15,49 @@ import RouteMap from "../../components/RouteMap";
 const TripDetail = ({ visible, trip, onClose, onViewSessions }) => {
   if (!trip) return null;
 
+  const formatLocation = (locationData) => {
+    if (!locationData) return "Chưa xác định";
+
+    try {
+      if (typeof locationData === "object") {
+        return (
+          locationData.address ||
+          locationData.name ||
+          locationData.pickupAddress ||
+          locationData.dropoffAddress ||
+          "Vị trí bản đồ"
+        );
+      }
+
+      if (
+        typeof locationData === "string" &&
+        (locationData.trim().startsWith("{") || locationData.trim().startsWith("["))
+      ) {
+        const parsed = JSON.parse(locationData);
+        return (
+          parsed.address ||
+          parsed.name ||
+          parsed.pickupAddress ||
+          parsed.dropoffAddress ||
+          locationData
+        );
+      }
+
+      return locationData;
+    } catch (error) {
+      return locationData;
+    }
+  };
+
+  const startLocation = trip.startLocation ?? trip.pickupAddress;
+  const endLocation = trip.endLocation ?? trip.dropoffAddress;
+
+  const driverName = trip.driver?.fullName ?? trip.driver?.name ?? trip.driverName ?? "N/A";
+  const driverPhone =
+    trip.driver?.phoneNumber ?? trip.driver?.phone ?? trip.driverPhone ?? "N/A";
+  const driverRating =
+    trip.driver?.rating ?? trip.driverRating;
+
   return (
     <Modal
       visible={visible}
@@ -41,7 +84,7 @@ const TripDetail = ({ visible, trip, onClose, onViewSessions }) => {
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>Tuyến đường:</Text>
                 <Text style={styles.detailValue}>
-                  {trip.startLocation} → {trip.endLocation}
+                  {formatLocation(startLocation)} → {formatLocation(endLocation)}
                 </Text>
               </View>
               <View style={styles.detailRow}>
@@ -65,14 +108,16 @@ const TripDetail = ({ visible, trip, onClose, onViewSessions }) => {
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Thông tin tài xế</Text>
               <View style={styles.driverInfoCard}>
-                <Text style={styles.driverName}>{trip.driver.name}</Text>
+                <Text style={styles.driverName}>{driverName}</Text>
                 <View style={styles.driverDetails}>
                   <Ionicons name="call-outline" size={14} color={COLORS.GRAY} />
-                  <Text style={styles.driverDetailText}>{trip.driver.phone}</Text>
+                  <Text style={styles.driverDetailText}>{driverPhone}</Text>
                 </View>
                 <View style={styles.driverDetails}>
                   <Ionicons name="star" size={14} color={COLORS.ORANGE_DARK} />
-                  <Text style={styles.driverDetailText}>Đánh giá: {trip.driver.rating}</Text>
+                  <Text style={styles.driverDetailText}>
+                    Đánh giá: {typeof driverRating === "number" ? driverRating.toFixed(1) : "N/A"}
+                  </Text>
                 </View>
               </View>
             </View>
@@ -87,15 +132,19 @@ const TripDetail = ({ visible, trip, onClose, onViewSessions }) => {
                   <View key={rider.id} style={[styles.riderCard, styles.matchedRiderCard]}>
                     <View style={styles.selectedRiderHeader}>
                       <Ionicons name="checkmark-circle" size={18} color={COLORS.GREEN} />
-                      <Text style={styles.riderName}>{rider.name}</Text>
+                      <Text style={styles.riderName}>{rider.fullName || rider.name || "N/A"}</Text>
                     </View>
                     <View style={styles.riderDetails}>
                       <Ionicons name="call-outline" size={14} color={COLORS.GRAY} />
-                      <Text style={styles.riderDetailText}>{rider.phone}</Text>
+                      <Text style={styles.riderDetailText}>
+                        {rider.phoneNumber || rider.phone || "N/A"}
+                      </Text>
                     </View>
                     <View style={styles.riderDetails}>
                       <Ionicons name="star" size={14} color={COLORS.ORANGE_DARK} />
-                      <Text style={styles.riderDetailText}>Đánh giá: {rider.rating}</Text>
+                      <Text style={styles.riderDetailText}>
+                        Đánh giá: {typeof rider.rating === "number" ? rider.rating.toFixed(1) : "N/A"}
+                      </Text>
                     </View>
                   </View>
                 ))
